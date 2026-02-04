@@ -3,7 +3,25 @@ import { AuthProvider } from '../contexts/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import Head from 'next/head';
 
+import { useEffect } from 'react';
+
 function MyApp({ Component, pageProps, router }) {
+  useEffect(() => {
+    // Suppress unhandled MetaMask errors
+    const handleRejection = (event) => {
+      if (
+        event.reason?.message?.includes('MetaMask') ||
+        event.reason?.stack?.includes('chrome-extension') ||
+        event.reason?.message?.includes('Failed to connect')
+      ) {
+        event.preventDefault();
+      }
+    };
+    
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => window.removeEventListener('unhandledrejection', handleRejection);
+  }, []);
+
   return (
     <AuthProvider router={router}>
       <Head>
