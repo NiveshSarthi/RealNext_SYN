@@ -1,0 +1,134 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@layer base {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    letter-spacing: -0.01em;
+  }
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/40 transition-colors;
+  }
+}
+
+/* Custom color variables - SYNDITECH ANTIGRAVITY DARK MODE */
+:root {
+  /* Background: #0E1117 (Soft Black) -> HSL 220 24% 7% */
+  --background: 220 24% 7%;
+
+  /* Foreground: #E5E7EB (Text Primary) -> HSL 218 11% 65% (approx) -> actually #E5E7EB is 220 13% 91% */
+  --foreground: 220 13% 91%;
+
+  /* Card Surface: #161B22 -> HSL 215 21% 11% */
+  --card: 215 21% 11%;
+  --card-foreground: 220 13% 91%;
+
+  --popover: 215 21% 11%;
+  --popover-foreground: 220 13% 91%;
+
+  /* Primary Accent: #F97316 (Orange-500) -> HSL 25 95% 53% */
+  --primary: 25 95% 53%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary Accent: #9CA3AF (Muted Blue-Gray) -> HSL 218 11% 65% */
+  --secondary: 218 11% 65%;
+  --secondary-foreground: 220 24% 7%;
+
+  /* Muted: Subtler background */
+  --muted: 215 21% 15%;
+  --muted-foreground: 215 14% 65%;
+  /* #9CA3AF */
+
+  --accent: 215 21% 15%;
+  --accent-foreground: 220 13% 91%;
+
+  /* Destructive */
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+
+  /* Border */
+  --border: 217 18% 15%;
+
+  --input: 217 18% 15%;
+  --ring: 25 95% 53%;
+  /* Match Primary */
+
+  --radius: 0.5rem;
+
+  /* Charts - Adjusted for Dark/Orange theme */
+  --chart-1: 25 95% 53%;
+  /* Orange (Primary) */
+  --chart-2: 218 11% 65%;
+  /* Gray (Secondary) */
+  --chart-3: 210 100% 50%;
+  /* Blue (Subtle info) */
+  --chart-4: 150 100% 35%;
+  /* Green (Success) */
+  --chart-5: 0 80% 60%;
+  /* Red (Danger) */
+}
+
+/* Light Mode (Optional Override - if needed later, but focusing on Dark First) */
+
+.dark {
+  --background: 220 24% 7%;
+  --foreground: 220 13% 91%;
+}
+
+@layer components {
+
+  /* Button overrides for Antigravity */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background;
+  }
+
+  /* Antigravity Primary Button: Solid Orange, Black/White text */
+  .btn-primary {
+    @apply bg-primary text-black hover:bg-primary/90 shadow-glow-sm;
+    /* Using black text on #F97316 for better contrast (APCA/WCAG) */
+  }
+
+  .form-group {
+    @apply space-y-2;
+  }
+
+  .glass-header {
+    @apply bg-[#0E1117]/80 backdrop-blur-md border-b border-border;
+  }
+}
