@@ -8,7 +8,7 @@ WORKDIR /app
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Declare build arguments that Coolify will pass
-ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_URL=http://localhost:5000
 ARG NODE_ENV
 ARG COOLIFY_URL
 ARG COOLIFY_FQDN
@@ -17,7 +17,7 @@ ARG SERVICE_FQDN_FRONTEND
 ARG PORT
 
 # Convert ARGs to ENV so they're available during build
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:5000}
 ENV NODE_ENV=${NODE_ENV:-production}
 
 # Install dependencies directly in builder stage
