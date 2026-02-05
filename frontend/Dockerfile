@@ -22,9 +22,11 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-${SERVICE_URL_BACKEND:-http://loc
 ENV NODE_ENV=${NODE_ENV:-production}
 
 # Install dependencies directly in builder stage
-# Use npm install instead of ci to fix cross-platform lockfile issues (Windows -> Linux)
+# Force fresh resolution for Linux by removing lockfile
 COPY package*.json ./
+RUN rm -f package-lock.json
 RUN npm install
+RUN npm install sharp
 
 COPY . .
 
