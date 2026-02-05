@@ -11,7 +11,6 @@ WORKDIR /app/frontend
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 ARG NEXT_PUBLIC_API_URL=https://r.niveshsarthi.com:5050
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NODE_ENV=production
 COPY frontend/package*.json ./
 RUN rm -f package-lock.json && npm cache clean --force && npm install
 COPY frontend/ ./
