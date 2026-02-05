@@ -20,8 +20,8 @@ services:
       context: ./frontend
     container_name: realnext-frontend
     restart: always
-    ports:
-      - "3000:3000"
+    expose:
+      - 1234
     environment:
       - NODE_ENV=production
       # This behaves as the public URL for client-side requests
