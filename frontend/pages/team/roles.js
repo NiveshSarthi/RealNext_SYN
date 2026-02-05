@@ -3,17 +3,17 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { 
-    ShieldCheckIcon, 
-    PlusIcon, 
-    PencilIcon, 
+import {
+    ShieldCheckIcon,
+    PlusIcon,
+    PencilIcon,
     TrashIcon,
     XMarkIcon,
     CheckIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '../../components/ui/Button';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function RoleManagement() {
     const router = useRouter();
@@ -36,7 +36,7 @@ export default function RoleManagement() {
                 try {
                     const user = JSON.parse(userStr);
                     const userRole = user?.context?.tenantRole;
-                    
+
                     // Only admin and manager can access role management
                     if (userRole !== 'admin' && userRole !== 'manager') {
                         toast.error('You do not have permission to access this page');
@@ -48,7 +48,7 @@ export default function RoleManagement() {
                 }
             }
         };
-        
+
         checkAccess();
     }, [router]);
 
@@ -110,7 +110,7 @@ export default function RoleManagement() {
 
     const handleDeleteRole = async (roleId, roleName) => {
         if (!confirm(`Are you sure you want to delete the role "${roleName}"?`)) return;
-        
+
         try {
             const token = localStorage.getItem('access_token');
             await axios.delete(`${API_URL}/api/roles/${roleId}`, {
@@ -145,7 +145,7 @@ export default function RoleManagement() {
     const selectAllInCategory = (category) => {
         const categoryPerms = permissions[category].map(p => p.code);
         const allSelected = categoryPerms.every(code => roleForm.permissions.includes(code));
-        
+
         if (allSelected) {
             setRoleForm(prev => ({
                 ...prev,
@@ -276,8 +276,8 @@ export default function RoleManagement() {
                             <h2 className="text-2xl font-bold text-white">
                                 {editingRole ? 'Edit Role' : 'Create New Role'}
                             </h2>
-                            <button 
-                                onClick={() => setShowCreateModal(false)} 
+                            <button
+                                onClick={() => setShowCreateModal(false)}
                                 className="text-gray-400 hover:text-white transition-colors"
                             >
                                 <XMarkIcon className="w-6 h-6" />

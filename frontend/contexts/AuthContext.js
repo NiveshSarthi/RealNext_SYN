@@ -37,7 +37,7 @@ export function AuthProvider({ children, router }) {
         ]);
         const userData = response.data.data?.user || response.data;
         const contextData = response.data.data?.context || {};
-        
+
         const fullUser = { ...userData, context: contextData };
         setUser(fullUser);
         localStorage.setItem('user', JSON.stringify(fullUser)); // Update local storage with fresh data
@@ -70,6 +70,11 @@ export function AuthProvider({ children, router }) {
     try {
       const response = await authAPI.login(credentials);
       // Backend returns: { success: true, data: { user, token } }
+      console.log('Login response:', response.data);
+      if (!response.data.success || !response.data.data) {
+        throw new Error(response.data.error || 'Invalid response structure');
+      }
+
       const { user: initialUser, token } = response.data.data;
       let finalUser = initialUser;
 
@@ -80,10 +85,10 @@ export function AuthProvider({ children, router }) {
         const profileRes = await authAPI.getProfile();
         finalUser = profileRes.data.data?.user || profileRes.data; // Handle various response structures
       } else {
-          // Verify we have context if it was returned
-          if (response.data.data.context) {
-              finalUser = { ...finalUser, context: response.data.data.context };
-          }
+        // Verify we have context if it was returned
+        if (response.data.data.context) {
+          finalUser = { ...finalUser, context: response.data.data.context };
+        }
       }
 
       localStorage.setItem('user', JSON.stringify(finalUser));

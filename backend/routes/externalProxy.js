@@ -13,12 +13,16 @@ if (!TARGET_URL) {
  * Proxy handler for External API
  * Forwards all requests to the configured External API URL
  */
+const axios = require('axios');
+
 router.all('*', async (req, res, next) => {
     try {
         if (!TARGET_URL) {
             throw ApiError.internal('External API URL not configured');
         }
 
+        // Construct target URL
+        // req.url includes the path relative to this router, including query string
         const url = `${TARGET_URL}${req.url}`;
         const method = req.method;
 
@@ -30,43 +34,41 @@ router.all('*', async (req, res, next) => {
             ...req.headers
         };
 
-        // Remove host header to avoid conflicts
+        // Remove host and connection headers to avoid conflicts
         delete headers.host;
         delete headers['content-length'];
+        delete headers.connection;
 
-        const options = {
+        const config = {
             method,
+            url,
             headers,
+            // Forward body for mutation requests
+            data: ['POST', 'PUT', 'PATCH'].includes(method) ? req.body : undefined,
+            validateStatus: () => true // Resolve promise for all status codes so we can forward them
         };
 
-        if (['POST', 'PUT', 'PATCH'].includes(method)) {
-            // If body-parser has already parsed the body, stringify it
-            if (req.body && Object.keys(req.body).length > 0) {
-                options.body = JSON.stringify(req.body);
-            }
-        }
-
-        const response = await fetch(url, options);
+        const response = await axios(config);
 
         // Forward status code
         res.status(response.status);
 
-        // Forward headers (optional, but good for CORS or content-type)
-        response.headers.forEach((value, key) => {
-            res.setHeader(key, value);
+        // Forward headers
+        Object.keys(response.headers).forEach(key => {
+            res.setHeader(key, response.headers[key]);
         });
 
-        // Parse response
-        // We assume JSON response for this API
-        const data = await response.json();
-
-        res.json(data);
+        // Send back data
+        res.json(response.data);
 
     } catch (error) {
         logger.error(`Proxy Error: ${error.message}`);
-        // If response.json() fails it might be non-json response
-        // But for now let's handle generic errors
-        next(error);
+        if (error.response) {
+            logger.error(`Upstream Response: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+            res.status(error.response.status).json(error.response.data);
+        } else {
+            next(error);
+        }
     }
 });
 

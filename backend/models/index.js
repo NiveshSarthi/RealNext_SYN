@@ -28,6 +28,8 @@ const RefreshToken = require('./RefreshToken');
 const LoginHistory = require('./LoginHistory');
 const Role = require('./Role');
 const Permission = require('./Permission');
+const FacebookPageConnection = require('./FacebookPageConnection');
+const FacebookLeadForm = require('./FacebookLeadForm');
 
 // =====================
 // PARTNER ASSOCIATIONS
@@ -239,6 +241,22 @@ AuditLog.belongsTo(Partner, { foreignKey: 'partner_id', as: 'partner' });
 // EnvironmentFlag updated by User
 EnvironmentFlag.belongsTo(User, { foreignKey: 'updated_by', as: 'updatedBy' });
 
+// =====================
+// FACEBOOK ASSOCIATIONS
+// =====================
+
+// Tenant has many Facebook Page Connections
+Tenant.hasMany(FacebookPageConnection, { foreignKey: 'tenant_id', as: 'facebookPages' });
+FacebookPageConnection.belongsTo(Tenant, { foreignKey: 'tenant_id', as: 'tenant' });
+
+// Facebook Page Connection has many Lead Forms
+FacebookPageConnection.hasMany(FacebookLeadForm, { foreignKey: 'page_connection_id', as: 'leadForms' });
+FacebookLeadForm.belongsTo(FacebookPageConnection, { foreignKey: 'page_connection_id', as: 'pageConnection' });
+
+// Facebook Lead Form belongs to Tenant
+Tenant.hasMany(FacebookLeadForm, { foreignKey: 'tenant_id', as: 'facebookLeadForms' });
+FacebookLeadForm.belongsTo(Tenant, { foreignKey: 'tenant_id', as: 'tenant' });
+
 // Export all models and sequelize instance
 module.exports = {
     sequelize,
@@ -268,5 +286,7 @@ module.exports = {
     RefreshToken,
     LoginHistory,
     Role,
-    Permission
+    Permission,
+    FacebookPageConnection,
+    FacebookLeadForm
 };

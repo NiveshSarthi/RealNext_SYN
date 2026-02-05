@@ -40,6 +40,7 @@ const authenticate = async (req, res, next) => {
 
         // If token has tenant context, attach it
         if (decoded.tenant_id) {
+            console.log(`[AUTH] Token has tenant_id: ${decoded.tenant_id}`);
             const tenantUser = await TenantUser.findOne({
                 where: { user_id: user.id, tenant_id: decoded.tenant_id },
                 include: [{
@@ -50,10 +51,12 @@ const authenticate = async (req, res, next) => {
             });
 
             if (tenantUser) {
+                // Attach tenant context to request
                 req.tenantUser = tenantUser.get({ plain: true });
                 req.tenant = tenantUser.Tenant.get({ plain: true });
                 req.user.tenant_role = tenantUser.role;
-                req.user.tenant_permissions = tenantUser.permissions;
+
+                console.log(`[AUTH] ✅ Tenant context loaded: ${req.tenant.name} (Role: ${req.tenantUser.role})`);
 
                 // Get subscription and features
                 const subscription = await Subscription.findOne({
@@ -77,6 +80,8 @@ const authenticate = async (req, res, next) => {
                     req.subscription = subscription.get({ plain: true });
                     req.plan = subscription.plan?.get({ plain: true });
 
+                    console.log(`[AUTH] Found Subscription: ${subscription.id} (Plan: ${subscription.plan?.name})`);
+
                     // Extract enabled features and their limits
                     req.features = {};
                     req.featureLimits = {};
@@ -86,11 +91,18 @@ const authenticate = async (req, res, next) => {
                             if (pf.is_enabled && pf.Feature?.is_enabled) {
                                 req.features[pf.Feature.code] = true;
                                 req.featureLimits[pf.Feature.code] = pf.limits || {};
+                                console.log(`[AUTH] Enabled Feature: ${pf.Feature.code}`);
                             }
                         });
                     }
+                } else {
+                    console.log(`[AUTH] ❌ No active subscription found for tenant ${decoded.tenant_id}`);
                 }
+            } else {
+                console.log(`[AUTH] ❌ TenantUser link not found for user ${user.id} and tenant ${decoded.tenant_id}`);
             }
+        } else {
+            console.log(`[AUTH] ⚠️ Token MISSING tenant_id`);
         }
 
         // If token has partner context, attach it

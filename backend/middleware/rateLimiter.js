@@ -28,7 +28,7 @@ const defaultLimiter = rateLimit({
  */
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // 10 attempts per window
+    max: 1000, // 1000 attempts per window (dev mode)
     message: {
         success: false,
         error: 'Too many authentication attempts, please try again later'

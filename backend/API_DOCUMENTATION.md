@@ -1,517 +1,547 @@
-# Multi-Tenant SaaS Platform - API Documentation
+# WhatsApp Flow Builder - External API Documentation
 
-## Base URL
+## Overview
+
+This API allows external applications to integrate with WhatsApp Flow Builder for managing templates, contacts, and campaigns.
+
+**Base URL:** `https://your-domain.com/api/v1`
+
+---
+
+## Quick Start: Complete Setup Workflow
+
+This section guides you through the full setup process from super admin login to sending your first campaign.
+
+### Step 1: Super Admin Login
+
+Super admin credentials are configured in your `.env` file:
+
+- `ADMIN_EMAIL` - Super admin email
+- `ADMIN_PASSWORD` - Super admin password
+
+**POST** `/auth/login`
+
+```bash
+curl -X POST https://your-domain.com/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "Admin@1234"
+  }'
 ```
-Development: http://localhost:5000/api
-Production: https://api.realnext.com/api
+
+**Response:**
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
 ```
+
+### Step 2: Create Organization + Admin
+
+Use the super admin token to create a new organization with its first admin user.
+
+**POST** `/super-admin/organizations`
+
+```bash
+curl -X POST https://your-domain.com/super-admin/organizations \
+  -H "Authorization: Bearer SUPER_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Acme Corporation",
+    "admin_email": "admin@acme.com",
+    "admin_password": "SecurePassword123"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "message": "Organization created successfully",
+  "organization_id": "60f7c123abc...",
+  "admin_user_id": "60f7c456def..."
+}
+```
+
+### Step 3: Admin Login
+
+Login with the newly created admin credentials to get a token for that organization.
+
+**POST** `/auth/login`
+
+```bash
+curl -X POST https://your-domain.com/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@acme.com",
+    "password": "SecurePassword123"
+  }'
+```
+
+### Step 4: Configure WhatsApp Credentials
+
+Before sending messages, configure WhatsApp API credentials for the organization.
+
+**POST** `/settings/whatsapp`
+
+```bash
+curl -X POST https://your-domain.com/settings/whatsapp \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone_number_id": "943988142125457",
+    "whatsapp_token": "EAAaZAQOUjYaYBO...",
+    "waba_id": "1594054638266272",
+    "display_name": "Acme Support"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "message": "WhatsApp credentials saved"
+}
+```
+
+> **Note:** Get these credentials from your [Meta Developer Portal](https://developers.facebook.com/) > WhatsApp > API Setup.
+
+### Step 5: Start Using the API
+
+Now you can use all the API endpoints with the admin token:
+
+- Manage templates
+- Create contacts
+- Run campaigns
+
+---
 
 ## Authentication
 
-All API requests (except registration, login, and webhooks) require a valid JWT token in the Authorization header:
+All endpoints require JWT Bearer token authentication.
 
-```
-Authorization: Bearer <access_token>
-```
+### Getting a Token
 
-### Getting Started
+**POST** `/auth/login`
 
-1. **Register** or **Login** to get tokens
-2. Use `access_token` for API requests
-3. Use `refresh_token` to get new access token when expired
-
----
-
-## Authentication Endpoints
-
-### Register
-```http
-POST /auth/register
-Content-Type: application/json
-
-{
-  "name": "John Doe",
-  "email": "john@example.com",
-  "company_name": "Acme Corp",
-  "phone": "+919876543210",
-  "password": "SecurePass123"
-}
-```
-
-**Response 201:**
-```json
-{
-  "success": true,
-  "data": {
-    "user": { "id": "uuid", "name": "John Doe", "email": "john@example.com" },
-    "tenant": { "id": "uuid", "name": "Acme Corp" },
-    "access_token": "eyJhbGc...",
-    "refresh_token": "eyJhbGc..."
-  }
-}
-```
-
-### Login
-```http
-POST /auth/login
-Content-Type: application/json
-
-{
-  "email": "john@example.com",
-  "password": "SecurePass123"
-}
-```
-
-### Refresh Token
-```http
-POST /auth/refresh
-Content-Type: application/json
-
-{
-  "refresh_token": "eyJhbGc..."
-}
-```
-
-### Get Profile
-```http
-GET /auth/me
-Authorization: Bearer <token>
-```
-
----
-
-## Super Admin APIs
-
-**Required Role:** `is_super_admin = true`
-
-### Partners
-
-#### List Partners
-```http
-GET /admin/partners?page=1&limit=20&search=acme
-```
-
-#### Create Partner
-```http
-POST /admin/partners
-Content-Type: application/json
-
-{
-  "name": "Acme Resellers",
-  "email": "admin@acme.com",
-  "subdomain": "acme",
-  "commission_rate": 15.5
-}
-```
-
-#### Update Partner
-```http
-PUT /admin/partners/:id
-Content-Type: application/json
-
-{
-  "status": "active",
-  "commission_rate": 20
-}
-```
-
-### Plans
-
-#### List Plans
-```http
-GET /admin/plans
-```
-
-#### Create Plan
-```http
-POST /admin/plans
-Content-Type: application/json
-
-{
-  "code": "enterprise_plus",
-  "name": "Enterprise Plus",
-  "price_monthly": 29999,
-  "price_yearly": 299990,
-  "trial_days": 30,
-  "is_public": true
-}
-```
-
-#### Assign Features to Plan
-```http
-PUT /admin/plans/:planId/features
-Content-Type: application/json
-
-{
-  "features": [
-    { "feature_id": "uuid", "limits": { "max_leads": 10000 } },
-    { "feature_id": "uuid", "limits": { "max_campaigns": 50 } }
-  ]
-}
-```
-
-### Analytics
-```http
-GET /admin/analytics/overview
-GET /admin/analytics/revenue
-GET /admin/analytics/tenants
-```
-
----
-
-## Partner Admin APIs
-
-**Required Role:** Partner Admin/Team Member
-
-### Tenant Management
-
-#### List Partner's Tenants
-```http
-GET /partner/tenants?status=active&search=company
-```
-
-#### Create Tenant
-```http
-POST /partner/tenants
-Content-Type: application/json
-
-{
-  "name": "Client Corp",
-  "email": "admin@client.com",
-  "phone": "+919876543210",
-  "plan_id": "uuid",
-  "owner_email": "owner@client.com",
-  "owner_name": "Jane Smith"
-}
-```
-
-#### Assign Subscription
-```http
-PUT /partner/tenants/:tenantId/subscription
-Content-Type: application/json
-
-{
-  "plan_id": "uuid",
-  "billing_cycle": "yearly"
-}
-```
-
-### Partner Stats
-```http
-GET /partner/stats
+```bash
+curl -X POST https://your-domain.com/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "your-email@example.com",
+    "password": "your-password"
+  }'
 ```
 
 **Response:**
+
 ```json
 {
-  "success": true,
-  "data": {
-    "tenants": { "total": 45, "active": 42, "new_this_month": 8 },
-    "subscriptions": { "active": 38, "trial": 7 },
-    "revenue": { "total": 850000, "commission_rate": 15, "estimated_commission": 127500 }
-  }
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR...",
+  "token_type": "bearer"
 }
+```
+
+### Using the Token
+
+Include the access token in all API requests:
+
+```bash
+curl https://your-domain.com/api/v1/templates \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Token Expiry
+
+- **Access Token:** 30 minutes
+- **Refresh Token:** 7 days
+
+To refresh your token:
+
+**POST** `/auth/refresh`
+
+```bash
+curl -X POST https://your-domain.com/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "YOUR_REFRESH_TOKEN"}'
 ```
 
 ---
 
-## Tenant APIs
+## Super Admin Endpoints
 
-### Settings
+These endpoints require super admin access (role: `super_admin`).
 
-#### Get Tenant Profile
-```http
-GET /tenant/profile
+### List Organizations
+
+**GET** `/super-admin/organizations`
+
+| Parameter | Type | Description                            |
+| --------- | ---- | -------------------------------------- |
+| page      | int  | Page number (default: 1)               |
+| limit     | int  | Items per page (default: 20, max: 100) |
+
+```bash
+curl https://your-domain.com/super-admin/organizations \
+  -H "Authorization: Bearer SUPER_ADMIN_TOKEN"
 ```
 
-#### Update Settings
-```http
-PUT /tenant/settings
-Content-Type: application/json
+### Create Organization
 
-{
-  "timezone": "Asia/Kolkata",
-  "settings": {
-    "whatsapp_number": "+919876543210",
-    "business_hours": { "start": "09:00", "end": "18:00" }
-  }
-}
+**POST** `/super-admin/organizations`
+
+```bash
+curl -X POST https://your-domain.com/super-admin/organizations \
+  -H "Authorization: Bearer SUPER_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "New Company",
+    "admin_email": "admin@newcompany.com",
+    "admin_password": "SecurePass123"
+  }'
 ```
 
-### Team Management
+### Update Organization
 
-#### List Users
-```http
-GET /tenant/users
+**PUT** `/super-admin/organizations/{org_id}`
+
+```bash
+curl -X PUT https://your-domain.com/super-admin/organizations/60f7c... \
+  -H "Authorization: Bearer SUPER_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Company Name",
+    "is_active": true
+  }'
 ```
 
-#### Invite User
-```http
-POST /tenant/users
-Content-Type: application/json
+### Deactivate Organization
 
-{
-  "email": "newuser@company.com",
-  "name": "New User",
-  "role": "user",
-  "permissions": ["leads.view", "campaigns.create"]
-}
+**DELETE** `/super-admin/organizations/{org_id}`
+
+Soft-deletes the organization and all its users.
+
+```bash
+curl -X DELETE https://your-domain.com/super-admin/organizations/60f7c... \
+  -H "Authorization: Bearer SUPER_ADMIN_TOKEN"
 ```
 
-### Subscription
+### Platform Statistics
 
-#### Get Current Subscription
-```http
-GET /tenant/subscription
-```
+**GET** `/super-admin/stats`
 
-#### Upgrade Plan
-```http
-POST /tenant/subscription/upgrade
-Content-Type: application/json
-
-{
-  "plan_id": "uuid"
-}
-```
-
----
-
-## Feature Module APIs
-
-### Workflows
-
-#### List Workflows
-```http
-GET /workflows?status=active
-```
-
-#### Create Workflow
-```http
-POST /workflows
-Content-Type: application/json
-
-{
-  "name": "Welcome Automation",
-  "description": "Send welcome message to new leads",
-  "active": false,
-  "nodes": []
-}
-```
-
-#### Activate/Deactivate
-```http
-POST /workflows/:id/activate
-POST /workflows/:id/deactivate
-```
-
-#### Trigger Workflow
-```http
-POST /workflows/trigger/lead-qualification
-Content-Type: application/json
-
-{
-  "lead_id": "uuid",
-  "data": { "score": 85 }
-}
-```
-
-### Analytics
-
-#### Dashboard
-```http
-GET /analytics/dashboard
+```bash
+curl https://your-domain.com/super-admin/stats \
+  -H "Authorization: Bearer SUPER_ADMIN_TOKEN"
 ```
 
 **Response:**
+
 ```json
 {
-  "success": true,
-  "data": {
-    "leads": { "total": 5420, "new_30_days": 380, "growth": 7.0 },
-    "campaigns": { "active": 12 },
-    "workflows": { "active": 8 },
-    "messages": { "sent": 1250, "delivered": 1200, "read": 980 }
-  }
+  "total_organizations": 15,
+  "active_organizations": 12,
+  "total_users": 45,
+  "active_users": 40
 }
-```
-
-#### Campaign Analytics
-```http
-GET /analytics/campaigns?from=2024-01-01&to=2024-01-31
-```
-
-### Network (Agent Connections)
-
-#### Search Agents
-```http
-GET /network/search?query=real estate mumbai
-```
-
-#### Send Connection Request
-```http
-POST /network/connect/:tenantId
-Content-Type: application/json
-
-{
-  "message": "Hi, I'd like to connect for referral opportunities"
-}
-```
-
-#### Accept/Reject Requests
-```http
-POST /network/accept/:connectionId
-POST /network/reject/:connectionId
-```
-
-### Quick Replies
-
-#### List Quick Replies
-```http
-GET /quick-replies?category=greetings
-```
-
-#### Create Quick Reply
-```http
-POST /quick-replies
-Content-Type: application/json
-
-{
-  "shortcut": "/intro",
-  "title": "Company Introduction",
-  "content": "Hello! I'm from Realnext, India's leading real estate platform...",
-  "category": "greetings"
-}
-```
-
-#### Process Shortcut
-```http
-POST /quick-replies/process
-Content-Type: application/json
-
-{
-  "message": "Hi! /intro"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": "Hi! Hello! I'm from Realnext, India's leading real estate platform...",
-  "match": { "id": "uuid", "shortcut": "/intro", "title": "Company Introduction" }
-}
-```
-
-### Catalog
-
-#### List Items
-```http
-GET /catalog?category=residential&status=active
-```
-
-#### Create Item
-```http
-POST /catalog
-Content-Type: application/json
-
-{
-  "name": "3BHK Apartment in Andheri",
-  "description": "Spacious 3BHK with sea view",
-  "category": "residential",
-  "price": 15000000,
-  "currency": "INR",
-  "properties": {
-    "bedrooms": 3,
-    "bathrooms": 2,
-    "area_sqft": 1500
-  },
-  "images": ["url1", "url2"]
-}
-```
-
-#### Sync to WhatsApp
-```http
-POST /catalog/:id/sync
-```
-
-### LMS (Learning Management)
-
-#### List Modules
-```http
-GET /lms/modules
-```
-
-#### Get Progress
-```http
-GET /lms/progress
-```
-
-#### Complete Module
-```http
-POST /lms/complete-module
-Content-Type: application/json
-
-{
-  "module_id": 1,
-  "lesson_id": 3
-}
-```
-
-### Meta Ads
-
-#### List Campaigns
-```http
-GET /meta-ads/campaigns
-```
-
-#### Create Campaign
-```http
-POST /meta-ads/campaigns
-Content-Type: application/json
-
-{
-  "name": "Q1 Lead Generation",
-  "budget": 50000,
-  "objective": "LEAD_GENERATION"
-}
-```
-
-#### Get Leads
-```http
-GET /meta-ads/leads?campaign_id=camp_123&date_from=2024-01-01
-```
-
-#### Analytics
-```http
-GET /meta-ads/analytics
 ```
 
 ---
 
-## Payments (Razorpay)
+## WhatsApp Settings
 
-### Verify Payment
-```http
-POST /payments/verify
-Content-Type: application/json
+### Get WhatsApp Settings
 
+**GET** `/settings/whatsapp`
+
+```bash
+curl https://your-domain.com/settings/whatsapp \
+  -H "Authorization: Bearer ADMIN_TOKEN"
+```
+
+**Response:**
+
+```json
 {
-  "razorpay_order_id": "order_xxx",
-  "razorpay_payment_id": "pay_xxx",
-  "razorpay_signature": "signature_xxx"
+  "configured": true,
+  "phone_number_id": "943988142125457",
+  "whatsapp_token_masked": "...last10chars",
+  "waba_id": "1594054638266272",
+  "display_name": "My Business",
+  "webhook_url": "https://your-domain.com/webhook/60f7c...",
+  "webhook_verify_token": "auto_generated_token"
 }
 ```
 
-### Webhook (Razorpay)
-```http
-POST /payments/webhook/razorpay
-Content-Type: application/json
-X-Razorpay-Signature: <signature>
+### Save WhatsApp Settings
 
+**POST** `/settings/whatsapp`
+
+| Field           | Type   | Required | Description                  |
+| --------------- | ------ | -------- | ---------------------------- |
+| phone_number_id | string | Yes      | Phone Number ID from Meta    |
+| whatsapp_token  | string | Yes\*    | Permanent access token       |
+| waba_id         | string | Yes      | WhatsApp Business Account ID |
+| display_name    | string | No       | Business display name        |
+
+\*If empty, preserves existing token.
+
+```bash
+curl -X POST https://your-domain.com/settings/whatsapp \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone_number_id": "943988142125457",
+    "whatsapp_token": "EAAaZAQOUjYaYBO...",
+    "waba_id": "1594054638266272",
+    "display_name": "Acme Support"
+  }'
+```
+
+---
+
+## Templates
+
+### List Templates
+
+**GET** `/api/v1/templates`
+
+Fetch all WhatsApp templates for your organization.
+
+```bash
+curl https://your-domain.com/api/v1/templates \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Response:**
+
+```json
+[
+  {
+    "name": "hello_world",
+    "status": "APPROVED",
+    "category": "MARKETING",
+    "language": "en_US",
+    "components": [...]
+  }
+]
+```
+
+### Create Template
+
+**POST** `/api/v1/templates`
+
+```bash
+curl -X POST https://your-domain.com/api/v1/templates \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my_template",
+    "category": "MARKETING",
+    "language": "en_US",
+    "components": [
+      {
+        "type": "BODY",
+        "text": "Hello {{1}}, your order {{2}} is ready!"
+      }
+    ]
+  }'
+```
+
+**Categories:** `MARKETING`, `UTILITY`, `AUTHENTICATION`
+
+### Delete Template
+
+**DELETE** `/api/v1/templates/{name}`
+
+```bash
+curl -X DELETE https://your-domain.com/api/v1/templates/my_template \
+  -H "Authorization: Bearer TOKEN"
+```
+
+---
+
+## Contacts
+
+### List Contacts
+
+**GET** `/api/v1/contacts`
+
+| Parameter | Type   | Description                            |
+| --------- | ------ | -------------------------------------- |
+| page      | int    | Page number (default: 1)               |
+| limit     | int    | Items per page (default: 20, max: 100) |
+| search    | string | Search by name or number               |
+| tag       | string | Filter by tag                          |
+
+```bash
+curl "https://your-domain.com/api/v1/contacts?page=1&limit=20&tag=lead" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Response:**
+
+```json
 {
-  "event": "payment.captured",
-  "payload": { ... }
+  "contacts": [
+    {
+      "_id": "60f7c...",
+      "name": "John Doe",
+      "number": "919876543210",
+      "tags": ["lead"]
+    }
+  ],
+  "total": 150,
+  "page": 1,
+  "pages": 8
+}
+```
+
+### Create Contact
+
+**POST** `/api/v1/contacts`
+
+```bash
+curl -X POST https://your-domain.com/api/v1/contacts \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "number": "919876543210",
+    "tags": ["lead", "new"]
+  }'
+```
+
+### Upload Contacts (CSV)
+
+**POST** `/api/v1/contacts/upload`
+
+Upload a CSV file with contacts.
+
+**CSV Format:**
+
+```csv
+name,number,tags
+John Doe,919876543210,lead;new
+Jane Smith,919876543211,customer
+```
+
+```bash
+curl -X POST https://your-domain.com/api/v1/contacts/upload \
+  -H "Authorization: Bearer TOKEN" \
+  -F "file=@contacts.csv"
+```
+
+---
+
+## Campaigns
+
+### List Campaigns
+
+**GET** `/api/v1/campaigns`
+
+```bash
+curl https://your-domain.com/api/v1/campaigns \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Response:**
+
+```json
+[
+  {
+    "_id": "60f7c...",
+    "template_name": "hello_world",
+    "status": "completed",
+    "total_contacts": 100,
+    "stats": {
+      "sent": 98,
+      "delivered": 95,
+      "read": 50,
+      "failed": 2
+    },
+    "created_at": "2026-02-03T07:00:00Z"
+  }
+]
+```
+
+### Get Campaign Details
+
+**GET** `/api/v1/campaigns/{campaign_id}`
+
+```bash
+curl https://your-domain.com/api/v1/campaigns/60f7c123... \
+  -H "Authorization: Bearer TOKEN"
+```
+
+### Get Campaign Logs
+
+**GET** `/api/v1/campaigns/{campaign_id}/logs`
+
+| Parameter | Type   | Description                                     |
+| --------- | ------ | ----------------------------------------------- |
+| status    | string | Filter by status: sent, delivered, read, failed |
+
+```bash
+curl "https://your-domain.com/api/v1/campaigns/60f7c.../logs?status=failed" \
+  -H "Authorization: Bearer TOKEN"
+```
+
+### Create Campaign
+
+**POST** `/api/v1/campaigns`
+
+Send messages immediately or schedule for later.
+
+```bash
+curl -X POST https://your-domain.com/api/v1/campaigns \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "template_name": "hello_world",
+    "language_code": "en_US",
+    "contact_ids": ["60f7c123...", "60f7c456..."],
+    "variable_mapping": {
+      "1": "{{name}}",
+      "2": "Your order is ready"
+    }
+  }'
+```
+
+**Request Body:**
+
+| Field            | Type   | Required | Description                               |
+| ---------------- | ------ | -------- | ----------------------------------------- |
+| template_name    | string | Yes      | Name of approved template                 |
+| language_code    | string | No       | Default: "en_US"                          |
+| contact_ids      | array  | No\*     | Specific contact IDs                      |
+| filters          | object | No\*     | Filter contacts (e.g., `{"tag": "lead"}`) |
+| variable_mapping | object | No       | Template variable values                  |
+| schedule_time    | string | No       | ISO datetime for scheduling               |
+
+\*Either `contact_ids` or `filters` must be provided.
+
+**Variable Mapping Special Values:**
+
+- `{{name}}` - Replaced with contact's name
+- `{{number}}` - Replaced with contact's number
+- Any other string - Used as-is
+
+**Scheduling Example:**
+
+```json
+{
+  "template_name": "promo_offer",
+  "filters": { "tag": "subscriber" },
+  "variable_mapping": { "1": "{{name}}" },
+  "schedule_time": "2026-02-05T10:00:00Z"
 }
 ```
 
@@ -519,127 +549,127 @@ X-Razorpay-Signature: <signature>
 
 ## Error Responses
 
-### 400 Bad Request
+All errors follow this format:
+
 ```json
 {
-  "success": false,
-  "error": "Validation failed",
-  "details": [
-    { "field": "email", "message": "Invalid email format" }
-  ]
+  "detail": "Error message here"
 }
 ```
 
-### 401 Unauthorized
-```json
-{
-  "success": false,
-  "error": "Invalid or expired token"
-}
-```
-
-### 403 Forbidden
-```json
-{
-  "success": false,
-  "error": "Insufficient permissions"
-}
-```
-
-### 404 Not Found
-```json
-{
-  "success": false,
-  "error": "Resource not found"
-}
-```
-
-### 429 Too Many Requests
-```json
-{
-  "success": false,
-  "error": "Rate limit exceeded. Try again in 60 seconds"
-}
-```
-
-### 500 Internal Server Error
-```json
-{
-  "success": false,
-  "error": "Internal server error",
-  "message": "An unexpected error occurred"
-}
-```
+| Status Code | Description                             |
+| ----------- | --------------------------------------- |
+| 400         | Bad Request - Invalid input             |
+| 401         | Unauthorized - Invalid or expired token |
+| 403         | Forbidden - Insufficient permissions    |
+| 404         | Not Found - Resource doesn't exist      |
+| 500         | Server Error                            |
 
 ---
 
-## Rate Limiting
+## Rate Limits
 
-- **Authentication endpoints**: 5 requests per minute per IP
-- **General API**: 100 requests per minute per user
-- **Webhooks**: No rate limit
-
----
-
-## Pagination
-
-List endpoints support pagination:
-
-```http
-GET /endpoint?page=1&limit=20
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [...],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 150,
-    "totalPages": 8
-  }
-}
-```
+- **Login:** 5 requests per minute per IP
+- **API calls:** 100 requests per minute per user
 
 ---
 
-## Filtering & Sorting
+## Complete Workflow Example
 
-```http
-GET /leads?status=new&source=facebook&sort=created_at&order=desc
+### n8n / JavaScript Integration
+
+```javascript
+// 1. Super Admin Login (or Admin Login if org already exists)
+const loginResponse = await $http.post("https://your-domain.com/auth/login", {
+  email: "admin@example.com",
+  password: "Admin@1234",
+});
+const superAdminToken = loginResponse.data.access_token;
+
+// 2. Create new organization (Super Admin only)
+const orgResponse = await $http.post(
+  "https://your-domain.com/super-admin/organizations",
+  {
+    name: "New Client Corp",
+    admin_email: "client@newcorp.com",
+    admin_password: "ClientPass123",
+  },
+  {
+    headers: { Authorization: `Bearer ${superAdminToken}` },
+  },
+);
+console.log("Organization created:", orgResponse.data.organization_id);
+
+// 3. Login as the new admin
+const adminLogin = await $http.post("https://your-domain.com/auth/login", {
+  email: "client@newcorp.com",
+  password: "ClientPass123",
+});
+const adminToken = adminLogin.data.access_token;
+
+// 4. Configure WhatsApp credentials
+await $http.post(
+  "https://your-domain.com/settings/whatsapp",
+  {
+    phone_number_id: "943988142125457",
+    whatsapp_token: "EAAaZAQOUjYaYBO...",
+    waba_id: "1594054638266272",
+    display_name: "New Client Support",
+  },
+  {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  },
+);
+
+// 5. Now use the API normally
+const templates = await $http.get("https://your-domain.com/api/v1/templates", {
+  headers: { Authorization: `Bearer ${adminToken}` },
+});
 ```
 
-Common filters:
-- `status` - Filter by status
-- `search` - Search across multiple fields
-- `from`, `to` - Date range filters
-- `sort`, `order` - Sorting
+### Python Example
 
----
+```python
+import requests
 
-## Feature Gates
+BASE_URL = "https://your-domain.com"
 
-Access to feature modules is controlled by subscription plans. If a feature is not included in your plan:
+# 1. Super Admin Login
+login_resp = requests.post(f"{BASE_URL}/auth/login", json={
+    "email": "admin@example.com",
+    "password": "Admin@1234"
+})
+super_admin_token = login_resp.json()["access_token"]
 
-```json
-{
-  "success": false,
-  "error": "Feature not available in your plan",
-  "feature": "workflows",
-  "upgrade_url": "/tenant/subscription"
-}
+# 2. Create Organization
+headers = {"Authorization": f"Bearer {super_admin_token}"}
+org_resp = requests.post(f"{BASE_URL}/super-admin/organizations", json={
+    "name": "Python Test Org",
+    "admin_email": "python@test.com",
+    "admin_password": "TestPass123"
+}, headers=headers)
+print(f"Org created: {org_resp.json()}")
+
+# 3. Login as new admin
+admin_login = requests.post(f"{BASE_URL}/auth/login", json={
+    "email": "python@test.com",
+    "password": "TestPass123"
+})
+admin_token = admin_login.json()["access_token"]
+
+# 4. Configure WhatsApp
+admin_headers = {"Authorization": f"Bearer {admin_token}"}
+requests.post(f"{BASE_URL}/settings/whatsapp", json={
+    "phone_number_id": "YOUR_PHONE_NUMBER_ID",
+    "whatsapp_token": "YOUR_WHATSAPP_TOKEN",
+    "waba_id": "YOUR_WABA_ID"
+}, headers=admin_headers)
+
+# 5. Start a campaign
+campaign = requests.post(f"{BASE_URL}/api/v1/campaigns", json={
+    "template_name": "hello_world",
+    "filters": {"tag": "lead"},
+    "variable_mapping": {"1": "{{name}}"}
+}, headers=admin_headers)
+print(f"Campaign started: {campaign.json()}")
 ```
-
----
-
-## Testing Credentials
-
-### Super Admin
-- Email: `admin@realnext.com`
-- Password: `RealnextAdmin2024!debug`
-
-### Test Tenant (after registration)
-- Create via `/auth/register`
-- Automatically gets 14-day trial

@@ -10,28 +10,45 @@ const logger = require('../config/logger');
  * Handles login, registration, token management
  */
 
+
+console.log('AuthService File Loaded:', __filename);
+
 class AuthService {
     /**
      * Login with email and password
      */
     async login(email, password, req) {
-        const user = await User.findOne({ where: { email } });
+        console.log('TRACE 1: Start');
+        const normalizedEmail = email ? email.trim().toLowerCase() : '';
+        console.log(`DEBUG LOGIN: Input '${email}' -> Normalized '${normalizedEmail}'`);
+
+        const user = await User.findOne({ where: { email: normalizedEmail } });
+        console.log('TRACE 2: User found? ' + (!!user));
 
         if (!user) {
+            console.log('TRACE 2b: User NOT FOUND');
             await logAuthEvent(req, 'login_failed', false, null, 'User not found');
-            throw ApiError.unauthorized('Invalid email or password');
+            throw ApiError.unauthorized('Debug: User not found');
         }
 
+        console.log('TRACE 3: Status check');
         if (user.status !== 'active') {
+            console.log('TRACE 3b: User INACTIVE');
             await logAuthEvent(req, 'login_failed', false, user.id, 'Account suspended');
             throw ApiError.unauthorized('Account is suspended or inactive');
         }
 
         const validPassword = await user.validatePassword(password);
+        // const validPassword = true; // FORCE SUCCESS FOR DEBUGGING
+
+        console.log('TRACE 5: Check PWD result: ' + validPassword);
         if (!validPassword) {
+            console.log('TRACE 5b: Failed PWD');
             await logAuthEvent(req, 'login_failed', false, user.id, 'Invalid password');
             throw ApiError.unauthorized('Invalid email or password');
         }
+
+        console.log("TRACE 6: REACHED RETURN REAL");
 
         // Get user context (tenant/partner)
         const context = await this.getUserContext(user);

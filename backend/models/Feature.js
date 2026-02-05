@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const Feature = sequelize.define('features', {
+const Feature = sequelize.define('Feature', {
     id: {
         type: DataTypes.UUID,
         defaultValue: DataTypes.UUIDV4,

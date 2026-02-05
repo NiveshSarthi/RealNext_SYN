@@ -17,11 +17,7 @@ const PlanFeature = sequelize.define('plan_features', {
     },
     feature_id: {
         type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'features',
-            key: 'id'
-        }
+        allowNull: false
     },
     is_enabled: {
         type: DataTypes.BOOLEAN,

@@ -3,10 +3,10 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { 
-    UserGroupIcon, 
-    PlusIcon, 
-    PencilIcon, 
+import {
+    UserGroupIcon,
+    PlusIcon,
+    PencilIcon,
     TrashIcon,
     XMarkIcon,
     EnvelopeIcon,
@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Button } from '../../components/ui/Button';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function TeamManagement() {
     const router = useRouter();
@@ -38,7 +38,7 @@ export default function TeamManagement() {
                 try {
                     const user = JSON.parse(userStr);
                     const userRole = user?.context?.tenantRole;
-                    
+
                     // Only admin and manager can access team management
                     if (userRole !== 'admin' && userRole !== 'manager') {
                         toast.error('You do not have permission to access this page');
@@ -50,7 +50,7 @@ export default function TeamManagement() {
                 }
             }
         };
-        
+
         checkAccess();
     }, [router]);
 
@@ -105,9 +105,9 @@ export default function TeamManagement() {
     const handleUpdateRole = async (userId, newRoleId) => {
         try {
             const token = localStorage.getItem('access_token');
-            await axios.patch(`${API_URL}/api/team/${userId}`, 
+            await axios.patch(`${API_URL}/api/team/${userId}`,
                 { role_id: newRoleId },
-                { headers: { Authorization: `Bearer ${token}` }}
+                { headers: { Authorization: `Bearer ${token}` } }
             );
             fetchTeamMembers();
             toast.success('Role updated successfully');
@@ -118,7 +118,7 @@ export default function TeamManagement() {
 
     const handleRemoveMember = async (userId, memberName) => {
         if (!confirm(`Are you sure you want to remove ${memberName}?`)) return;
-        
+
         try {
             const token = localStorage.getItem('access_token');
             await axios.delete(`${API_URL}/api/team/${userId}`, {
@@ -259,11 +259,10 @@ export default function TeamManagement() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${
-                                                    member.status === 'active' 
-                                                        ? 'bg-green-500/10 text-green-400 border-green-500/20' 
+                                                <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${member.status === 'active'
+                                                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
                                                         : 'bg-red-500/10 text-red-400 border-red-500/20'
-                                                }`}>
+                                                    }`}>
                                                     {member.status}
                                                 </span>
                                             </td>
@@ -296,8 +295,8 @@ export default function TeamManagement() {
                     <div className="bg-card border border-border/50 rounded-xl shadow-2xl p-8 max-w-md w-full">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-bold text-white">Invite Team Member</h2>
-                            <button 
-                                onClick={() => setShowInviteModal(false)} 
+                            <button
+                                onClick={() => setShowInviteModal(false)}
                                 className="text-gray-400 hover:text-white transition-colors"
                             >
                                 <XMarkIcon className="w-6 h-6" />

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: realnext-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./backend/.env
+    # Override configured host to be accessible from other containers if needed
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: realnext-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      # This behaves as the public URL for client-side requests
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+    depends_on:
+      - backend

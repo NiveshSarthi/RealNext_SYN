@@ -1,18 +1,35 @@
-import { Switch } from '@headlessui/react';
+import React from 'react';
 
-export default function Toggle({ enabled, onChange, srTitle }) {
+export const Switch = React.forwardRef(({ className = '', checked, onCheckedChange, disabled, ...props }, ref) => {
     return (
-        <Switch
-            checked={enabled}
-            onChange={onChange}
-            className={`${enabled ? 'bg-primary shadow-[0_0_10px_rgba(249,115,22,0.4)]' : 'bg-muted'
-                } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ring-offset-background`}
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            disabled={disabled}
+            onClick={() => onCheckedChange?.(!checked)}
+            className={`
+                relative inline-flex h-6 w-11 items-center rounded-full
+                transition-colors focus-visible:outline-none focus-visible:ring-2 
+                focus-visible:ring-offset-2 focus-visible:ring-offset-white
+                disabled:cursor-not-allowed disabled:opacity-50
+                ${checked ? 'bg-indigo-600' : 'bg-gray-700'}
+                ${className}
+            `}
+            ref={ref}
+            {...props}
         >
-            <span className="sr-only">{srTitle || 'Enable setting'}</span>
             <span
-                className={`${enabled ? 'translate-x-6' : 'translate-x-1'
-                    } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                className={`
+                    inline-block h-4 w-4 transform rounded-full bg-white shadow-lg
+                    transition-transform
+                    ${checked ? 'translate-x-6' : 'translate-x-1'}
+                `}
             />
-        </Switch>
+        </button>
     );
-}
+});
+
+Switch.displayName = 'Switch';
+
+export default Switch;

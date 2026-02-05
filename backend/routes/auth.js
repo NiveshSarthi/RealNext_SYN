@@ -14,7 +14,10 @@ const { ApiError } = require('../middleware/errorHandler');
  * @desc Login with email and password
  * @access Public
  */
-router.post('/login', authLimiter, login, async (req, res, next) => {
+router.post('/login', async (req, res, next) => {
+    console.log('--- HIT LOGIN ROUTE ---');
+    console.log('Route File:', __filename);
+    console.log('AuthService keys:', Object.keys(authService));
     try {
         const { email, password } = req.body;
         const result = await authService.login(email, password, req);

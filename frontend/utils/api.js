@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 const WA_API_BASE_URL = `${API_BASE_URL}/api/external-proxy`;
 const WA_CREDENTIALS = {
   email: 'Syndicate@niveshsarthi.com',
@@ -194,6 +194,19 @@ export const leadsAPI = {
   deleteLead: contactsAPI.deleteContact,
 };
 
+// Internal Leads API (for Meta Ads and manual leads)
+export const internalLeadsAPI = {
+  getLeads: (params) => api.get('/api/leads', { params }),
+  getLead: (id) => api.get(`/api/leads/${id}`),
+  createLead: (data) => api.post('/api/leads', data),
+  updateLead: (id, data) => api.put(`/api/leads/${id}`, data),
+  deleteLead: (id) => api.delete(`/api/leads/${id}`),
+  assignLead: (id, data) => api.put(`/api/leads/${id}/assign`, data),
+  importLeads: (data) => api.post('/api/leads/import', data),
+  getStats: () => api.get('/api/leads/stats/overview'),
+};
+
+
 // Campaigns API (External WhatsApp API)
 export const campaignsAPI = {
   getCampaigns: (params) => waApi.get('/api/v1/campaigns', { params }),
@@ -329,6 +342,7 @@ export const workflowsAPI = {
 };
 
 // Meta Ads API
+// Meta Ads API
 export const metaAdsAPI = {
   getCampaigns: () => api.get('/api/meta-ads/campaigns'),
   createCampaign: (data) => api.post('/api/meta-ads/campaigns', data),
@@ -338,6 +352,13 @@ export const metaAdsAPI = {
   testConnection: () => api.post('/api/meta-ads/test-connection'),
   getLeads: (params) => api.get('/api/meta-ads/leads', { params }),
   getAnalytics: (params) => api.get('/api/meta-ads/analytics', { params }),
+
+  // New Integration Methods
+  connectAccount: (data) => api.post('/api/meta-ads/connect', data),
+  getPages: () => api.get('/api/meta-ads/pages'),
+  syncForms: () => api.post('/api/meta-ads/sync-forms'),
+  fetchLeads: () => api.post('/api/meta-ads/fetch-leads'),
+  togglePageSync: (pageId, data) => api.patch(`/api/meta-ads/pages/${pageId}/toggle-sync`, data),
 };
 
 // Real Estate API
