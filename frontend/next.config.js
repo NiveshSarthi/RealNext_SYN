@@ -16,6 +16,8 @@ const nextConfig = {
   // telemetry: false,
   // Compression
   compress: true,
+  // Disable SWC minification to avoid binary crashes
+  swcMinify: false,
   // Ignore build errors to allow production deployment
   eslint: {
     ignoreDuringBuilds: true,

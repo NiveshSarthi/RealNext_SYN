@@ -28,8 +28,6 @@ RUN rm -f package-lock.json
 # Clean cache to avoid corrupted downloads
 RUN npm cache clean --force
 RUN npm install
-# Explicitly install SWC binary for Linux to prevent silent compiler crashes
-RUN npm install --no-save @next/swc-linux-x64-gnu
 RUN npm install sharp
 
 COPY . .
