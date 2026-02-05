@@ -4,7 +4,7 @@
 
 This API allows external applications to integrate with WhatsApp Flow Builder for managing templates, contacts, and campaigns.
 
-**Base URL:** `https://your-domain.com/api/v1`
+**Base URL:** `https://ckk4swcsssos844w0ccos4og.72.61.248.175.sslip.io/api/v1`
 
 ---
 

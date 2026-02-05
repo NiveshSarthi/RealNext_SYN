@@ -5,10 +5,26 @@ RUN npm ci
 
 FROM node:18-alpine AS builder
 WORKDIR /app
+
+# Declare build arguments that Coolify will pass
+ARG NEXT_PUBLIC_API_URL
+ARG NODE_ENV
+ARG COOLIFY_URL
+ARG COOLIFY_FQDN
+ARG SERVICE_URL_FRONTEND
+ARG SERVICE_FQDN_FRONTEND
+ARG PORT
+
+# Convert ARGs to ENV so they're available during build
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NODE_ENV=${NODE_ENV:-production}
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
 # Disable telemetry during build
 ENV NEXT_TELEMETRY_DISABLED 1
+
 RUN npm run build
 
 FROM node:18-alpine AS runner
