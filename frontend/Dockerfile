@@ -27,9 +27,13 @@ COPY package*.json ./
 RUN rm -f package-lock.json
 # Clean cache to avoid corrupted downloads
 RUN npm cache clean --force
-# Force install devDependencies (needed for build) even if NODE_ENV is production
-RUN npm install --include=dev
+# explicitly set to development for install to ensure devDependencies are fetched
+ENV NODE_ENV=development
+RUN npm install
 RUN npm install sharp
+
+# Switch back to production for the build
+ENV NODE_ENV=production
 
 COPY . .
 
