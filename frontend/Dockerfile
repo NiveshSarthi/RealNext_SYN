@@ -1,9 +1,3 @@
-FROM node:18-alpine AS dependencies
-WORKDIR /app
-COPY package*.json ./
-# Install ALL dependencies (including devDependencies) needed for build
-RUN npm ci
-
 FROM node:18-alpine AS builder
 WORKDIR /app
 
@@ -20,7 +14,10 @@ ARG PORT
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NODE_ENV=${NODE_ENV:-production}
 
-COPY --from=dependencies /app/node_modules ./node_modules
+# Install dependencies directly in builder stage
+COPY package*.json ./
+RUN npm ci
+
 COPY . .
 
 # Disable telemetry during build
