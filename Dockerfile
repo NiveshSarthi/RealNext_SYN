@@ -16,6 +16,12 @@ RUN rm -f package-lock.json && npm cache clean --force && npm install
 COPY frontend/ ./
 RUN npm run build
 
+# Prepare final standalone layout
+RUN mkdir -p .next/standalone/public && \
+    ([ -d "public" ] && cp -r public/* .next/standalone/public/ || true) && \
+    mkdir -p .next/standalone/.next/static && \
+    ([ -d ".next/static" ] && cp -r .next/static/* .next/standalone/.next/static/ || true)
+
 # Final Stage
 FROM node:18-bullseye-slim
 WORKDIR /app
@@ -26,10 +32,8 @@ RUN apt-get update && apt-get install -y bash && rm -rf /var/lib/apt/lists/*
 # Copy backend
 COPY --from=backend-builder /app/backend /app/backend
 
-# Copy frontend (Next.js standalone build)
+# Copy frontend (everything needed is now in standalone)
 COPY --from=frontend-builder /app/frontend/.next/standalone /app/frontend
-COPY --from=frontend-builder /app/frontend/public /app/frontend/public
-COPY --from=frontend-builder /app/frontend/.next/static /app/frontend/.next/static
 
 # Copy startup script
 COPY start-services.sh /app/start-services.sh
