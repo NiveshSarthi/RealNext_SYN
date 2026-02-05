@@ -9,8 +9,10 @@ services:
         NODE_ENV: production
     container_name: realnext-backend
     restart: always
-    ports:
-      - "5000:5000"
+    # Remove direct host port binding to avoid conflicts
+    # Coolify proxy will route traffic to these exposed ports
+    expose:
+      - "5000"
     environment:
       - NODE_ENV=production
       - PORT=5000
@@ -43,8 +45,9 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: realnext-frontend
     restart: always
-    ports:
-      - "3000:3000"
+    # Remove direct host port binding
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
