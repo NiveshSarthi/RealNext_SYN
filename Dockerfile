@@ -1,39 +1,47 @@
-# Stage 1: Build the React frontend
-FROM node:20-alpine AS builder
+# Build Stage for Backend
+FROM node:18-alpine AS backend-builder
+WORKDIR /app/backend
+COPY backend/package*.json ./
+RUN npm ci --only=production
+COPY backend/ ./
 
+# Build Stage for Frontend
+FROM node:18-bullseye-slim AS frontend-builder
 WORKDIR /app/frontend
-
-# Install dependencies
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+ARG NEXT_PUBLIC_API_URL=https://r.niveshsarthi.com:5050
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NODE_ENV=production
 COPY frontend/package*.json ./
-RUN npm install
-
-# Copy source code and build
-COPY frontend/ .
-# This will generate a 'out' directory due to output: 'export' in next.config.js
+RUN rm -f package-lock.json && npm cache clean --force && npm install
+COPY frontend/ ./
 RUN npm run build
 
-
-# Stage 2: Setup the Node.js backend and serve the frontend
-FROM node:20-alpine AS runner
-
+# Final Stage
+FROM node:18-bullseye-slim
 WORKDIR /app
 
-# Install backend dependencies
-COPY backend/package*.json ./
-RUN npm install --production
+# Install bash for the startup script
+RUN apt-get update && apt-get install -y bash && rm -rf /var/lib/apt/lists/*
 
-# Copy backend source code
-COPY backend/ .
+# Copy backend
+COPY --from=backend-builder /app/backend /app/backend
 
-# Copy built frontend assets from builder stage to backend's public directory
-COPY --from=builder /app/frontend/out ./public
+# Copy frontend (Next.js standalone build)
+COPY --from=frontend-builder /app/frontend/.next/standalone /app/frontend
+COPY --from=frontend-builder /app/frontend/public /app/frontend/public
+COPY --from=frontend-builder /app/frontend/.next/static /app/frontend/.next/static
 
-# Expose the application port
-EXPOSE 5001
+# Copy startup script
+COPY start-services.sh /app/start-services.sh
+RUN chmod +x /app/start-services.sh
 
-# Set environment variables
-ENV NODE_ENV=production
-ENV PORT=5001
+# Expose ports
+EXPOSE 5050
+EXPOSE 3030
 
-# Start the server
-CMD ["node", "server.js"]
+# Environment variables
+ENV PORT_BACKEND=5050
+ENV PORT_FRONTEND=3030
+
+CMD ["/app/start-services.sh"]

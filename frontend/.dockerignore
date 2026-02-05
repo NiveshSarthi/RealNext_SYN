@@ -12,3 +12,4 @@ coverage
 build_log.txt
 lint_log.txt
 next_dev_log.txt
+node_modules
