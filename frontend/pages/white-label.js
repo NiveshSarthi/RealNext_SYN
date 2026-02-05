@@ -302,7 +302,7 @@ const WhiteLabelSettings = () => {
               <div>
                 <h3 className="text-lg font-medium text-gray-900">Hide Platform Branding</h3>
                 <p className="text-gray-600 mt-1">
-                  Remove "Powered by WhatsApp Automation Platform" branding from your interface
+                  Remove &quot;Powered by WhatsApp Automation Platform&quot; branding from your interface
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">

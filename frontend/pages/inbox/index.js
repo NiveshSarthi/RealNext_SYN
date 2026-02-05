@@ -110,7 +110,7 @@ const ChatArea = ({ conversation }) => {
                             <div className="flex items-center gap-2 mb-2 text-xs text-primary font-medium">
                                 <BoltIcon className="h-3 w-3" /> AI Suggestion
                             </div>
-                            <p className="text-sm text-foreground/80 italic">"Hello! Yes, we have 3BHK units available in Tower A. Would you like to schedule a site visit for this weekend?"</p>
+                            <p className="text-sm text-foreground/80 italic">&quot;Hello! Yes, we have 3BHK units available in Tower A. Would you like to schedule a site visit for this weekend?&quot;</p>
                             <div className="mt-2 flex gap-2">
                                 <button className="text-xs bg-primary/10 text-primary px-3 py-1 rounded hover:bg-primary/20 transition-colors">Apply</button>
                                 <button className="text-xs bg-muted text-muted-foreground px-3 py-1 rounded hover:bg-muted/80 transition-colors">Dismiss</button>

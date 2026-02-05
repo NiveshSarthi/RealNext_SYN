@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function Test() {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
@@ -22,7 +24,7 @@ export default function Test() {
         </ul>
       </div>
       <div style={{ marginTop: '20px' }}>
-        <a
+        <Link
           href="/"
           style={{
             backgroundColor: '#3b82f6',
@@ -34,8 +36,8 @@ export default function Test() {
           }}
         >
           Go to Landing Page
-        </a>
-        <a
+        </Link>
+        <Link
           href="/dashboard"
           style={{
             backgroundColor: '#10b981',
@@ -48,7 +50,7 @@ export default function Test() {
           }}
         >
           Go to Dashboard
-        </a>
+        </Link>
       </div>
     </div>
   );

@@ -65,7 +65,7 @@ export default function LeadManagerPage() {
                         <div>
                             <h3 className="font-bold text-white mb-2 text-lg">Real-time Lead Sync</h3>
                             <p className="text-gray-400 text-sm leading-relaxed">
-                                Leads received through these integrations are automatically added to your "My Leads" list.
+                                Leads received through these integrations are automatically added to your &quot;My Leads&quot; list.
                                 We support Webhooks, Facebook Lead Ads, and Zapier.
                             </p>
                         </div>

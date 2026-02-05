@@ -221,7 +221,7 @@ export default function LMS() {
                             <div>
                                 <h3 className="font-bold text-white mb-1">Real-time Lead Notifications</h3>
                                 <p className="text-gray-400 text-sm">
-                                    All leads from your connected integrations are automatically synced to your "My Leads" page.
+                                    All leads from your connected integrations are automatically synced to your &quot;My Leads&quot; page.
                                     Configure webhooks for instant notifications when new leads arrive.
                                 </p>
                             </div>
