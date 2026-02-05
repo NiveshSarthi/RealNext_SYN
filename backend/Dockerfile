@@ -29,7 +29,7 @@ RUN npm ci --only=production
 COPY . .
 
 # Expose port
-EXPOSE 5000
+EXPOSE 5050
 
 # Start command
 CMD ["npm", "start"]
