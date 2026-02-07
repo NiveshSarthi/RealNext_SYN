@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: realnext-backend
     ports:
-      - "5000:5000"
+      - "5001:5000"
     env_file:
       - ./backend/.env
     restart: unless-stopped
@@ -19,12 +19,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:5000
+        NEXT_PUBLIC_API_URL: http://localhost:5001
     container_name: realnext-frontend
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:5000
+      - NEXT_PUBLIC_API_URL=http://localhost:5001
       - NODE_ENV=production
     restart: unless-stopped
     depends_on:
