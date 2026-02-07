@@ -21,16 +21,16 @@ router.use('/team', require('./team'));
 router.use('/roles', require('./roles'));
 
 // Feature module routes
-router.use('/leads', require('./leads'));
-router.use('/campaigns', require('./campaigns'));
-router.use('/templates', require('./templates'));
-router.use('/workflows', require('./workflows'));
+router.use('/leads', require('../modules/wa-marketing/routes/leads'));
+router.use('/campaigns', require('../modules/wa-marketing/routes/campaigns'));
+router.use('/templates', require('../modules/wa-marketing/routes/templates'));
+router.use('/workflows', require('../modules/wa-marketing/routes/workflows'));
 router.use('/analytics', require('./analytics'));
 router.use('/network', require('./network'));
-router.use('/quick-replies', require('./quickReplies'));
-router.use('/catalog', require('./catalog'));
-router.use('/lms', require('./lms'));
-router.use('/meta-ads', require('./metaAds'));
+router.use('/quick-replies', require('../modules/wa-marketing/routes/quickReplies'));
+router.use('/catalog', require('../modules/inventory/routes'));
+router.use('/lms', require('../modules/lms/routes'));
+router.use('/meta-ads', require('../modules/wa-marketing/routes/metaAds'));
 router.use('/payments', require('./payments'));
 
 // Health check

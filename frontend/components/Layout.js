@@ -32,7 +32,7 @@ const userNavigation = [
     name: 'LMS',
     icon: AcademicCapIcon,
     children: [
-      { name: 'Leads', href: '/leads', icon: UsersIcon },
+      { name: 'Leads', href: '/wa-marketing/leads', icon: UsersIcon },
       { name: 'LMS', href: '/lms', icon: AcademicCapIcon },
       { name: 'Network', href: '/network', icon: UserGroupIcon },
     ]
@@ -41,18 +41,18 @@ const userNavigation = [
     name: 'WA Marketing',
     icon: ChatBubbleLeftRightIcon,
     children: [
-      { name: 'Campaigns', href: '/campaigns', icon: ChatBubbleLeftRightIcon },
-      { name: 'Flows', href: '/flows', icon: BoltIcon },
-      { name: 'Templates', href: '/templates', icon: DocumentTextIcon },
-      { name: 'Quick Replies', href: '/quick-replies', icon: ChatBubbleBottomCenterTextIcon },
-      { name: 'Meta Ads', href: '/meta-ads', icon: MegaphoneIcon },
+      { name: 'Campaigns', href: '/wa-marketing/campaigns', icon: ChatBubbleLeftRightIcon },
+      { name: 'Flows', href: '/wa-marketing/flows', icon: BoltIcon },
+      { name: 'Templates', href: '/wa-marketing/templates', icon: DocumentTextIcon },
+      { name: 'Quick Replies', href: '/wa-marketing/quick-replies', icon: ChatBubbleBottomCenterTextIcon },
+      { name: 'Meta Ads', href: '/wa-marketing/meta-ads', icon: MegaphoneIcon },
     ]
   },
   {
     name: 'Inventory',
     icon: ShoppingBagIcon,
     children: [
-      { name: 'Catalog', href: '/catalog', icon: ShoppingBagIcon },
+      { name: 'Catalog', href: '/inventory', icon: ShoppingBagIcon },
     ]
   },
   { name: 'Drip Matrix', href: '/drip-sequences', icon: QueueListIcon },
@@ -99,13 +99,28 @@ export default function Layout({ children }) {
   } else if (user?.context?.partner) {
     navigation = partnerNavigation;
   } else {
-    // For tenant users, filter navigation based on role
+    // For tenant users, filter navigation based on role and features
     const userRole = user?.context?.tenantRole || 'user';
 
-    // Only show Team section for admin and manager roles
+    // Feature Check Helper
+    const hasFeature = (featureCode) => {
+      if (!user?.context?.features) return true; // Allow access if features not configured
+      return user.context.features.includes(featureCode);
+    };
+
+    // Filter by Role
+    let filteredNav = userNavigation;
     if (userRole !== 'admin' && userRole !== 'manager') {
-      navigation = userNavigation.filter(item => item.name !== 'Team');
+      filteredNav = filteredNav.filter(item => item.name !== 'Team');
     }
+
+    // Filter by Features
+    navigation = filteredNav.filter(item => {
+      if (item.name === 'LMS') return hasFeature('lms');
+      if (item.name === 'Inventory') return hasFeature('inventory') || hasFeature('catalog');
+      if (item.name === 'WA Marketing') return hasFeature('wa_marketing') || hasFeature('campaigns'); // Fallback to campaigns if main flag missing
+      return true;
+    });
   }
 
   // Auto-expand menus that have an active child
