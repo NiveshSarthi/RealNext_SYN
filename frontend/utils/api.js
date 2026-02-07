@@ -541,4 +541,11 @@ export const adminAPI = {
   getTenant: (id) => api.get(`/api/admin/tenants/${id}`),
   updateTenant: (id, data) => api.put(`/api/admin/tenants/${id}`, data),
   deleteTenant: (id) => api.delete(`/api/admin/tenants/${id}`),
+
+  // Features
+  getFeatures: () => api.get('/api/admin/features'),
+  createFeature: (data) => api.post('/api/admin/features', data),
+  updateFeature: (id, data) => api.put(`/api/admin/features/${id}`, data),
+  deleteFeature: (id) => api.delete(`/api/admin/features/${id}`),
+  toggleFeature: (id, isEnabled) => api.put(`/api/admin/features/${id}/toggle`, { is_enabled: isEnabled }),
 };

@@ -26,6 +26,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:5001
       - NODE_ENV=production
+      - PORT=3000
     restart: unless-stopped
     depends_on:
       - backend
