@@ -106,14 +106,23 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5001;
 
 const startServer = async () => {
+  // Start listening continuously
   try {
-    // Test database connection
+    app.listen(PORT, '0.0.0.0', () => {
+      logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+    });
+  } catch (error) {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  }
+
+  // Connect to DB asynchronously
+  try {
+    dbStatus = 'connecting';
     await testConnection();
     dbStatus = 'connected';
 
     // NOTE: Database sync is disabled to avoid conflicts.
-    // Use migrations to create tables: npx sequelize-cli db:migrate
-    // To sync manually (development only), set SYNC_DB=true
     if (process.env.SYNC_DB === 'true') {
       await sequelize.sync({ force: false, alter: false });
       logger.info('Database synchronized');
@@ -125,17 +134,6 @@ const startServer = async () => {
     logger.error('Failed to connect to database:', error);
     dbStatus = 'failed';
     dbError = error;
-    // We do NOT exit here, so the server can still start and report the error via /health
-    logger.warn('Server starting despite database connection failure (Diagnostic Mode)');
-  }
-
-  try {
-    app.listen(PORT, '0.0.0.0', () => {
-      logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
-    });
-  } catch (error) {
-    logger.error('Failed to start server:', error);
-    process.exit(1);
   }
 };
 
