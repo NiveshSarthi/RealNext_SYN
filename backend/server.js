@@ -59,11 +59,18 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/', rateLimiter);
 
 // Health check endpoint
+let dbStatus = 'unknown';
+let dbError = null;
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
+    environment: process.env.NODE_ENV,
+    database: {
+      status: dbStatus,
+      error: dbError ? dbError.message : null
+    }
   });
 });
 
@@ -102,6 +109,7 @@ const startServer = async () => {
   try {
     // Test database connection
     await testConnection();
+    dbStatus = 'connected';
 
     // NOTE: Database sync is disabled to avoid conflicts.
     // Use migrations to create tables: npx sequelize-cli db:migrate
@@ -113,6 +121,15 @@ const startServer = async () => {
       logger.info('Database sync skipped. Use migrations or set SYNC_DB=true');
     }
 
+  } catch (error) {
+    logger.error('Failed to connect to database:', error);
+    dbStatus = 'failed';
+    dbError = error;
+    // We do NOT exit here, so the server can still start and report the error via /health
+    logger.warn('Server starting despite database connection failure (Diagnostic Mode)');
+  }
+
+  try {
     app.listen(PORT, '0.0.0.0', () => {
       logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
     });
