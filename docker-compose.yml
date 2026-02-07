@@ -7,9 +7,9 @@ services:
       dockerfile: Dockerfile
     container_name: realnext-backend
     ports:
-      - "5001:5001"
+      - "5001:5000"
     environment:
-      - PORT=5001
+      - PORT=5000
       - DB_HOST=72.61.248.175
       - DB_PORT=5443
       - DB_NAME=postgres
