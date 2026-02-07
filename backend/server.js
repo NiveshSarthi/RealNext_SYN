@@ -86,7 +86,8 @@ app.use('/api', require('./routes'));
 app.use((req, res, next) => {
   // If the request accepts html, it's likely a navigation request
   // so we serve index.html for the SPA
-  if (req.accepts('html')) {
+  // BUT NOT for /api routes
+  if (req.accepts('html') && !req.path.startsWith('/api')) {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
     return;
   }
