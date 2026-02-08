@@ -21,7 +21,7 @@ router.use('/team', require('./team'));
 router.use('/roles', require('./roles'));
 
 // Feature module routes
-router.use('/leads', require('../modules/wa-marketing/routes/leads'));
+router.use('/leads', require('../modules/lms/leads'));
 router.use('/campaigns', require('../modules/wa-marketing/routes/campaigns'));
 router.use('/templates', require('../modules/wa-marketing/routes/templates'));
 router.use('/workflows', require('../modules/wa-marketing/routes/workflows'));

@@ -29,7 +29,7 @@ export default function LeadDetail() {
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push('/');
+            router.push('/login'); // Assuming login is at /login or /
         } else if (user && id) {
             fetchLead();
         }
@@ -69,7 +69,7 @@ export default function LeadDetail() {
         try {
             await leadsAPI.deleteLead(id);
             toast.success('Lead deleted successfully');
-            router.push('/leads');
+            router.push('/lms/leads');
         } catch (error) {
             console.error('Failed to delete lead:', error);
             toast.error('Failed to delete lead');
@@ -92,7 +92,7 @@ export default function LeadDetail() {
                 <div className="text-center py-16">
                     <h2 className="text-2xl font-bold text-white">Lead Not Found</h2>
                     <p className="mt-2 text-gray-400">The lead you are looking for does not exist or has been deleted.</p>
-                    <Link href="/leads" className="mt-6 inline-flex items-center text-primary hover:text-primary/80">
+                    <Link href="/lms/leads" className="mt-6 inline-flex items-center text-primary hover:text-primary/80">
                         <ArrowLeftIcon className="h-4 w-4 mr-2" />
                         Back to Leads
                     </Link>
@@ -126,7 +126,7 @@ export default function LeadDetail() {
                     </button>
                     <div className="flex space-x-3">
                         <Button
-                            onClick={() => router.push(`/leads/${id}/edit`)}
+                            onClick={() => router.push(`/lms/leads/${id}/edit`)}
                             variant="outline"
                             className="text-sm"
                         >

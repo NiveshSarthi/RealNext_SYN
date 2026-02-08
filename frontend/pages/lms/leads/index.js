@@ -93,7 +93,7 @@ const LeadCard = ({ lead, onEdit, onDelete, onView }) => (
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-border/30">
         <span className="text-xs text-gray-500">
           <CalendarDaysIcon className="h-3 w-3 inline mr-1" />
-          {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : 'N/A'}
+          {(lead.createdAt || lead.created_at) ? new Date(lead.createdAt || lead.created_at).toLocaleDateString() : 'N/A'}
         </span>
         <button onClick={() => onView(lead)} className="text-xs text-primary hover:underline flex items-center">
           View Details <EyeIcon className="h-3 w-3 ml-1" />
@@ -306,7 +306,7 @@ export default function Leads() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button onClick={() => router.push('/leads/new')} variant="primary" className="shrink-0">
+            <Button onClick={() => router.push('/lms/leads/new')} variant="primary" className="shrink-0">
               <PlusIcon className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Add Lead</span>
             </Button>
@@ -320,8 +320,8 @@ export default function Leads() {
               <LeadCard
                 key={lead.id}
                 lead={lead}
-                onView={() => router.push(`/leads/${lead.id}`)}
-                onEdit={() => router.push(`/leads/${lead.id}/edit`)}
+                onView={() => router.push(`/lms/leads/${lead.id}`)}
+                onEdit={() => router.push(`/lms/leads/${lead.id}/edit`)}
                 onDelete={handleDelete}
               />
             ))

@@ -32,7 +32,7 @@ const userNavigation = [
     name: 'LMS',
     icon: AcademicCapIcon,
     children: [
-      { name: 'Leads', href: '/wa-marketing/leads', icon: UsersIcon },
+      { name: 'Leads', href: '/lms/leads', icon: UsersIcon },
       { name: 'LMS', href: '/lms', icon: AcademicCapIcon },
       { name: 'Network', href: '/network', icon: UserGroupIcon },
     ]
