@@ -9,7 +9,7 @@ import {
     ChevronDownIcon,
     CpuChipIcon
 } from '@heroicons/react/24/outline';
-import axios from '../../utils/axios';
+import axios from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import { USER_NAVIGATION } from '../../utils/navigationConfig';
 
@@ -203,8 +203,8 @@ export default function AdminClients() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${client.status === 'active'
-                                                ? 'bg-green-900/30 text-green-200 border border-green-800'
-                                                : 'bg-red-900/30 text-red-200 border border-red-800'
+                                            ? 'bg-green-900/30 text-green-200 border border-green-800'
+                                            : 'bg-red-900/30 text-red-200 border border-red-800'
                                             }`}>
                                             {client.status}
                                         </span>
