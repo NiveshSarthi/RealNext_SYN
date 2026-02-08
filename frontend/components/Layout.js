@@ -26,65 +26,7 @@ import {
   ChevronUpIcon
 } from '@heroicons/react/24/outline';
 
-const userNavigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  {
-    name: 'LMS',
-    icon: AcademicCapIcon,
-    children: [
-      { name: 'Leads', href: '/lms/leads', icon: UsersIcon },
-      { name: 'LMS', href: '/lms', icon: AcademicCapIcon },
-      { name: 'Network', href: '/network', icon: UserGroupIcon },
-    ]
-  },
-  {
-    name: 'WA Marketing',
-    icon: ChatBubbleLeftRightIcon,
-    children: [
-      { name: 'Campaigns', href: '/wa-marketing/campaigns', icon: ChatBubbleLeftRightIcon },
-      { name: 'Flows', href: '/wa-marketing/flows', icon: BoltIcon },
-      { name: 'Templates', href: '/wa-marketing/templates', icon: DocumentTextIcon },
-      { name: 'Quick Replies', href: '/wa-marketing/quick-replies', icon: ChatBubbleBottomCenterTextIcon },
-      { name: 'Meta Ads', href: '/wa-marketing/meta-ads', icon: MegaphoneIcon },
-    ]
-  },
-  {
-    name: 'Inventory',
-    icon: ShoppingBagIcon,
-    children: [
-      { name: 'Catalog', href: '/inventory', icon: ShoppingBagIcon },
-    ]
-  },
-  { name: 'Drip Matrix', href: '/drip-sequences', icon: QueueListIcon },
-  { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
-  {
-    name: 'Team',
-    icon: UserGroupIcon,
-    children: [
-      { name: 'Members', href: '/team', icon: UsersIcon },
-      { name: 'Roles', href: '/team/roles', icon: Cog6ToothIcon },
-    ]
-  },
-  { name: 'Payments', href: '/payments', icon: CreditCardIcon },
-  { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
-];
-
-const adminNavigation = [
-  { name: 'Overview', href: '/admin', icon: HomeIcon },
-  { name: 'Partners', href: '/admin/partners', icon: UserGroupIcon },
-  { name: 'Plans', href: '/admin/plans', icon: CreditCardIcon },
-  { name: 'Tenants', href: '/admin/tenants', icon: BuildingStorefrontIcon },
-  { name: 'Features', href: '/admin/features', icon: BoltIcon },
-  { name: 'Analytics', href: '/admin/analytics', icon: ChartBarIcon },
-  { name: 'Settings', href: '/admin/settings', icon: Cog6ToothIcon },
-];
-
-const partnerNavigation = [
-  { name: 'Dashboard', href: '/partner', icon: HomeIcon },
-  { name: 'Tenants', href: '/partner/tenants', icon: BuildingStorefrontIcon },
-  { name: 'Analytics', href: '/partner/analytics', icon: ChartBarIcon },
-  { name: 'Settings', href: '/partner/settings', icon: Cog6ToothIcon },
-];
+import { USER_NAVIGATION, ADMIN_NAVIGATION } from '../utils/navigationConfig';
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -92,35 +34,80 @@ export default function Layout({ children }) {
   const [expandedMenus, setExpandedMenus] = useState({});
   const { user, router } = useAuth();
 
-  let navigation = userNavigation; // Default for Tenant Users
+  let navigation = [];
 
   if (user?.is_super_admin) {
-    navigation = adminNavigation;
+    // Super Admin: Use Admin Navigation
+    // Filter based on system_permissions if not root admin (TODO: Implement granular admin permissions)
+    navigation = ADMIN_NAVIGATION;
   } else if (user?.context?.partner) {
-    navigation = partnerNavigation;
+    // Partner: Hide or separate logic (Legacy)
+    navigation = [];
   } else {
-    // For tenant users, filter navigation based on role and features
+    // Tenant User: Filter based on Role, Features, and Menu Access
     const userRole = user?.context?.tenantRole || 'user';
+    const menuAccess = user?.context?.menu_access || {};
+    const features = user?.context?.features || [];
 
-    // Feature Check Helper
-    const hasFeature = (featureCode) => {
-      if (!user?.context?.features) return true; // Allow access if features not configured
-      return user.context.features.includes(featureCode);
+    // Recursive helper to filter navigation items
+    const filterNavItems = (items) => {
+      return items.filter(item => {
+        // 1. Check Granular Menu Access (Explicit Disable)
+        if (menuAccess[item.id] === false) return false;
+
+        // 2. Check Feature Dependencies (Legacy Feature Flags)
+        if (item.id === 'lms' && !features.includes('lms')) return false;
+        if (item.id === 'inventory' && (!features.includes('inventory') && !features.includes('catalog'))) return false;
+        if (item.id === 'wa_marketing' && (!features.includes('wa_marketing') && !features.includes('campaigns'))) return false;
+
+        // 3. Check Role (Hide Team for non-admins)
+        if (item.id === 'team' && (userRole !== 'admin' && userRole !== 'manager')) return false;
+
+        // 4. Process Children recursively
+        if (item.children) {
+          const filteredChildren = filterNavItems(item.children);
+          if (filteredChildren.length === 0) return false; // Hide parent if all children are hidden
+          item.children = filteredChildren; // Update children with filtered list (Clone to avoid mutation issues if strict)
+          // Note: In React we should not mutate constants. ideally we map.
+          // Let's do a map-filter approach below for safety.
+          return true;
+        }
+
+        return true;
+      });
     };
 
-    // Filter by Role
-    let filteredNav = userNavigation;
-    if (userRole !== 'admin' && userRole !== 'manager') {
-      filteredNav = filteredNav.filter(item => item.name !== 'Team');
-    }
+    // Safe Map-Filter implementation to avoid mutating the constant
+    const processNavigation = (items) => {
+      return items.reduce((acc, item) => {
+        // 1. Check Granular Menu Access (Explicit Disable)
+        if (menuAccess[item.id] === false) return acc;
 
-    // Filter by Features
-    navigation = filteredNav.filter(item => {
-      if (item.name === 'LMS') return hasFeature('lms');
-      if (item.name === 'Inventory') return hasFeature('inventory') || hasFeature('catalog');
-      if (item.name === 'WA Marketing') return hasFeature('wa_marketing') || hasFeature('campaigns'); // Fallback to campaigns if main flag missing
-      return true;
-    });
+        // 2. Check Feature Dependencies
+        // LMS
+        if (item.id === 'lms' && (!features.includes('lms') && menuAccess[item.id] !== true)) return acc;
+        // Inventory
+        if (item.id === 'inventory' && (!features.includes('inventory') && !features.includes('catalog') && menuAccess[item.id] !== true)) return acc;
+        // WA Marketing
+        if (item.id === 'wa_marketing' && (!features.includes('wa_marketing') && !features.includes('campaigns') && menuAccess[item.id] !== true)) return acc;
+
+        // 3. Check Role
+        if (item.id === 'team' && (userRole !== 'admin' && userRole !== 'manager')) return acc;
+
+        const newItem = { ...item };
+
+        if (item.children) {
+          const processedChildren = processNavigation(item.children);
+          if (processedChildren.length === 0) return acc; // Hide parent if no children visible
+          newItem.children = processedChildren;
+        }
+
+        acc.push(newItem);
+        return acc;
+      }, []);
+    };
+
+    navigation = processNavigation(USER_NAVIGATION);
   }
 
   // Auto-expand menus that have an active child

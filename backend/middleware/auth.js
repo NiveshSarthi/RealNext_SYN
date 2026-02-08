@@ -76,27 +76,33 @@ const authenticate = async (req, res, next) => {
                     order: [['created_at', 'DESC']]
                 });
 
+                // Initialize contexts
+                req.features = {};
+                req.menu_access = req.tenant.settings?.menu_access || {}; // Load menu overrides
+                req.featureLimits = {};
+
                 if (subscription) {
                     req.subscription = subscription.get({ plain: true });
                     req.plan = subscription.plan?.get({ plain: true });
 
                     console.log(`[AUTH] Found Subscription: ${subscription.id} (Plan: ${subscription.plan?.name})`);
 
-                    // Extract enabled features and their limits
-                    req.features = {};
-                    req.featureLimits = {};
-
+                    // Extract enabled features
                     if (subscription.plan?.planFeatures) {
                         subscription.plan.planFeatures.forEach(pf => {
                             if (pf.is_enabled && pf.Feature?.is_enabled) {
                                 req.features[pf.Feature.code] = true;
                                 req.featureLimits[pf.Feature.code] = pf.limits || {};
-                                console.log(`[AUTH] Enabled Feature: ${pf.Feature.code}`);
                             }
                         });
                     }
-                } else {
-                    console.log(`[AUTH] ❌ No active subscription found for tenant ${decoded.tenant_id}`);
+                }
+
+                // Apply Tenant Feature Overrides (Tenant settings take precedence)
+                if (req.tenant.settings?.features) {
+                    Object.keys(req.tenant.settings.features).forEach(code => {
+                        req.features[code] = req.tenant.settings.features[code];
+                    });
                 }
             } else {
                 console.log(`[AUTH] ❌ TenantUser link not found for user ${user.id} and tenant ${decoded.tenant_id}`);

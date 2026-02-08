@@ -7,6 +7,8 @@ router.use('/plans', require('./plans'));
 router.use('/features', require('./features'));
 router.use('/tenants', require('./tenants'));
 router.use('/analytics', require('./analytics'));
+router.use('/team', require('./team'));
+router.use('/roles', require('./roles'));
 
 // Admin root - overview dashboard
 router.get('/', async (req, res) => {

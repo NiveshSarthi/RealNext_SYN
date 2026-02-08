@@ -112,7 +112,14 @@ router.put('/:id/override',
             const { settings, metadata, status, environment, is_demo } = req.body;
 
             await tenant.update({
-                settings: settings ? { ...tenant.settings, ...settings, _admin_override: true } : tenant.settings,
+                settings: settings ? {
+                    ...tenant.settings,
+                    ...settings,
+                    // Ensure deep merge for nested objects if needed, or rely on frontend to send complete objects
+                    features: settings.features ? { ...tenant.settings.features, ...settings.features } : tenant.settings.features,
+                    menu_access: settings.menu_access ? { ...tenant.settings.menu_access, ...settings.menu_access } : tenant.settings.menu_access,
+                    _admin_override: true
+                } : tenant.settings,
                 metadata: metadata ? { ...tenant.metadata, ...metadata } : tenant.metadata,
                 status: status || tenant.status,
                 environment: environment || tenant.environment,

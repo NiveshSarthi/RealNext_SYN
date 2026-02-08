@@ -41,6 +41,11 @@ const User = sequelize.define('users', {
         type: DataTypes.BOOLEAN,
         defaultValue: false
     },
+    system_role_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        comment: 'Role ID for Super Admin Team members'
+    },
     is_super_admin: {
         type: DataTypes.BOOLEAN,
         defaultValue: false

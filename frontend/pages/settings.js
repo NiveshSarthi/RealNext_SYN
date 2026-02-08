@@ -11,18 +11,38 @@ import {
   ShieldCheckIcon,
   KeyIcon
 } from '@heroicons/react/24/outline';
+import { Button } from '../components/ui/Button';
 
 const TabButton = ({ active, onClick, children, icon: Icon }) => (
   <button
     onClick={onClick}
-    className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${active
-      ? 'bg-blue-100 text-blue-700 border-blue-500'
-      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+    className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 ${active
+      ? 'bg-primary/10 text-primary border border-primary/20'
+      : 'text-gray-400 hover:text-white hover:bg-white/5'
       }`}
   >
     <Icon className="h-5 w-5 mr-2" />
     {children}
   </button>
+);
+
+const InputField = ({ label, name, type = "text", value, onChange, placeholder, required, min }) => (
+  <div>
+    <label htmlFor={name} className="block text-sm font-medium text-gray-300 mb-1.5">
+      {label}
+    </label>
+    <input
+      type={type}
+      name={name}
+      id={name}
+      required={required}
+      min={min}
+      className="block w-full bg-[#0E1117] border border-border/50 rounded-lg py-2.5 px-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 sm:text-sm transition-all"
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+    />
+  </div>
 );
 
 const ProfileSettings = ({ user, onUpdate }) => {
@@ -79,117 +99,94 @@ const ProfileSettings = ({ user, onUpdate }) => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-gray-900">Profile Information</h3>
-        <p className="mt-1 text-sm text-gray-500">
+        <h3 className="text-lg font-medium text-white">Profile Information</h3>
+        <p className="mt-1 text-sm text-gray-400">
           Update your personal and business information.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-              Full Name
-            </label>
-            <input
-              type="text"
-              name="name"
-              id="name"
-              required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              value={formData.name}
-              onChange={handleChange}
-            />
-          </div>
+          <InputField
+            label="Full Name"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            required
+          />
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email Address
-            </label>
-            <input
-              type="email"
-              name="email"
-              id="email"
-              required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              value={formData.email}
-              onChange={handleChange}
-            />
-          </div>
+          <InputField
+            label="Email Address"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+          />
 
-          <div>
-            <label htmlFor="businessName" className="block text-sm font-medium text-gray-700">
-              Business Name
-            </label>
-            <input
-              type="text"
-              name="businessName"
-              id="businessName"
-              required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              value={formData.businessName}
-              onChange={handleChange}
-            />
-          </div>
+          <InputField
+            label="Business Name"
+            name="businessName"
+            value={formData.businessName}
+            onChange={handleChange}
+            required
+          />
 
-          <div>
-            <label htmlFor="location" className="block text-sm font-medium text-gray-700">
-              Location
-            </label>
-            <input
-              type="text"
-              name="location"
-              id="location"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              value={formData.location}
-              onChange={handleChange}
-              placeholder="City, State"
-            />
-          </div>
+          <InputField
+            label="Location"
+            name="location"
+            value={formData.location}
+            onChange={handleChange}
+            placeholder="City, State"
+          />
 
-          <div>
-            <label htmlFor="experience_years" className="block text-sm font-medium text-gray-700">
-              Years of Experience
-            </label>
-            <input
-              type="number"
-              name="experience_years"
-              id="experience_years"
-              min="0"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              value={formData.experience_years}
-              onChange={handleChange}
-            />
-          </div>
+          <InputField
+            label="Years of Experience"
+            name="experience_years"
+            type="number"
+            value={formData.experience_years}
+            onChange={handleChange}
+            min="0"
+          />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
+          <label className="block text-sm font-medium text-gray-300 mb-3">
             Specializations
           </label>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {specializations.map((spec) => (
-              <label key={spec} className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.specializations.includes(spec)}
-                  onChange={() => handleSpecializationChange(spec)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <span className="ml-2 text-sm text-gray-700">{spec}</span>
+              <label key={spec} className="flex items-center group cursor-pointer">
+                <div className={`
+                  w-4 h-4 rounded border flex items-center justify-center transition-colors
+                  ${formData.specializations.includes(spec) ? 'bg-primary border-primary' : 'border-gray-600 bg-[#0E1117] group-hover:border-gray-500'}
+                `}>
+                  <input
+                    type="checkbox"
+                    checked={formData.specializations.includes(spec)}
+                    onChange={() => handleSpecializationChange(spec)}
+                    className="hidden"
+                  />
+                  {formData.specializations.includes(spec) && (
+                    <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <span className="ml-2 text-sm text-gray-400 group-hover:text-gray-300 transition-colors">{spec}</span>
               </label>
             ))}
           </div>
         </div>
 
         <div className="flex justify-end">
-          <button
+          <Button
             type="submit"
-            disabled={loading}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            isLoading={loading}
+            variant="primary"
           >
-            {loading ? 'Saving...' : 'Save Changes'}
-          </button>
+            Save Changes
+          </Button>
         </div>
       </form>
     </div>
@@ -233,66 +230,48 @@ const SecuritySettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-gray-900">Change Password</h3>
-        <p className="mt-1 text-sm text-gray-500">
+        <h3 className="text-lg font-medium text-white">Change Password</h3>
+        <p className="mt-1 text-sm text-gray-400">
           Update your password to keep your account secure.
         </p>
       </div>
 
       <form onSubmit={handlePasswordChange} className="space-y-6">
-        <div>
-          <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
-            Current Password
-          </label>
-          <input
-            type="password"
-            name="currentPassword"
-            id="currentPassword"
-            required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-          />
-        </div>
+        <InputField
+          label="Current Password"
+          name="currentPassword"
+          type="password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          required
+        />
 
-        <div>
-          <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
-            New Password
-          </label>
-          <input
-            type="password"
-            name="newPassword"
-            id="newPassword"
-            required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-          />
-        </div>
+        <InputField
+          label="New Password"
+          name="newPassword"
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          required
+        />
 
-        <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-            Confirm New Password
-          </label>
-          <input
-            type="password"
-            name="confirmPassword"
-            id="confirmPassword"
-            required
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-        </div>
+        <InputField
+          label="Confirm New Password"
+          name="confirmPassword"
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+        />
 
         <div className="flex justify-end">
-          <button
+          <Button
             type="submit"
-            disabled={loading}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            isLoading={loading}
+            variant="primary"
           >
-            {loading ? 'Changing...' : 'Change Password'}
-          </button>
+            Change Password
+          </Button>
         </div>
       </form>
     </div>
@@ -323,8 +302,8 @@ const NotificationSettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-gray-900">Notification Preferences</h3>
-        <p className="mt-1 text-sm text-gray-500">
+        <h3 className="text-lg font-medium text-white">Notification Preferences</h3>
+        <p className="mt-1 text-sm text-gray-400">
           Choose what notifications you want to receive.
         </p>
       </div>
@@ -337,15 +316,15 @@ const NotificationSettings = () => {
           { key: 'paymentReminders', label: 'Payment Reminders', description: 'Get reminded about upcoming payments' },
           { key: 'weeklyReports', label: 'Weekly Reports', description: 'Receive weekly performance summaries' }
         ].map((item) => (
-          <div key={item.key} className="flex items-center justify-between">
+          <div key={item.key} className="flex items-center justify-between p-4 rounded-lg border border-border/30 bg-[#0E1117]">
             <div className="flex-1">
-              <h4 className="text-sm font-medium text-gray-900">{item.label}</h4>
+              <h4 className="text-sm font-medium text-white">{item.label}</h4>
               <p className="text-sm text-gray-500">{item.description}</p>
             </div>
             <div className="ml-4">
               <button
                 onClick={() => handleSettingChange(item.key)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${settings[item.key] ? 'bg-blue-600' : 'bg-gray-200'
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ring-offset-[#0E1117] ${settings[item.key] ? 'bg-primary' : 'bg-gray-700'
                   }`}
               >
                 <span
@@ -359,12 +338,12 @@ const NotificationSettings = () => {
       </div>
 
       <div className="flex justify-end">
-        <button
+        <Button
           onClick={handleSave}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          variant="primary"
         >
           Save Preferences
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -385,7 +364,7 @@ export default function Settings() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
       </Layout>
     );
@@ -401,17 +380,17 @@ export default function Settings() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-5xl mx-auto padding-container animate-fade-in content-container">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-2xl font-bold font-display text-white">Settings</h1>
+          <p className="mt-1 text-sm text-gray-400">
             Manage your account settings and preferences
           </p>
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-border/50">
           <nav className="-mb-px flex space-x-8">
             {tabs.map((tab) => (
               <TabButton
@@ -427,8 +406,8 @@ export default function Settings() {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
+        <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-soft">
+          <div className="px-6 py-8">
             {ActiveComponent && (
               <ActiveComponent
                 user={user}
