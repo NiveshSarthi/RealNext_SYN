@@ -9,7 +9,7 @@ const { Op } = require('sequelize');
  */
 const getPagination = (query) => {
     const page = parseInt(query.page) || 1;
-    const limit = Math.min(parseInt(query.limit) || 20, 100);
+    const limit = Math.min(parseInt(query.limit) || 20, 1000);
     const offset = (page - 1) * limit;
 
     return { page, limit, offset };

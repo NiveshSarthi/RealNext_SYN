@@ -162,52 +162,55 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
                     continue;
                 }
 
-                const response = await axios.get(`${GRAPH_API_URL}/${form.form_id}/leads`, {
-                    params: {
-                        access_token: form.pageConnection.access_token,
-                        fields: 'id,created_time,field_data',
-                        limit: 100
-                    }
-                });
+                let nextUrl = `${GRAPH_API_URL}/${form.form_id}/leads?access_token=${form.pageConnection.access_token}&fields=id,created_time,field_data&limit=100`;
+                let pageCount = 0;
+                const MAX_PAGES = 20; // Fetch up to 2000 leads max per sync to avoid timeout
 
-                const leads = response.data.data || [];
-                for (const leadData of leads) {
-                    // Normalize Field Data
-                    // field_data is [{ name: 'email', values: ['...'] }, ...]
-                    const emailField = leadData.field_data.find(f => f.name.includes('email'))?.values[0];
-                    const phoneField = leadData.field_data.find(f => f.name.includes('phone') || f.name.includes('number'))?.values[0];
-                    const nameField = leadData.field_data.find(f => f.name.includes('name') || f.name.includes('full_name'))?.values[0];
+                while (nextUrl && pageCount < MAX_PAGES) {
+                    const response = await axios.get(nextUrl);
+                    const leads = response.data.data || [];
 
-                    if (!phoneField && !emailField) continue; // Skip empty leads
+                    // Update nextUrl for pagination
+                    nextUrl = response.data.paging?.next;
+                    pageCount++;
+                    for (const leadData of leads) {
+                        // Normalize Field Data
+                        // field_data is [{ name: 'email', values: ['...'] }, ...]
+                        const emailField = leadData.field_data.find(f => f.name.includes('email'))?.values[0];
+                        const phoneField = leadData.field_data.find(f => f.name.includes('phone') || f.name.includes('number'))?.values[0];
+                        const nameField = leadData.field_data.find(f => f.name.includes('name') || f.name.includes('full_name'))?.values[0];
 
-                    // Check if lead exists (deduplication)
-                    const existingLead = await Lead.findOne({
-                        where: {
-                            tenant_id: req.tenant.id,
-                            [require('sequelize').Op.or]: [
-                                { phone: phoneField || 'N/A' },
-                                { email: emailField || 'N/A' }
-                            ]
-                        }
-                    });
+                        if (!phoneField && !emailField) continue; // Skip empty leads
 
-                    if (!existingLead) {
-                        await Lead.create({
-                            tenant_id: req.tenant.id,
-                            name: nameField || 'Facebook Lead',
-                            email: emailField,
-                            phone: phoneField,
-                            source: 'Facebook Ads',
-                            status: 'new',
-                            metadata: {
-                                facebook_lead_id: leadData.id,
-                                form_id: form.form_id,
-                                page_id: form.pageConnection.page_id
+                        // Check if lead exists (deduplication)
+                        const existingLead = await Lead.findOne({
+                            where: {
+                                tenant_id: req.tenant.id,
+                                [require('sequelize').Op.or]: [
+                                    { phone: phoneField || 'N/A' },
+                                    { email: emailField || 'N/A' }
+                                ]
                             }
                         });
-                        newLeadsCount++;
-                    } else {
-                        skippedCount++;
+
+                        if (!existingLead) {
+                            await Lead.create({
+                                tenant_id: req.tenant.id,
+                                name: nameField || 'Facebook Lead',
+                                email: emailField,
+                                phone: phoneField,
+                                source: 'Facebook Ads',
+                                status: 'new',
+                                metadata: {
+                                    facebook_lead_id: leadData.id,
+                                    form_id: form.form_id,
+                                    page_id: form.pageConnection.page_id
+                                }
+                            });
+                            newLeadsCount++;
+                        } else {
+                            skippedCount++;
+                        }
                     }
                 }
             } catch (formError) {
