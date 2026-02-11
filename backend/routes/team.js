@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { User, TenantUser, Tenant, Role } = require('../models');
+const { User, ClientUser, Client, Role } = require('../models');
 const { authenticate } = require('../middleware/auth');
-const { requireTenantAccess } = require('../middleware/roles');
-const { enforceTenantScope } = require('../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../middleware/roles');
+const { enforceClientScope } = require('../middleware/scopeEnforcer');
 const { ApiError } = require('../middleware/errorHandler');
 const bcrypt = require('bcryptjs');
 const logger = require('../config/logger');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 /**
  * @route GET /api/team
@@ -17,43 +17,37 @@ router.use(authenticate, requireTenantAccess, enforceTenantScope);
  */
 router.get('/', async (req, res, next) => {
     try {
-        const tenantId = req.tenant.id;
+        const clientId = req.client.id;
 
-        const teamMembers = await TenantUser.findAll({
-            where: { tenant_id: tenantId },
-            include: [
-                {
-                    model: User,
-                    as: 'user',
-                    attributes: ['id', 'name', 'email', 'phone', 'avatar_url', 'status', 'last_login_at', 'created_at']
-                },
-                {
-                    model: Role,
-                    as: 'customRole',
-                    attributes: ['id', 'name', 'description', 'permissions']
-                }
-            ],
-            order: [['created_at', 'DESC']]
-        });
+        const teamMembers = await ClientUser.find({ client_id: clientId })
+            .populate({
+                path: 'user_id',
+                select: 'name email phone avatar_url status last_login_at created_at'
+            })
+            .populate({
+                path: 'role_id',
+                select: 'name description permissions'
+            })
+            .sort({ created_at: -1 });
 
         const formattedMembers = teamMembers.map(tm => ({
-            id: tm.id,
-            user_id: tm.user.id,
-            name: tm.user.name,
-            email: tm.user.email,
-            phone: tm.user.phone,
-            avatar_url: tm.user.avatar_url,
-            status: tm.user.status,
-            role: tm.role, // Legacy role
-            role_id: tm.role_id,
-            custom_role: tm.customRole ? {
-                id: tm.customRole.id,
-                name: tm.customRole.name,
-                description: tm.customRole.description
+            id: tm._id,
+            user_id: tm.user_id?._id,
+            name: tm.user_id?.name,
+            email: tm.user_id?.email,
+            phone: tm.user_id?.phone,
+            avatar_url: tm.user_id?.avatar_url,
+            status: tm.user_id?.status,
+            role: tm.role,
+            role_id: tm.role_id?._id,
+            custom_role: tm.role_id ? {
+                id: tm.role_id._id,
+                name: tm.role_id.name,
+                description: tm.role_id.description
             } : null,
             is_owner: tm.is_owner,
             department: tm.department,
-            last_login_at: tm.user.last_login_at,
+            last_login_at: tm.user_id?.last_login_at,
             joined_at: tm.created_at
         }));
 
@@ -73,7 +67,7 @@ router.get('/', async (req, res, next) => {
 router.post('/invite', async (req, res, next) => {
     try {
         const { email, name, role, role_id, department } = req.body;
-        const tenantId = req.tenant.id;
+        const clientId = req.client.id;
 
         // Validate required fields
         if (!email || !name) {
@@ -81,17 +75,15 @@ router.post('/invite', async (req, res, next) => {
         }
 
         // Check if user already exists
-        let user = await User.findOne({ where: { email } });
+        let user = await User.findOne({ email });
 
         if (!user) {
             // Create new user with temporary password
             const tempPassword = Math.random().toString(36).slice(-10);
-            const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
             user = await User.create({
                 email,
                 name,
-                password_hash: hashedPassword,
+                password_hash: tempPassword,
                 status: 'active'
             });
 
@@ -100,17 +92,18 @@ router.post('/invite', async (req, res, next) => {
         }
 
         // Check if user is already a team member
-        const existingMember = await TenantUser.findOne({
-            where: { tenant_id: tenantId, user_id: user.id }
+        const existingMember = await ClientUser.findOne({
+            client_id: clientId,
+            user_id: user.id
         });
 
         if (existingMember) {
             throw ApiError.conflict('User is already a team member');
         }
 
-        // Create tenant user relationship
-        const tenantUser = await TenantUser.create({
-            tenant_id: tenantId,
+        // Create client user relationship
+        const clientUser = await ClientUser.create({
+            client_id: clientId,
             user_id: user.id,
             role: role || 'user',
             role_id: role_id || null,
@@ -119,31 +112,26 @@ router.post('/invite', async (req, res, next) => {
         });
 
         // Fetch the created member with associations
-        const newMember = await TenantUser.findByPk(tenantUser.id, {
-            include: [
-                {
-                    model: User,
-                    as: 'user',
-                    attributes: ['id', 'name', 'email', 'phone', 'avatar_url', 'status']
-                },
-                {
-                    model: Role,
-                    as: 'customRole',
-                    attributes: ['id', 'name', 'description']
-                }
-            ]
-        });
+        const newMember = await ClientUser.findById(clientUser._id)
+            .populate({
+                path: 'user_id',
+                select: 'name email phone avatar_url status'
+            })
+            .populate({
+                path: 'role_id',
+                select: 'name description'
+            });
 
         res.status(201).json({
             success: true,
             data: {
-                id: newMember.id,
-                user_id: newMember.user.id,
-                name: newMember.user.name,
-                email: newMember.user.email,
+                id: newMember._id,
+                user_id: newMember.user_id?._id,
+                name: newMember.user_id?.name,
+                email: newMember.user_id?.email,
                 role: newMember.role,
-                role_id: newMember.role_id,
-                custom_role: newMember.customRole,
+                role_id: newMember.role_id?._id,
+                custom_role: newMember.role_id,
                 department: newMember.department,
                 is_owner: newMember.is_owner
             },
@@ -162,51 +150,47 @@ router.patch('/:userId', async (req, res, next) => {
     try {
         const { userId } = req.params;
         const { role, role_id, department, status } = req.body;
-        const tenantId = req.tenant.id;
+        const clientId = req.client.id;
 
-        const tenantUser = await TenantUser.findOne({
-            where: { tenant_id: tenantId, user_id: userId }
+        const clientUser = await ClientUser.findOne({
+            client_id: clientId,
+            user_id: userId
         });
 
-        if (!tenantUser) {
+        if (!clientUser) {
             throw ApiError.notFound('Team member not found');
         }
 
         // Prevent modifying the owner
-        if (tenantUser.is_owner) {
-            throw ApiError.forbidden('Cannot modify the tenant owner');
+        if (clientUser.is_owner) {
+            throw ApiError.forbidden('Cannot modify the client owner');
         }
 
         // Update fields
-        if (role !== undefined) tenantUser.role = role;
-        if (role_id !== undefined) tenantUser.role_id = role_id;
-        if (department !== undefined) tenantUser.department = department;
+        if (role !== undefined) clientUser.role = role;
+        if (role_id !== undefined) clientUser.role_id = role_id;
+        if (department !== undefined) clientUser.department = department;
 
-        await tenantUser.save();
+        await clientUser.save();
 
         // If status is being updated, update the user record
         if (status !== undefined) {
-            await User.update(
-                { status },
-                { where: { id: userId } }
+            await User.updateOne(
+                { _id: userId },
+                { $set: { status } }
             );
         }
 
         // Fetch updated member
-        const updatedMember = await TenantUser.findByPk(tenantUser.id, {
-            include: [
-                {
-                    model: User,
-                    as: 'user',
-                    attributes: ['id', 'name', 'email', 'status']
-                },
-                {
-                    model: Role,
-                    as: 'customRole',
-                    attributes: ['id', 'name', 'description']
-                }
-            ]
-        });
+        const updatedMember = await ClientUser.findById(clientUser._id)
+            .populate({
+                path: 'user_id',
+                select: 'name email status'
+            })
+            .populate({
+                path: 'role_id',
+                select: 'name description'
+            });
 
         res.json({
             success: true,
@@ -225,22 +209,23 @@ router.patch('/:userId', async (req, res, next) => {
 router.delete('/:userId', async (req, res, next) => {
     try {
         const { userId } = req.params;
-        const tenantId = req.tenant.id;
+        const clientId = req.client.id;
 
-        const tenantUser = await TenantUser.findOne({
-            where: { tenant_id: tenantId, user_id: userId }
+        const clientUser = await ClientUser.findOne({
+            client_id: clientId,
+            user_id: userId
         });
 
-        if (!tenantUser) {
+        if (!clientUser) {
             throw ApiError.notFound('Team member not found');
         }
 
         // Prevent removing the owner
-        if (tenantUser.is_owner) {
-            throw ApiError.forbidden('Cannot remove the tenant owner');
+        if (clientUser.is_owner) {
+            throw ApiError.forbidden('Cannot remove the client owner');
         }
 
-        await tenantUser.destroy();
+        await ClientUser.deleteOne({ _id: clientUser._id });
 
         res.json({
             success: true,

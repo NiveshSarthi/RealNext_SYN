@@ -2,17 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { Campaign, Template, Lead } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
-const { requireTenantAccess } = require('../../../middleware/roles');
-const { enforceTenantScope } = require('../../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../../middleware/roles');
+const { enforceClientScope } = require('../../../middleware/scopeEnforcer');
 const { requireFeature, checkUsageLimit, incrementUsage } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
 const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = require('../../../utils/helpers');
 const { createCampaign, validate, validators } = require('../../../utils/validators');
-const { Op } = require('sequelize');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 /**
  * @route GET /api/campaigns
@@ -28,21 +27,21 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
         const typeFilter = req.query.type ? { type: req.query.type } : null;
 
         const where = mergeFilters(
-            { tenant_id: req.tenant.id },
+            { client_id: req.client.id },
             statusFilter,
             typeFilter
         );
 
-        const { count, rows } = await Campaign.findAndCountAll({
-            where,
-            order: sorting,
-            limit: pagination.limit,
-            offset: pagination.offset
-        });
+        const campaigns = await Campaign.find(where)
+            .sort(sorting)
+            .limit(pagination.limit)
+            .skip(pagination.offset);
+
+        const count = await Campaign.countDocuments(where);
 
         res.json({
             success: true,
-            ...getPaginatedResponse(rows, count, pagination)
+            ...getPaginatedResponse(campaigns, count, pagination)
         });
     } catch (error) {
         next(error);
@@ -67,7 +66,7 @@ router.post('/',
             } = req.body;
 
             const campaign = await Campaign.create({
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 name,
                 type: type || 'broadcast',
                 status: 'draft',
@@ -99,7 +98,8 @@ router.post('/',
 router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
     try {
         const campaign = await Campaign.findOne({
-            where: { id: req.params.id, tenant_id: req.tenant.id }
+            _id: req.params.id,
+            client_id: req.client.id
         });
 
         if (!campaign) {
@@ -126,7 +126,8 @@ router.put('/:id',
     async (req, res, next) => {
         try {
             const campaign = await Campaign.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!campaign) {
@@ -138,11 +139,12 @@ router.put('/:id',
             }
 
             const updateData = { ...req.body };
-            delete updateData.tenant_id;
+            delete updateData.client_id;
             delete updateData.id;
             delete updateData.stats; // Don't allow direct stats modification
 
-            await campaign.update(updateData);
+            Object.assign(campaign, updateData);
+            await campaign.save();
 
             res.json({
                 success: true,
@@ -198,7 +200,8 @@ router.put('/:id/status',
                 updateData.completed_at = now;
             }
 
-            await campaign.update(updateData);
+            Object.assign(campaign, updateData);
+            await campaign.save();
 
             res.json({
                 success: true,
@@ -221,7 +224,8 @@ router.delete('/:id',
     async (req, res, next) => {
         try {
             const campaign = await Campaign.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!campaign) {
@@ -232,7 +236,7 @@ router.delete('/:id',
                 throw ApiError.badRequest('Cannot delete a running campaign');
             }
 
-            await campaign.destroy();
+            await campaign.deleteOne();
 
             res.json({
                 success: true,
@@ -252,7 +256,8 @@ router.delete('/:id',
 router.get('/:id/stats', requireFeature('campaigns'), async (req, res, next) => {
     try {
         const campaign = await Campaign.findOne({
-            where: { id: req.params.id, tenant_id: req.tenant.id }
+            _id: req.params.id,
+            client_id: req.client.id
         });
 
         if (!campaign) {

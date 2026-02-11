@@ -1,53 +1,49 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Role = sequelize.define('roles', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        },
-        comment: 'NULL for system roles, UUID for tenant-specific roles'
+const roleSchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: false
     },
     name: {
-        type: DataTypes.STRING(100),
-        allowNull: false
+        type: String,
+        required: true
     },
     description: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     permissions: {
-        type: DataTypes.JSONB,
-        defaultValue: [],
-        comment: 'Array of permission codes'
+        type: [String],
+        default: []
     },
     is_system: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
-        comment: 'System roles (admin, manager, user) cannot be deleted'
+        type: Boolean,
+        default: false
     },
     is_default: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
-        comment: 'Default role assigned to new team members'
+        type: Boolean,
+        default: false
     }
 }, {
-    tableName: 'roles',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['tenant_id'] },
-        { fields: ['is_system'] },
-        { unique: true, fields: ['tenant_id', 'name'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'roles'
 });
 
+// Indexes
+roleSchema.index({ client_id: 1, name: 1 }, { unique: true });
+
+// Virtual for ID
+roleSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+roleSchema.set('toJSON', { virtuals: true });
+roleSchema.set('toObject', { virtuals: true });
+
+const Role = mongoose.model('Role', roleSchema);
+
 module.exports = Role;
+

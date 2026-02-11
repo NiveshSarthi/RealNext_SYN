@@ -9,7 +9,6 @@ const { ApiError } = require('../middleware/errorHandler');
 const { getPagination, getPaginatedResponse, getSorting, buildSearchFilter, mergeFilters } = require('../utils/helpers');
 const { createTenant, validate, validators } = require('../utils/validators');
 const subscriptionService = require('../services/subscriptionService');
-const { Op, fn, col } = require('sequelize');
 
 // All routes require authentication and partner access
 router.use(authenticate, requirePartnerAccess, enforcePartnerScope);

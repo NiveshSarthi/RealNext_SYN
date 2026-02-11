@@ -1,52 +1,55 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const FacebookLeadForm = sequelize.define('facebook_lead_forms', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false
+const facebookLeadFormSchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     page_connection_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'facebook_page_connections',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'FacebookPageConnection',
+        required: true
     },
     form_id: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     },
     name: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     },
     status: {
-        type: DataTypes.ENUM('active', 'inactive'),
-        defaultValue: 'active'
+        type: String,
+        default: 'active',
+        enum: ['active', 'inactive']
     },
     lead_count: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0
+        type: Number,
+        default: 0
     },
     last_lead_fetched_at: {
-        type: DataTypes.DATE
+        type: Date,
+        required: false
     }
 }, {
-    tableName: 'facebook_lead_forms',
-    timestamps: true,
-    indexes: [
-        {
-            unique: true,
-            fields: ['tenant_id', 'form_id']
-        }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'facebook_lead_forms'
 });
 
+// Indexes
+facebookLeadFormSchema.index({ client_id: 1, form_id: 1 }, { unique: true });
+
+// Virtual for ID
+facebookLeadFormSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+facebookLeadFormSchema.set('toJSON', { virtuals: true });
+facebookLeadFormSchema.set('toObject', { virtuals: true });
+
+const FacebookLeadForm = mongoose.model('FacebookLeadForm', facebookLeadFormSchema);
+
 module.exports = FacebookLeadForm;
+

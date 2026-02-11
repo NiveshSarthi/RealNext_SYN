@@ -11,15 +11,19 @@ import {
     TrashIcon,
     MagnifyingGlassIcon,
     CheckCircleIcon,
-    XCircleIcon
+    XCircleIcon,
+    UserPlusIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
 export default function AdminPlans() {
     const [plans, setPlans] = useState([]);
+    const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [selectedPlan, setSelectedPlan] = useState(null);
 
     // Form State
     const [editingId, setEditingId] = useState(null);
@@ -32,6 +36,13 @@ export default function AdminPlans() {
         description: '',
         is_public: true,
         is_active: true
+    });
+
+    // Assignment Form State
+    const [assignFormData, setAssignFormData] = useState({
+        client_id: '',
+        billing_cycle: 'monthly',
+        start_date: ''
     });
 
     useEffect(() => {
@@ -50,6 +61,49 @@ export default function AdminPlans() {
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchClients = async () => {
+        try {
+            const response = await adminAPI.getClients();
+            if (response.data.success) {
+                setClients(response.data.data);
+            }
+        } catch (error) {
+            toast.error('Failed to load clients');
+            console.error(error);
+        }
+    };
+
+    const handleAssignSubscription = (plan) => {
+        setSelectedPlan(plan);
+        setAssignFormData({
+            client_id: '',
+            billing_cycle: 'monthly',
+            start_date: ''
+        });
+        fetchClients();
+        setIsAssignModalOpen(true);
+    };
+
+    const handleAssignSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const assignmentData = {
+                client_id: assignFormData.client_id,
+                plan_id: selectedPlan.id,
+                billing_cycle: assignFormData.billing_cycle,
+                ...(assignFormData.start_date && { start_date: assignFormData.start_date })
+            };
+
+            await adminAPI.assignSubscription(assignmentData);
+            toast.success('Subscription assigned successfully! The user may need to refresh their app to see the changes.');
+            setIsAssignModalOpen(false);
+            fetchPlans(); // Refresh plans to show updated subscription counts
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Failed to assign subscription');
+            console.error(error);
         }
     };
 
@@ -186,6 +240,13 @@ export default function AdminPlans() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right space-x-2">
+                                            <button
+                                                onClick={() => handleAssignSubscription(plan)}
+                                                className="text-blue-600 hover:text-blue-800 transition-colors"
+                                                title="Assign subscription to client"
+                                            >
+                                                <UserPlusIcon className="w-5 h-5" />
+                                            </button>
                                             <button onClick={() => handleEdit(plan)} className="text-primary hover:text-primary/80 transition-colors">
                                                 <PencilIcon className="w-5 h-5" />
                                             </button>
@@ -291,6 +352,72 @@ export default function AdminPlans() {
                                     </Button>
                                     <Button type="submit">
                                         {editingId ? 'Update Plan' : 'Create Plan'}
+                                    </Button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Assignment Modal */}
+                {isAssignModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-card w-full max-w-lg rounded-xl shadow-2xl p-6 border border-border m-4 max-h-[90vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-bold font-display text-foreground">
+                                    Assign Subscription: {selectedPlan?.name}
+                                </h3>
+                                <button onClick={() => setIsAssignModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                                    <XCircleIcon className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleAssignSubmit} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-1">Select Client</label>
+                                    <select
+                                        required
+                                        value={assignFormData.client_id}
+                                        onChange={(e) => setAssignFormData({ ...assignFormData, client_id: e.target.value })}
+                                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="">Choose a client...</option>
+                                        {clients.map((client) => (
+                                            <option key={client.id} value={client.id}>
+                                                {client.name} ({client.email})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-1">Billing Cycle</label>
+                                    <select
+                                        value={assignFormData.billing_cycle}
+                                        onChange={(e) => setAssignFormData({ ...assignFormData, billing_cycle: e.target.value })}
+                                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                    >
+                                        <option value="monthly">Monthly</option>
+                                        <option value="yearly">Yearly</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-foreground mb-1">Start Date (Optional)</label>
+                                    <Input
+                                        type="date"
+                                        value={assignFormData.start_date}
+                                        onChange={(e) => setAssignFormData({ ...assignFormData, start_date: e.target.value })}
+                                        placeholder="Leave empty for immediate start"
+                                    />
+                                </div>
+
+                                <div className="flex justify-end space-x-3 pt-4">
+                                    <Button variant="outline" type="button" onClick={() => setIsAssignModalOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button type="submit">
+                                        Assign Subscription
                                     </Button>
                                 </div>
                             </form>

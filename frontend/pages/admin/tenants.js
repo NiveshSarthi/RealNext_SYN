@@ -18,10 +18,18 @@ export default function AdminClients() {
     const [loading, setLoading] = useState(true);
     const [showMenuModal, setShowMenuModal] = useState(false);
     const [showFeatureModal, setShowFeatureModal] = useState(false);
+    const [showCreateModal, setShowCreateModal] = useState(false);
     const [selectedClient, setSelectedClient] = useState(null);
     const [menuAccess, setMenuAccess] = useState({});
     const [clientFeatures, setClientFeatures] = useState({});
     const [expandedNodes, setExpandedNodes] = useState({});
+    const [createForm, setCreateForm] = useState({
+        name: '',
+        email: '',
+        password: '',
+        phone: '',
+        company_name: ''
+    });
 
     useEffect(() => {
         fetchClients();
@@ -29,7 +37,7 @@ export default function AdminClients() {
 
     const fetchClients = async () => {
         try {
-            const res = await axios.get('/api/admin/tenants');
+            const res = await axios.get('/api/admin/clients');
             setClients(res.data.data);
             setLoading(false);
         } catch (error) {
@@ -78,7 +86,7 @@ export default function AdminClients() {
 
     const saveMenuAccess = async () => {
         try {
-            await axios.put(`/api/admin/tenants/${selectedClient.id}/override`, {
+            await axios.put(`/api/admin/clients/${selectedClient.id}/override`, {
                 settings: { menu_access: menuAccess }
             });
             toast.success('Menu access updated');
@@ -145,7 +153,7 @@ export default function AdminClients() {
 
     const saveFeatures = async () => {
         try {
-            await axios.put(`/api/admin/tenants/${selectedClient.id}/override`, {
+            await axios.put(`/api/admin/clients/${selectedClient.id}/override`, {
                 settings: { features: clientFeatures }
             });
             toast.success('Features updated');
@@ -153,6 +161,18 @@ export default function AdminClients() {
             fetchClients();
         } catch (error) {
             toast.error('Failed to update features');
+        }
+    };
+
+    const handleCreateClient = async () => {
+        try {
+            await axios.post('/api/admin/clients', createForm);
+            toast.success('Client created successfully');
+            setShowCreateModal(false);
+            setCreateForm({ name: '', email: '', password: '', phone: '', company_name: '' });
+            fetchClients();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to create client');
         }
     };
 
@@ -167,6 +187,9 @@ export default function AdminClients() {
                     <h1 className="text-2xl font-bold text-white">Clients</h1>
                     <p className="text-gray-400 mt-1">Manage your clients and their access</p>
                 </div>
+                <Button onClick={() => setShowCreateModal(true)}>
+                    + Create Client
+                </Button>
             </div>
 
             {loading ? (
@@ -296,6 +319,91 @@ export default function AdminClients() {
                             </Button>
                             <Button onClick={saveFeatures}>
                                 Save Features
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Client Modal */}
+            {showCreateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#161B22] border border-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
+                        <h2 className="text-xl font-bold text-white mb-6">
+                            Create New Client
+                        </h2>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Full Name *</label>
+                                <input
+                                    type="text"
+                                    className="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                    placeholder="John Doe"
+                                    value={createForm.name}
+                                    onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
+                                <input
+                                    type="email"
+                                    className="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                    placeholder="john@company.com"
+                                    value={createForm.email}
+                                    onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Password *</label>
+                                <input
+                                    type="password"
+                                    className="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                    placeholder="Min. 8 characters"
+                                    value={createForm.password}
+                                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                                    required
+                                    minLength={8}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Company Name</label>
+                                <input
+                                    type="text"
+                                    className="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                    placeholder="Company Ltd."
+                                    value={createForm.company_name}
+                                    onChange={(e) => setCreateForm({ ...createForm, company_name: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
+                                <input
+                                    type="tel"
+                                    className="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                    placeholder="+1 234 567 8900"
+                                    value={createForm.phone}
+                                    onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end space-x-3 pt-6 border-t border-gray-800 mt-6">
+                            <Button variant="ghost" onClick={() => {
+                                setShowCreateModal(false);
+                                setCreateForm({ name: '', email: '', password: '', phone: '', company_name: '' });
+                            }}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleCreateClient}>
+                                Create Client
                             </Button>
                         </div>
                     </div>

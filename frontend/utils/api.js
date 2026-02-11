@@ -28,8 +28,13 @@ api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('access_token');
+      console.log('[API Interceptor] Request to:', config.url);
+      console.log('[API Interceptor] Token exists:', !!token);
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        console.log('[API Interceptor] Authorization header set');
+      } else {
+        console.warn('[API Interceptor] No token found in localStorage');
       }
     }
     return config;
@@ -40,24 +45,32 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    console.log('[API Interceptor] Response error:', error.response?.status, error.config?.url);
     const originalRequest = error.config;
     if (error.response?.status === 401 && !originalRequest._retry) {
+      console.log('[API Interceptor] 401 error, attempting token refresh...');
       originalRequest._retry = true;
       if (typeof window !== 'undefined') {
         const refreshToken = localStorage.getItem('refresh_token');
+        console.log('[API Interceptor] Refresh token exists:', !!refreshToken);
         if (refreshToken) {
           try {
+            console.log('[API Interceptor] Calling refresh endpoint...');
             const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refresh_token: refreshToken });
             const { access_token } = response.data;
             localStorage.setItem('access_token', access_token);
             originalRequest.headers.Authorization = `Bearer ${access_token}`;
+            console.log('[API Interceptor] Token refreshed successfully, retrying request');
             return axios(originalRequest);
           } catch (refreshError) {
+            console.error('[API Interceptor] Token refresh failed:', refreshError.message);
             localStorage.removeItem('access_token');
             localStorage.removeItem('refresh_token');
             localStorage.removeItem('user');
             window.location.href = '/';
           }
+        } else {
+          console.warn('[API Interceptor] No refresh token available, redirecting to login');
         }
       }
     }
@@ -173,7 +186,18 @@ export default api;
 
 // Authentication API (Internal Backend)
 export const authAPI = {
-  login: (credentials) => api.post('/api/auth/login', credentials),
+  login: async (credentials) => {
+    try {
+      console.log('Attempting login with:', { email: credentials.email });
+      const response = await api.post('/api/auth/login', credentials);
+      console.log('Login API Response:', response);
+      return response;
+    } catch (error) {
+      console.error('Login API Error:', error);
+      throw error;
+    }
+  },
+  register: (userData) => api.post('/api/auth/register', userData),
   refresh: (refreshToken) => api.post('/api/auth/refresh', { refresh_token: refreshToken }),
   getProfile: () => api.get('/api/auth/me'),
   updateProfile: (data) => api.put('/api/auth/update-profile', data),
@@ -288,8 +312,8 @@ export const analyticsAPI = {
 // Payments API
 // Payments API (mapped to Subscriptions backend)
 export const paymentsAPI = {
-  getPlans: () => api.get('/api/subscriptions/plans'),
-  getCurrentSubscription: () => api.get('/api/subscriptions/my'),
+  getPlans: () => api.get('/api/subscription/plans'),
+  getCurrentSubscription: () => api.get('/api/subscription/current'),
   createSubscription: (data) => api.post('/api/subscriptions', data),
   getHistory: (params) => api.get('/api/subscriptions/my/history', { params }), // Assuming history endpoint exists or needs creation
   getStats: () => api.get('/api/subscriptions/my/stats'), // Assuming stats endpoint exists
@@ -529,12 +553,11 @@ export const mobileAppAPI = {
 
 // Admin API
 export const adminAPI = {
-  // Partners
-  getPartners: (params) => api.get('/api/admin/partners', { params }),
-  getPartner: (id) => api.get(`/api/admin/partners/${id}`),
-  createPartner: (data) => api.post('/api/admin/partners', data),
-  updatePartner: (id, data) => api.put(`/api/admin/partners/${id}`, data),
-  deletePartner: (id) => api.delete(`/api/admin/partners/${id}`),
+  // Clients (Management)
+  getClients: (params) => api.get('/api/admin/clients', { params }),
+  getClient: (id) => api.get(`/api/admin/clients/${id}`),
+  updateClient: (id, data) => api.put(`/api/admin/clients/${id}`, data),
+  deleteClient: (id) => api.delete(`/api/admin/clients/${id}`),
 
   // Plans
   getPlans: (params) => api.get('/api/admin/plans', { params }),
@@ -543,11 +566,7 @@ export const adminAPI = {
   updatePlan: (id, data) => api.put(`/api/admin/plans/${id}`, data),
   deletePlan: (id) => api.delete(`/api/admin/plans/${id}`),
 
-  // Tenants (Users)
-  getTenants: (params) => api.get('/api/admin/tenants', { params }),
-  getTenant: (id) => api.get(`/api/admin/tenants/${id}`),
-  updateTenant: (id, data) => api.put(`/api/admin/tenants/${id}`, data),
-  deleteTenant: (id) => api.delete(`/api/admin/tenants/${id}`),
+  // Removed Tenant endpoints (replaced by Clients above)
 
   // Features
   getFeatures: () => api.get('/api/admin/features'),
@@ -555,4 +574,11 @@ export const adminAPI = {
   updateFeature: (id, data) => api.put(`/api/admin/features/${id}`, data),
   deleteFeature: (id) => api.delete(`/api/admin/features/${id}`),
   toggleFeature: (id, isEnabled) => api.put(`/api/admin/features/${id}/toggle`, { is_enabled: isEnabled }),
+
+  // Subscriptions
+  getSubscriptions: (params) => api.get('/api/admin/subscriptions', { params }),
+  getSubscription: (id) => api.get(`/api/admin/subscriptions/${id}`),
+  assignSubscription: (data) => api.post('/api/admin/subscriptions', data),
+  updateSubscription: (id, data) => api.put(`/api/admin/subscriptions/${id}`, data),
+  cancelSubscription: (id) => api.delete(`/api/admin/subscriptions/${id}`),
 };

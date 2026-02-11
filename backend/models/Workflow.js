@@ -1,87 +1,81 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Workflow = sequelize.define('workflows', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+const workflowSchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     name: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     description: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     type: {
-        type: DataTypes.STRING(50),
-        defaultValue: 'automation',
-        validate: {
-            isIn: [['automation', 'integration', 'notification', 'custom']]
-        }
+        type: String,
+        default: 'automation',
+        enum: ['automation', 'integration', 'notification', 'custom']
     },
     status: {
-        type: DataTypes.STRING(30),
-        defaultValue: 'inactive',
-        validate: {
-            isIn: [['active', 'inactive', 'draft', 'error']]
-        }
+        type: String,
+        default: 'inactive',
+        enum: ['active', 'inactive', 'draft', 'error']
     },
     trigger_config: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
-        // Example: { event: "lead_created", conditions: { status: "new" } }
+        type: Schema.Types.Mixed,
+        default: {}
     },
     flow_data: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
-        // n8n workflow definition or custom flow data
+        type: Schema.Types.Mixed,
+        default: {}
     },
     n8n_workflow_id: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     execution_count: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0
+        type: Number,
+        default: 0
     },
     last_executed_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     created_by: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
+    },
+    deleted_at: {
+        type: Date,
+        default: null
     }
 }, {
-    tableName: 'workflows',
-    timestamps: true,
-    paranoid: true,
-    underscored: true,
-    indexes: [
-        { fields: ['tenant_id'] },
-        { fields: ['status'] },
-        { fields: ['type'] },
-        { fields: ['n8n_workflow_id'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'workflows'
 });
 
+// Indexes
+workflowSchema.index({ client_id: 1, status: 1 });
+workflowSchema.index({ n8n_workflow_id: 1 });
+
+// Virtual for ID
+workflowSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+workflowSchema.set('toJSON', { virtuals: true });
+workflowSchema.set('toObject', { virtuals: true });
+
+const Workflow = mongoose.model('Workflow', workflowSchema);
+
 module.exports = Workflow;
+

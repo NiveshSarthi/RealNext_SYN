@@ -1,78 +1,88 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Plan = sequelize.define('plans', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const planSchema = new Schema({
     code: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
+        type: String,
+        required: true,
         unique: true
     },
     name: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     description: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     price_monthly: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false
+        type: Number,
+        required: true
     },
     price_yearly: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: true
+        type: Number,
+        required: false
     },
     currency: {
-        type: DataTypes.STRING(3),
-        defaultValue: 'INR'
+        type: String,
+        default: 'INR'
     },
     billing_period: {
-        type: DataTypes.STRING(20),
-        defaultValue: 'monthly',
-        validate: {
-            isIn: [['monthly', 'yearly', 'custom']]
-        }
+        type: String,
+        default: 'monthly',
+        enum: ['monthly', 'yearly', 'custom']
     },
     trial_days: {
-        type: DataTypes.INTEGER,
-        defaultValue: 14
+        type: Number,
+        default: 14
     },
     is_public: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true
+        type: Boolean,
+        default: true
     },
     is_active: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true
+        type: Boolean,
+        default: true
     },
     sort_order: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0
+        type: Number,
+        default: 0
     },
     limits: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
-        // Example: { max_users: 10, storage_gb: 5 }
+        type: Schema.Types.Mixed,
+        default: {}
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'plans',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['code'] },
-        { fields: ['is_active'] },
-        { fields: ['is_public'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'plans',
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
+// Virtual for plan features
+planSchema.virtual('planFeatures', {
+    ref: 'PlanFeature',
+    localField: '_id',
+    foreignField: 'plan_id'
+});
+
+// Indexes
+planSchema.index({ code: 1 });
+planSchema.index({ is_active: 1 });
+
+// Virtual for ID
+planSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+planSchema.set('toJSON', { virtuals: true });
+planSchema.set('toObject', { virtuals: true });
+
+const Plan = mongoose.model('Plan', planSchema);
+
 module.exports = Plan;
+

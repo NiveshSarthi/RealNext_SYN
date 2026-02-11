@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 
 // Admin sub-routes
-router.use('/partners', require('./partners'));
+// router.use('/partners', require('./partners'));
 router.use('/plans', require('./plans'));
 router.use('/features', require('./features'));
-router.use('/tenants', require('./tenants'));
+router.use('/clients', require('./clients'));
+router.use('/subscriptions', require('./subscriptions'));
 router.use('/analytics', require('./analytics'));
 router.use('/team', require('./team'));
 router.use('/roles', require('./roles'));
@@ -16,10 +17,9 @@ router.get('/', async (req, res) => {
         success: true,
         message: 'Admin API',
         endpoints: [
-            '/api/admin/partners',
+            '/api/admin/clients',
             '/api/admin/plans',
             '/api/admin/features',
-            '/api/admin/tenants',
             '/api/admin/analytics'
         ]
     });

@@ -11,37 +11,19 @@ const { ApiError } = require('../middleware/errorHandler');
  */
 router.get('/plans', optionalAuth, async (req, res, next) => {
     try {
-        const where = { is_active: true, is_public: true };
+        const query = { is_active: true, is_public: true };
 
-        // If user is part of a partner, only show partner's allowed plans
-        if (req.partner) {
-            const { PartnerAllowedPlan } = require('../models');
-            const allowedPlanIds = await PartnerAllowedPlan.findAll({
-                where: { partner_id: req.partner.id, is_active: true },
-                attributes: ['plan_id']
-            });
-
-            if (allowedPlanIds.length > 0) {
-                where.id = allowedPlanIds.map(p => p.plan_id);
-            }
-        }
-
-        const plans = await Plan.findAll({
-            where,
-            include: [{
-                model: PlanFeature,
-                as: 'planFeatures',
-                where: { is_enabled: true },
-                required: false,
-                include: [{
-                    model: Feature,
-                    where: { is_enabled: true },
-                    required: false,
-                    attributes: ['id', 'code', 'name', 'description', 'category']
-                }]
-            }],
-            order: [['sort_order', 'ASC'], ['price_monthly', 'ASC']]
-        });
+        const plans = await Plan.find(query)
+            .populate({
+                path: 'planFeatures',
+                match: { is_enabled: true },
+                populate: {
+                    path: 'feature_id',
+                    match: { is_enabled: true },
+                    select: 'code name description category'
+                }
+            })
+            .sort({ sort_order: 1, price_monthly: 1 });
 
         res.json({
             success: true,
@@ -59,16 +41,16 @@ router.get('/plans', optionalAuth, async (req, res, next) => {
  */
 router.get('/current', authenticate, async (req, res, next) => {
     try {
-        if (!req.tenant) {
+        if (!req.client) {
             return res.json({
                 success: true,
                 data: null,
-                message: 'No tenant context'
+                message: 'No client context'
             });
         }
 
         const subscriptionService = require('../services/subscriptionService');
-        const subscription = await subscriptionService.getSubscription(req.tenant.id);
+        const subscription = await subscriptionService.getSubscription(req.client.id);
 
         if (!subscription) {
             return res.json({
@@ -83,7 +65,7 @@ router.get('/current', authenticate, async (req, res, next) => {
         res.json({
             success: true,
             data: {
-                subscription: subscription.get({ plain: true }),
+                subscription: subscription.toObject({ virtuals: true }),
                 usage
             }
         });
@@ -101,11 +83,11 @@ router.post('/checkout', authenticate, async (req, res, next) => {
     try {
         const { plan_id, billing_cycle } = req.body;
 
-        if (!req.tenant) {
-            throw ApiError.badRequest('Tenant context required');
+        if (!req.client) {
+            throw ApiError.badRequest('Client context required');
         }
 
-        const plan = await Plan.findByPk(plan_id);
+        const plan = await Plan.findById(plan_id);
         if (!plan || !plan.is_active) {
             throw ApiError.notFound('Plan not found');
         }
@@ -146,18 +128,16 @@ router.post('/activate', authenticate, async (req, res, next) => {
     try {
         const { plan_id, billing_cycle } = req.body;
 
-        if (!req.tenant) {
-            throw ApiError.badRequest('Tenant context required');
+        if (!req.client) {
+            throw ApiError.badRequest('Client context required');
         }
 
         const subscriptionService = require('../services/subscriptionService');
 
         // Check for existing subscription
         const existing = await Subscription.findOne({
-            where: {
-                tenant_id: req.tenant.id,
-                status: ['trial', 'active']
-            }
+            client_id: req.client.id,
+            status: { $in: ['trial', 'active'] }
         });
 
         if (existing) {
@@ -172,9 +152,8 @@ router.post('/activate', authenticate, async (req, res, next) => {
 
         // Create new subscription
         const subscription = await subscriptionService.createSubscription(
-            req.tenant.id,
+            req.client.id,
             plan_id,
-            req.partner?.id || null,
             billing_cycle || 'monthly'
         );
 
@@ -197,15 +176,13 @@ router.post('/cancel', authenticate, async (req, res, next) => {
     try {
         const { reason, immediate } = req.body;
 
-        if (!req.tenant) {
-            throw ApiError.badRequest('Tenant context required');
+        if (!req.client) {
+            throw ApiError.badRequest('Client context required');
         }
 
         const subscription = await Subscription.findOne({
-            where: {
-                tenant_id: req.tenant.id,
-                status: ['trial', 'active']
-            }
+            client_id: req.client.id,
+            status: { $in: ['trial', 'active'] }
         });
 
         if (!subscription) {

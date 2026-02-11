@@ -13,8 +13,7 @@ const createAuditLog = async (data) => {
     try {
         await AuditLog.create({
             user_id: data.userId,
-            tenant_id: data.tenantId,
-            partner_id: data.partnerId,
+            client_id: data.clientId,
             action: data.action,
             resource_type: data.resourceType,
             resource_id: data.resourceId,
@@ -45,9 +44,8 @@ const auditAction = (action, resourceType) => {
                 const resourceId = data?.data?.id || req.params.id || null;
 
                 createAuditLog({
-                    userId: req.user?.id,
-                    tenantId: req.tenant?.id,
-                    partnerId: req.partner?.id,
+                    userId: req.user?._id,
+                    clientId: req.client?._id,
                     action,
                     resourceType,
                     resourceId,
@@ -76,12 +74,11 @@ const auditAction = (action, resourceType) => {
  */
 const logAuthEvent = async (req, action, success, userId = null, failureReason = null) => {
     await createAuditLog({
-        userId: userId || req.user?.id,
-        tenantId: req.tenant?.id,
-        partnerId: req.partner?.id,
+        userId: userId || req.user?._id,
+        clientId: req.client?._id,
         action,
         resourceType: 'auth',
-        resourceId: userId || req.user?.id,
+        resourceId: userId || req.user?._id,
         changes: {
             success,
             failure_reason: failureReason
@@ -100,12 +97,11 @@ const logAuthEvent = async (req, action, success, userId = null, failureReason =
  */
 const logSubscriptionEvent = async (req, action, oldData, newData) => {
     await createAuditLog({
-        userId: req.user?.id,
-        tenantId: req.tenant?.id,
-        partnerId: req.partner?.id,
+        userId: req.user?._id,
+        clientId: req.client?._id,
         action,
         resourceType: 'subscription',
-        resourceId: newData?.id || oldData?.id,
+        resourceId: newData?._id || oldData?._id || newData?.id || oldData?.id,
         changes: {
             before: sanitizeForLog(oldData),
             after: sanitizeForLog(newData)
@@ -151,27 +147,29 @@ const queryAuditLogs = async (filters, pagination = { page: 1, limit: 50 }) => {
     const where = {};
 
     if (filters.userId) where.user_id = filters.userId;
-    if (filters.tenantId) where.tenant_id = filters.tenantId;
-    if (filters.partnerId) where.partner_id = filters.partnerId;
+    if (filters.clientId) where.client_id = filters.clientId;
     if (filters.action) where.action = filters.action;
     if (filters.resourceType) where.resource_type = filters.resourceType;
     if (filters.resourceId) where.resource_id = filters.resourceId;
 
     if (filters.startDate || filters.endDate) {
-        const { Op } = require('sequelize');
         where.created_at = {};
-        if (filters.startDate) where.created_at[Op.gte] = filters.startDate;
-        if (filters.endDate) where.created_at[Op.lte] = filters.endDate;
+        if (filters.startDate) where.created_at.$gte = filters.startDate;
+        if (filters.endDate) where.created_at.$lte = filters.endDate;
     }
 
-    const offset = (pagination.page - 1) * pagination.limit;
+    const skip = (pagination.page - 1) * pagination.limit;
 
-    return AuditLog.findAndCountAll({
-        where,
-        order: [['created_at', 'DESC']],
-        limit: pagination.limit,
-        offset
-    });
+    const [rows, count] = await Promise.all([
+        AuditLog.find(where)
+            .sort({ created_at: -1 })
+            .limit(pagination.limit)
+            .skip(skip)
+            .lean(),
+        AuditLog.countDocuments(where)
+    ]);
+
+    return { rows, count };
 };
 
 module.exports = {

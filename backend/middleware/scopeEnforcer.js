@@ -1,180 +1,99 @@
 const { ApiError } = require('./errorHandler');
-const { Tenant, Partner } = require('../models');
+const { Client } = require('../models');
 
 /**
- * Tenant/Partner Scope Enforcement Middleware
- * Ensures users can only access data within their authorized scope
+ * Enforce client isolation - ensures request is scoped to user's client
  */
-
-/**
- * Enforce tenant isolation - ensures request is scoped to user's tenant
- */
-const enforceTenantScope = (req, res, next) => {
-    // Super admins bypass tenant scope (but should explicitly set it when needed)
+const enforceClientScope = (req, res, next) => {
+    // Super admins bypass client scope
     if (req.user?.is_super_admin) {
         return next();
     }
 
-    if (!req.tenant) {
-        throw ApiError.forbidden('Tenant context required');
+    if (!req.client) {
+        throw ApiError.forbidden('Client context required');
     }
 
     // Attach scope filters for use in queries
     req.scopeFilter = {
-        tenant_id: req.tenant.id
+        client_id: req.client.id
     };
 
     next();
 };
 
 /**
- * Enforce partner isolation - ensures partner can only access their tenants
+ * Validate that a specific client belongs to the requester
  */
-const enforcePartnerScope = (req, res, next) => {
-    // Super admins bypass partner scope
+const validateClientOwnership = async (req, res, next) => {
+    const clientId = req.params.clientId || req.params.id || req.body.client_id;
+
+    if (!clientId) {
+        return next();
+    }
+
+    // Super admins can access any client
     if (req.user?.is_super_admin) {
-        return next();
-    }
-
-    if (!req.partner) {
-        throw ApiError.forbidden('Partner context required');
-    }
-
-    // Partner can access tenants under them
-    req.partnerScopeFilter = {
-        partner_id: req.partner.id
-    };
-
-    next();
-};
-
-/**
- * Validate that a specific tenant belongs to the current partner
- */
-const validateTenantOwnership = async (req, res, next) => {
-    const tenantId = req.params.tenantId || req.params.id || req.body.tenant_id;
-
-    if (!tenantId) {
-        return next();
-    }
-
-    // Super admins can access any tenant
-    if (req.user?.is_super_admin) {
-        const tenant = await Tenant.findByPk(tenantId);
-        if (!tenant) {
-            throw ApiError.notFound('Tenant not found');
+        const client = await Client.findById(clientId);
+        if (!client) {
+            throw ApiError.notFound('Client not found');
         }
-        req.targetTenant = tenant.get({ plain: true });
+        req.targetClient = client.toObject({ virtuals: true });
         return next();
     }
 
-    // Partners can only access their own tenants
-    if (req.partner) {
-        const tenant = await Tenant.findOne({
-            where: {
-                id: tenantId,
-                partner_id: req.partner.id
-            }
-        });
-
-        if (!tenant) {
-            throw ApiError.notFound('Tenant not found or access denied');
-        }
-
-        req.targetTenant = tenant.get({ plain: true });
-        return next();
-    }
-
-    // Tenant users can only access their own tenant
-    if (req.tenant && req.tenant.id !== tenantId) {
-        throw ApiError.forbidden('Access denied to this tenant');
+    // Client users can only access their own client
+    if (req.client && req.client.id !== clientId) {
+        throw ApiError.forbidden('Access denied to this client');
     }
 
     next();
 };
 
 /**
- * Validate that a specific partner can be accessed
+ * Add client scope to query options
  */
-const validatePartnerAccess = async (req, res, next) => {
-    const partnerId = req.params.partnerId || req.params.id;
-
-    if (!partnerId) {
-        return next();
-    }
-
-    // Super admins can access any partner
-    if (req.user?.is_super_admin) {
-        const partner = await Partner.findByPk(partnerId);
-        if (!partner) {
-            throw ApiError.notFound('Partner not found');
-        }
-        req.targetPartner = partner.get({ plain: true });
-        return next();
-    }
-
-    // Partners can only access themselves
-    if (req.partner && req.partner.id !== partnerId) {
-        throw ApiError.forbidden('Access denied to this partner');
-    }
-
-    if (req.partner) {
-        req.targetPartner = req.partner;
-    }
-
-    next();
-};
-
-/**
- * Add tenant scope to query options
- * Usage: Model.findAll({ ...addTenantScope(req) })
- */
-const addTenantScope = (req) => {
+const addClientScope = (req) => {
     if (req.user?.is_super_admin) {
         return {};
     }
 
-    if (!req.tenant) {
-        throw ApiError.forbidden('Tenant context required');
+    if (!req.client) {
+        throw ApiError.forbidden('Client context required');
     }
 
     return {
-        where: {
-            tenant_id: req.tenant.id
-        }
+        client_id: req.client.id
     };
 };
 
 /**
- * Middleware to set tenant context from header or query param
- * Used by super admins to switch tenant context
+ * Middleware to set client context from header or query param
  */
-const setTenantContext = async (req, res, next) => {
-    const tenantId = req.headers['x-tenant-id'] || req.query.tenant_id;
+const setClientContext = async (req, res, next) => {
+    const clientId = req.headers['x-client-id'] || req.headers['x-tenant-id'] || req.query.client_id || req.query.tenant_id;
 
-    if (!tenantId) {
+    if (!clientId) {
         return next();
     }
 
-    // Only super admins can switch tenant context via header
+    // Only super admins can switch context via header
     if (!req.user?.is_super_admin) {
         return next();
     }
 
-    const tenant = await Tenant.findByPk(tenantId);
-    if (tenant) {
-        req.tenant = tenant.get({ plain: true });
-        req.scopeFilter = { tenant_id: tenant.id };
+    const client = await Client.findById(clientId);
+    if (client) {
+        req.client = client.toObject({ virtuals: true });
+        req.scopeFilter = { client_id: client.id };
     }
 
     next();
 };
 
 module.exports = {
-    enforceTenantScope,
-    enforcePartnerScope,
-    validateTenantOwnership,
-    validatePartnerAccess,
-    addTenantScope,
-    setTenantContext
+    enforceClientScope,
+    validateClientOwnership,
+    addClientScope,
+    setClientContext
 };

@@ -2,16 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { CatalogItem } = require('../../models');
 const { authenticate } = require('../../middleware/auth');
-const { requireTenantAccess } = require('../../middleware/roles');
-const { enforceTenantScope } = require('../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../middleware/roles');
+const { enforceClientScope } = require('../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../middleware/featureGate');
 const { auditAction } = require('../../middleware/auditLogger');
 const { ApiError } = require('../../middleware/errorHandler');
 const { validate, validators } = require('../../utils/validators');
-const { Op } = require('sequelize');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 /**
  * @route GET /api/catalog

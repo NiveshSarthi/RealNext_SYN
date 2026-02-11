@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { jwt: jwtConfig } = require('../config/jwt');
-const { User, TenantUser, PartnerUser, Tenant, Partner, Subscription, Plan, PlanFeature, Feature } = require('../models');
+const { User, ClientUser, Client, Subscription, Plan, PlanFeature, Feature } = require('../models');
 const { ApiError } = require('./errorHandler');
 const logger = require('../config/logger');
 
@@ -22,9 +22,7 @@ const authenticate = async (req, res, next) => {
         const decoded = jwt.verify(token, jwtConfig.accessSecret);
 
         // Get user from database
-        const user = await User.findByPk(decoded.sub, {
-            attributes: { exclude: ['password_hash'] }
-        });
+        const user = await User.findById(decoded.sub).select('-password_hash');
 
         if (!user) {
             throw ApiError.unauthorized('User not found');
@@ -35,98 +33,74 @@ const authenticate = async (req, res, next) => {
         }
 
         // Attach user to request
-        req.user = user.get({ plain: true });
+        req.user = user.toObject({ virtuals: true });
         req.user.is_super_admin = user.is_super_admin;
 
-        // If token has tenant context, attach it
-        if (decoded.tenant_id) {
-            console.log(`[AUTH] Token has tenant_id: ${decoded.tenant_id}`);
-            const tenantUser = await TenantUser.findOne({
-                where: { user_id: user.id, tenant_id: decoded.tenant_id },
-                include: [{
-                    model: Tenant,
-                    as: 'Tenant',
-                    where: { status: 'active' }
-                }]
+        // If token has client context, attach it
+        if (decoded.client_id || decoded.tenant_id) {
+            const clientId = decoded.client_id || decoded.tenant_id;
+            console.log(`[AUTH] Token has client_id: ${clientId}`);
+            const clientUser = await ClientUser.findOne({
+                user_id: user._id,
+                client_id: clientId
+            }).populate({
+                path: 'client_id',
+                match: { status: 'active' }
             });
 
-            if (tenantUser) {
-                // Attach tenant context to request
-                req.tenantUser = tenantUser.get({ plain: true });
-                req.tenant = tenantUser.Tenant.get({ plain: true });
-                req.user.tenant_role = tenantUser.role;
+            if (clientUser && clientUser.client_id) {
+                // Attach client context to request
+                req.clientUser = clientUser.toObject({ virtuals: true });
+                req.client = clientUser.client_id.toObject({ virtuals: true });
+                req.user.client_role = clientUser.role;
 
-                console.log(`[AUTH] ✅ Tenant context loaded: ${req.tenant.name} (Role: ${req.tenantUser.role})`);
+                console.log(`[AUTH] ✅ Client context loaded: ${req.client.name} (Role: ${req.clientUser.role})`);
 
                 // Get subscription and features
                 const subscription = await Subscription.findOne({
-                    where: {
-                        tenant_id: decoded.tenant_id,
-                        status: ['trial', 'active']
-                    },
-                    include: [{
-                        model: Plan,
-                        as: 'plan',
-                        include: [{
-                            model: PlanFeature,
-                            as: 'planFeatures',
-                            include: [{ model: Feature }]
-                        }]
-                    }],
-                    order: [['created_at', 'DESC']]
-                });
+                    client_id: clientId,
+                    status: { $in: ['trial', 'active'] }
+                }).populate({
+                    path: 'plan_id',
+                    populate: {
+                        path: 'planFeatures',
+                        populate: { path: 'feature_id' }
+                    }
+                }).sort({ created_at: -1 });
 
                 // Initialize contexts
                 req.features = {};
-                req.menu_access = req.tenant.settings?.menu_access || {}; // Load menu overrides
+                req.menu_access = req.client.settings?.menu_access || {}; // Load menu overrides
                 req.featureLimits = {};
 
                 if (subscription) {
-                    req.subscription = subscription.get({ plain: true });
-                    req.plan = subscription.plan?.get({ plain: true });
+                    req.subscription = subscription.toObject({ virtuals: true });
+                    req.plan = subscription.plan_id ? subscription.plan_id.toObject({ virtuals: true }) : null;
 
-                    console.log(`[AUTH] Found Subscription: ${subscription.id} (Plan: ${subscription.plan?.name})`);
+                    console.log(`[AUTH] Found Subscription: ${subscription._id} (Plan: ${subscription.plan_id?.name})`);
 
                     // Extract enabled features
-                    if (subscription.plan?.planFeatures) {
-                        subscription.plan.planFeatures.forEach(pf => {
-                            if (pf.is_enabled && pf.Feature?.is_enabled) {
-                                req.features[pf.Feature.code] = true;
-                                req.featureLimits[pf.Feature.code] = pf.limits || {};
+                    if (subscription.plan_id?.planFeatures) {
+                        subscription.plan_id.planFeatures.forEach(pf => {
+                            if (pf.is_enabled && pf.feature_id?.is_enabled) {
+                                req.features[pf.feature_id.code] = true;
+                                req.featureLimits[pf.feature_id.code] = pf.limits || {};
                             }
                         });
                     }
                 }
 
-                // Apply Tenant Feature Overrides (Tenant settings take precedence)
-                if (req.tenant.settings?.features) {
-                    Object.keys(req.tenant.settings.features).forEach(code => {
-                        req.features[code] = req.tenant.settings.features[code];
+                // Apply Client Feature Overrides (Client settings take precedence)
+                if (req.client.settings?.features) {
+                    Object.keys(req.client.settings.features).forEach(code => {
+                        req.features[code] = req.client.settings.features[code];
                     });
                 }
             } else {
-                console.log(`[AUTH] ❌ TenantUser link not found for user ${user.id} and tenant ${decoded.tenant_id}`);
+                console.log(`[AUTH] ❌ ClientUser link not found for user ${user.id} and client ${clientId}`);
             }
         } else {
-            console.log(`[AUTH] ⚠️ Token MISSING tenant_id`);
-        }
-
-        // If token has partner context, attach it
-        if (decoded.partner_id) {
-            const partnerUser = await PartnerUser.findOne({
-                where: { user_id: user.id, partner_id: decoded.partner_id },
-                include: [{
-                    model: Partner,
-                    where: { status: 'active' }
-                }]
-            });
-
-            if (partnerUser) {
-                req.partnerUser = partnerUser.get({ plain: true });
-                req.partner = partnerUser.Partner.get({ plain: true });
-                req.user.partner_role = partnerUser.role;
-                req.user.is_partner_owner = partnerUser.is_owner;
-            }
+            console.log(`[AUTH] ⚠️ Token MISSING client_id`);
         }
 
         next();

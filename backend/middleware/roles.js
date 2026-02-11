@@ -17,105 +17,60 @@ const requireSuperAdmin = (req, res, next) => {
 };
 
 /**
- * Require Partner Admin role or higher
+ * Require Client Admin role or higher
  */
-const requirePartnerAdmin = (req, res, next) => {
+const requireClientAdmin = (req, res, next) => {
     if (req.user?.is_super_admin) {
         return next();
     }
 
-    if (!req.partner || !req.partnerUser) {
-        throw ApiError.forbidden('Partner Admin access required');
+    if (!req.client || !req.clientUser) {
+        throw ApiError.forbidden('Client Admin access required');
     }
 
-    if (!['admin', 'manager'].includes(req.partnerUser.role)) {
-        throw ApiError.forbidden('Partner Admin access required');
+    if (req.clientUser.role !== 'admin') {
+        throw ApiError.forbidden('Client Admin access required');
     }
 
     next();
 };
 
 /**
- * Require Partner access (any role)
+ * Require Client Manager role or higher
  */
-const requirePartnerAccess = (req, res, next) => {
+const requireClientManager = (req, res, next) => {
     if (req.user?.is_super_admin) {
         return next();
     }
 
-    if (!req.partner || !req.partnerUser) {
-        throw ApiError.forbidden('Partner access required');
+    if (!req.client || !req.clientUser) {
+        throw ApiError.forbidden('Client access required');
+    }
+
+    if (!['admin', 'manager'].includes(req.clientUser.role)) {
+        throw ApiError.forbidden('Client Manager access required');
     }
 
     next();
 };
 
 /**
- * Require Tenant Admin role or higher
+ * Require Client access (any role)
  */
-const requireTenantAdmin = (req, res, next) => {
+const requireClientAccess = (req, res, next) => {
     if (req.user?.is_super_admin) {
         return next();
     }
 
-    // Partner admins can manage their tenants
-    if (req.partner && req.partnerUser &&
-        ['admin', 'manager'].includes(req.partnerUser.role)) {
-        return next();
-    }
-
-    if (!req.tenant || !req.tenantUser) {
-        throw ApiError.forbidden('Tenant Admin access required');
-    }
-
-    if (req.tenantUser.role !== 'admin') {
-        throw ApiError.forbidden('Tenant Admin access required');
+    if (!req.client || !req.clientUser) {
+        throw ApiError.forbidden('Client access required');
     }
 
     next();
 };
 
 /**
- * Require Tenant Manager role or higher
- */
-const requireTenantManager = (req, res, next) => {
-    if (req.user?.is_super_admin) {
-        return next();
-    }
-
-    if (req.partner && req.partnerUser &&
-        ['admin', 'manager'].includes(req.partnerUser.role)) {
-        return next();
-    }
-
-    if (!req.tenant || !req.tenantUser) {
-        throw ApiError.forbidden('Tenant access required');
-    }
-
-    if (!['admin', 'manager'].includes(req.tenantUser.role)) {
-        throw ApiError.forbidden('Tenant Manager access required');
-    }
-
-    next();
-};
-
-/**
- * Require Tenant access (any role)
- */
-const requireTenantAccess = (req, res, next) => {
-    if (req.user?.is_super_admin) {
-        return next();
-    }
-
-    if (!req.tenant || !req.tenantUser) {
-        throw ApiError.forbidden('Tenant access required');
-    }
-
-    next();
-};
-
-/**
- * Check for specific permission within tenant
+ * Check for specific permission within client
  */
 const requirePermission = (...requiredPermissions) => {
     return (req, res, next) => {
@@ -123,12 +78,12 @@ const requirePermission = (...requiredPermissions) => {
             return next();
         }
 
-        // Partner and Tenant admins have all permissions
-        if (req.partnerUser?.role === 'admin' || req.tenantUser?.role === 'admin') {
+        // Client admins have all permissions
+        if (req.clientUser?.role === 'admin') {
             return next();
         }
 
-        const userPermissions = req.tenantUser?.permissions || [];
+        const userPermissions = req.clientUser?.permissions || [];
 
         const hasPermission = requiredPermissions.some(perm => {
             // Check exact match or wildcard
@@ -157,8 +112,7 @@ const requireRoles = (...allowedRoles) => {
         const userRoles = [];
 
         if (req.user?.is_super_admin) userRoles.push(ROLES.SUPER_ADMIN);
-        if (req.partnerUser) userRoles.push(`partner_${req.partnerUser.role}`);
-        if (req.tenantUser) userRoles.push(`tenant_${req.tenantUser.role}`);
+        if (req.clientUser) userRoles.push(`client_${req.clientUser.role}`);
 
         const hasRole = allowedRoles.some(role => userRoles.includes(role));
 
@@ -172,11 +126,9 @@ const requireRoles = (...allowedRoles) => {
 
 module.exports = {
     requireSuperAdmin,
-    requirePartnerAdmin,
-    requirePartnerAccess,
-    requireTenantAdmin,
-    requireTenantManager,
-    requireTenantAccess,
+    requireClientAdmin,
+    requireClientManager,
+    requireClientAccess,
     requirePermission,
     requireRoles
 };

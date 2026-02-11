@@ -118,8 +118,8 @@ export default function Layout({ children }) {
     let changed = false;
     navigation.forEach(item => {
       if (item.children?.some(child => router.pathname === child.href)) {
-        if (!newExpanded[item.name]) {
-          newExpanded[item.name] = true;
+        if (!newExpanded[item.id]) {
+          newExpanded[item.id] = true;
           changed = true;
         }
       }
@@ -146,23 +146,23 @@ export default function Layout({ children }) {
     router.push('/');
   };
 
-  const toggleMenu = (name) => {
+  const toggleMenu = (id) => {
     setExpandedMenus(prev => ({
       ...prev,
-      [name]: !prev[name]
+      [id]: !prev[id]
     }));
   };
 
   const NavItem = ({ item, isCollapsed, isSubItem = false }) => {
     const isActive = router?.pathname === item.href;
     const isChildActive = item.children?.some(child => router?.pathname === child.href);
-    const isExpanded = expandedMenus[item.name];
+    const isExpanded = expandedMenus[item.id];
 
     if (item.children && !isCollapsed) {
       return (
         <div className="space-y-1">
           <button
-            onClick={() => toggleMenu(item.name)}
+            onClick={() => toggleMenu(item.id)}
             className={`
               w-full group flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ease-in-out
               ${isChildActive
@@ -178,7 +178,7 @@ export default function Layout({ children }) {
                   ${isChildActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}
                 `}
               />
-              <span className="truncate">{item.name}</span>
+              <span className="truncate">{item.label}</span>
             </div>
             {isExpanded ? (
               <ChevronUpIcon className="h-4 w-4" />
@@ -190,7 +190,7 @@ export default function Layout({ children }) {
           {isExpanded && (
             <div className="pl-10 space-y-1">
               {item.children.map((child) => (
-                <NavItem key={child.name} item={child} isCollapsed={false} isSubItem={true} />
+                <NavItem key={child.id} item={child} isCollapsed={false} isSubItem={true} />
               ))}
             </div>
           )}
@@ -210,7 +210,7 @@ export default function Layout({ children }) {
           ${isCollapsed ? 'justify-center' : ''}
           ${isSubItem ? 'py-2 opacity-80 hover:opacity-100' : ''}
         `}
-        title={isCollapsed ? item.name : ''}
+        title={isCollapsed ? item.label : ''}
       >
         <item.icon
           className={`
@@ -220,7 +220,7 @@ export default function Layout({ children }) {
           `}
         />
         {!isCollapsed && (
-          <span className="truncate">{item.name}</span>
+          <span className="truncate">{item.label}</span>
         )}
       </Link>
     );
@@ -252,7 +252,7 @@ export default function Layout({ children }) {
           <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
             <nav className="mt-5 px-2 space-y-1">
               {navigation.map((item) => (
-                <NavItem key={item.name} item={item} isCollapsed={false} />
+                <NavItem key={item.id} item={item} isCollapsed={false} />
               ))}
             </nav>
           </div>
@@ -284,7 +284,7 @@ export default function Layout({ children }) {
         <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide py-4">
           <nav className="flex-1 px-3 space-y-1">
             {navigation.map((item) => (
-              <NavItem key={item.name} item={item} isCollapsed={isCollapsed} />
+              <NavItem key={item.id} item={item} isCollapsed={isCollapsed} />
             ))}
           </nav>
         </div>

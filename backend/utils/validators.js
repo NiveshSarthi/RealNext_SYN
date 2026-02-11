@@ -15,7 +15,9 @@ const validate = (req, res, next) => {
             field: err.path,
             message: err.msg
         }));
-        throw ApiError.badRequest('Validation failed', 'VALIDATION_ERROR');
+        const err = ApiError.badRequest('Validation failed', 'VALIDATION_ERROR');
+        err.details = errorMessages;
+        throw err;
     }
     next();
 };
@@ -102,7 +104,11 @@ const validators = {
         let validator = body(field);
         if (!required) validator = validator.optional();
         return validator.isArray().withMessage(`${field} must be an array`);
-    }
+    },
+
+    // Optional date
+    optionalDate: (field) =>
+        body(field).optional().isISO8601().withMessage(`${field} must be a valid date`)
 };
 
 // Pre-built validation chains

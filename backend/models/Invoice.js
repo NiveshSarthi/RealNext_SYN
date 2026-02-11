@@ -1,119 +1,106 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Invoice = sequelize.define('invoices', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const invoiceSchema = new Schema({
     invoice_number: {
-        type: DataTypes.STRING(50),
-        allowNull: false,
+        type: String,
+        required: true,
         unique: true
     },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     subscription_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'subscriptions',
-            key: 'id'
-        }
-    },
-    partner_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'partners',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'Subscription',
+        required: false
     },
     amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false
+        type: Number,
+        required: true
     },
     tax_amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0
+        type: Number,
+        default: 0
     },
     total_amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false
+        type: Number,
+        required: true
     },
     currency: {
-        type: DataTypes.STRING(3),
-        defaultValue: 'INR'
+        type: String,
+        default: 'INR'
     },
     status: {
-        type: DataTypes.STRING(20),
-        defaultValue: 'pending',
-        validate: {
-            isIn: [['pending', 'paid', 'failed', 'refunded', 'cancelled']]
-        }
+        type: String,
+        default: 'pending',
+        enum: ['pending', 'paid', 'failed', 'refunded', 'cancelled']
     },
     billing_period_start: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     billing_period_end: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     due_date: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     paid_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     payment_method: {
-        type: DataTypes.STRING(50),
-        allowNull: true
+        type: String,
+        required: false
     },
     line_items: {
-        type: DataTypes.JSONB,
-        defaultValue: []
-        // Example: [{ description: "Professional Plan - Monthly", amount: 999, quantity: 1 }]
+        type: Schema.Types.Mixed,
+        default: []
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'invoices',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['tenant_id'] },
-        { fields: ['subscription_id'] },
-        { fields: ['partner_id'] },
-        { fields: ['status'] },
-        { fields: ['invoice_number'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'invoices'
 });
 
-// Generate invoice number before creation
-Invoice.beforeCreate(async (invoice) => {
-    if (!invoice.invoice_number) {
+// Indexes
+invoiceSchema.index({ client_id: 1, status: 1 });
+invoiceSchema.index({ invoice_number: 1 }, { unique: true });
+
+// Pre-save hook// Generate invoice number before validation
+invoiceSchema.pre('validate', async function () {
+    if (this.isNew && !this.invoice_number) {
         const date = new Date();
         const prefix = `INV-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const count = await Invoice.count({
-            where: sequelize.where(
-                sequelize.fn('date_trunc', 'month', sequelize.col('created_at')),
-                sequelize.fn('date_trunc', 'month', sequelize.literal('CURRENT_DATE'))
-            )
+
+        const count = await this.constructor.countDocuments({
+            created_at: {
+                $gte: new Date(date.getFullYear(), date.getMonth(), 1),
+                $lt: new Date(date.getFullYear(), date.getMonth() + 1, 1)
+            }
         });
-        invoice.invoice_number = `${prefix}-${String(count + 1).padStart(5, '0')}`;
+
+        this.invoice_number = `${prefix}-${String(count + 1).padStart(5, '0')}`;
     }
 });
 
+// Virtual for ID
+invoiceSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+invoiceSchema.set('toJSON', { virtuals: true });
+invoiceSchema.set('toObject', { virtuals: true });
+
+const Invoice = mongoose.model('Invoice', invoiceSchema);
+
 module.exports = Invoice;
+

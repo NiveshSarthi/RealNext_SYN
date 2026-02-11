@@ -2,14 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { Lead, Campaign, Workflow, LoginHistory, SubscriptionUsage } = require('../models');
 const { authenticate } = require('../middleware/auth');
-const { requireTenantAccess } = require('../middleware/roles');
-const { enforceTenantScope } = require('../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../middleware/roles');
+const { enforceClientScope } = require('../middleware/scopeEnforcer');
 const { requireFeature } = require('../middleware/featureGate');
-const { Op } = require('sequelize');
 const { format, subDays, startOfDay, endOfDay } = require('date-fns');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 /**
  * @route GET /api/analytics/dashboard
@@ -17,25 +16,26 @@ router.use(authenticate, requireTenantAccess, enforceTenantScope);
  */
 router.get('/dashboard', async (req, res, next) => {
     try {
-        const tenantId = req.tenant.id;
+        const clientId = req.client.id;
 
         // 1. Leads Stats
-        const totalLeads = await Lead.count({ where: { tenant_id: tenantId } });
-        const newLeads = await Lead.count({
-            where: {
-                tenant_id: tenantId,
-                created_at: { [Op.gte]: subDays(new Date(), 30) }
-            }
+        const totalLeads = await Lead.countDocuments({ client_id: clientId });
+        const thirtyDaysAgo = subDays(new Date(), 30);
+        const newLeads = await Lead.countDocuments({
+            client_id: clientId,
+            created_at: { $gte: thirtyDaysAgo }
         });
 
         // 2. Campaign Stats
-        const activeCampaigns = await Campaign.count({
-            where: { tenant_id: tenantId, status: 'active' }
+        const activeCampaigns = await Campaign.countDocuments({
+            client_id: clientId,
+            status: 'active'
         });
 
         // 3. Workflow Stats
-        const activeWorkflows = await Workflow.count({
-            where: { tenant_id: tenantId, status: 'active' }
+        const activeWorkflows = await Workflow.countDocuments({
+            client_id: clientId,
+            status: 'active'
         });
 
         res.json({
@@ -130,7 +130,7 @@ router.get('/messages', async (req, res, next) => {
 router.get('/contacts', async (req, res, next) => {
     try {
         // Real data from Leads
-        const total = await Lead.count({ where: { tenant_id: req.tenant.id } });
+        const total = await Lead.countDocuments({ client_id: req.client.id });
         res.json({
             success: true,
             data: { total, active: total }
@@ -146,12 +146,10 @@ router.get('/contacts', async (req, res, next) => {
  */
 router.get('/campaigns', async (req, res, next) => {
     try {
-        const campaigns = await Campaign.findAll({
-            where: { tenant_id: req.tenant.id },
-            attributes: ['id', 'name', 'status', 'created_at'], // Add stats cols if available
-            limit: 5,
-            order: [['created_at', 'DESC']]
-        });
+        const campaigns = await Campaign.find({ client_id: req.client.id })
+            .select('id name status created_at')
+            .limit(5)
+            .sort({ created_at: -1 });
 
         res.json({
             success: true,

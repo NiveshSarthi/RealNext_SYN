@@ -15,9 +15,6 @@ const { ApiError } = require('../middleware/errorHandler');
  * @access Public
  */
 router.post('/login', async (req, res, next) => {
-    console.log('--- HIT LOGIN ROUTE ---');
-    console.log('Route File:', __filename);
-    console.log('AuthService keys:', Object.keys(authService));
     try {
         const { email, password } = req.body;
         const result = await authService.login(email, password, req);
@@ -150,8 +147,7 @@ router.get('/me', authenticate, async (req, res, next) => {
             success: true,
             data: {
                 user: req.user,
-                tenant: context.tenant,
-                partner: context.partner,
+                client: context.client,
                 subscription: context.subscription ? {
                     plan_code: context.planCode,
                     status: context.subscription.status,
@@ -183,13 +179,12 @@ router.put('/profile',
             const { User } = require('../models');
             const { name, phone, avatar_url } = req.body;
 
-            const user = await User.findByPk(req.user.id);
+            const user = await User.findById(req.user.id);
 
-            await user.update({
-                name: name || user.name,
-                phone: phone || user.phone,
-                avatar_url: avatar_url || user.avatar_url
-            });
+            user.name = name || user.name;
+            user.phone = phone || user.phone;
+            user.avatar_url = avatar_url || user.avatar_url;
+            await user.save();
 
             res.json({
                 success: true,

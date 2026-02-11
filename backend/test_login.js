@@ -1,19 +1,25 @@
 const axios = require('axios');
 
+const BASE_URL = 'http://localhost:5006/api';
+
 async function testLogin() {
     try {
-        const response = await axios.post('http://localhost:5000/api/auth/login', {
-            email: 'admin@realnext.com',
-            password: 'RealnextAdmin2024!debug'
-        });
-        console.log('Status:', response.status);
-        console.log('Response Data:', JSON.stringify(response.data, null, 2));
+        console.log('Attempting to login...');
+        const credentials = {
+            email: "ratnakerkumar56@gmail.com",
+            password: "Ratnaker@123"
+        };
+
+        const res = await axios.post(`${BASE_URL}/auth/login`, credentials);
+
+        console.log('✅ Login Successful!', res.data);
+
     } catch (error) {
         if (error.response) {
-            console.log('Error Status:', error.response.status);
-            console.log('Error Data:', JSON.stringify(error.response.data, null, 2));
+            console.error('❌ API Error:', error.response.status, error.response.statusText);
+            console.error('Response Data:', JSON.stringify(error.response.data, null, 2));
         } else {
-            console.log('Error:', error.message);
+            console.error('❌ Network Error:', error.message);
         }
     }
 }

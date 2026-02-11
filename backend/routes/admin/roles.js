@@ -15,10 +15,8 @@ router.use(authenticate, requireSuperAdmin);
  */
 router.get('/', async (req, res, next) => {
     try {
-        const roles = await Role.findAll({
-            where: { tenant_id: null },
-            order: [['created_at', 'ASC']]
-        });
+        const roles = await Role.find({ client_id: null })
+            .sort({ created_at: 1 });
 
         res.json({
             success: true,
@@ -43,7 +41,7 @@ router.post('/', auditAction('create', 'system_role'), async (req, res, next) =>
             name,
             description,
             permissions: permissions || [],
-            tenant_id: null,
+            client_id: null,
             is_system: false // Created by admin, but not a hardcoded system code
         });
 
@@ -62,16 +60,16 @@ router.post('/', auditAction('create', 'system_role'), async (req, res, next) =>
  */
 router.put('/:id', auditAction('update', 'system_role'), async (req, res, next) => {
     try {
-        const role = await Role.findOne({ where: { id: req.params.id, tenant_id: null } });
+        const role = await Role.findOne({ _id: req.params.id, client_id: null });
         if (!role) throw ApiError.notFound('Role not found');
 
         const { name, description, permissions } = req.body;
 
-        await role.update({
-            name: name || role.name,
-            description: description || role.description,
-            permissions: permissions || role.permissions
-        });
+        role.name = name || role.name;
+        role.description = description || role.description;
+        role.permissions = permissions || role.permissions;
+
+        await role.save();
 
         res.json({
             success: true,
@@ -88,14 +86,14 @@ router.put('/:id', auditAction('update', 'system_role'), async (req, res, next) 
  */
 router.delete('/:id', auditAction('delete', 'system_role'), async (req, res, next) => {
     try {
-        const role = await Role.findOne({ where: { id: req.params.id, tenant_id: null } });
+        const role = await Role.findOne({ _id: req.params.id, client_id: null });
         if (!role) throw ApiError.notFound('Role not found');
 
         // Check for usage
-        // const usedCount = await User.count({ where: { system_role_id: role.id } });
-        // if (usedCount > 0) throw ApiError.conflict('Role is in use');
+        const usedCount = await User.countDocuments({ system_role_id: role._id });
+        if (usedCount > 0) throw ApiError.conflict('Role is in use');
 
-        await role.destroy();
+        await Role.deleteOne({ _id: role._id });
 
         res.json({
             success: true,

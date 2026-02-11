@@ -1,39 +1,39 @@
 const express = require('express');
 const router = express.Router();
-const { Tenant, TenantUser, User, Subscription, Plan, Lead, Campaign } = require('../models');
+const { Client, ClientUser, User, Subscription, Plan, Lead, Campaign } = require('../models');
 const { authenticate } = require('../middleware/auth');
-const { requireTenantAccess, requireTenantAdmin, requireTenantManager } = require('../middleware/roles');
-const { enforceTenantScope } = require('../middleware/scopeEnforcer');
+const { requireClientAccess, requireClientAdmin, requireClientManager } = require('../middleware/roles');
+const { enforceClientScope } = require('../middleware/scopeEnforcer');
 const { requireActiveSubscription } = require('../middleware/featureGate');
 const { auditAction } = require('../middleware/auditLogger');
 const { ApiError } = require('../middleware/errorHandler');
 const { validate, validators } = require('../utils/validators');
 const { getPagination, getPaginatedResponse, getSorting, buildSearchFilter, mergeFilters } = require('../utils/helpers');
-const { Op } = require('sequelize');
 
-// All routes require authentication and tenant access
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+// All routes require authentication and client access
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 /**
- * @route GET /api/tenant/profile
- * @desc Get current tenant profile
- * @access Tenant User
+ * @route GET /api/client/profile
+ * @desc Get current client profile
+ * @access Client User
  */
 router.get('/profile', async (req, res, next) => {
     try {
-        const tenant = await Tenant.findByPk(req.tenant.id, {
-            include: [{
-                model: Subscription,
-                as: 'subscriptions',
-                where: { status: ['trial', 'active'] },
-                required: false,
-                include: [{ model: Plan, as: 'plan' }]
-            }]
-        });
+        const client = await Client.findById(req.client.id)
+            .populate({
+                path: 'subscriptions',
+                match: { status: { $in: ['trial', 'active'] } },
+                populate: { path: 'plan_id' }
+            });
+
+        if (!client) {
+            throw ApiError.notFound('Client not found');
+        }
 
         res.json({
             success: true,
-            data: tenant
+            data: client
         });
     } catch (error) {
         next(error);
@@ -41,12 +41,12 @@ router.get('/profile', async (req, res, next) => {
 });
 
 /**
- * @route PUT /api/tenant/profile
- * @desc Update tenant profile
- * @access Tenant Admin
+ * @route PUT /api/client/profile
+ * @desc Update client profile
+ * @access Client Admin
  */
 router.put('/profile',
-    requireTenantAdmin,
+    requireClientAdmin,
     [
         validators.optionalString('name'),
         validators.phone(),
@@ -54,24 +54,30 @@ router.put('/profile',
         validators.url('logo_url'),
         validate
     ],
-    auditAction('update', 'tenant'),
+    auditAction('update', 'client'),
     async (req, res, next) => {
         try {
-            const tenant = await Tenant.findByPk(req.tenant.id);
+            const client = await Client.findById(req.client.id);
+            if (!client) {
+                throw ApiError.notFound('Client not found');
+            }
+
             const { name, phone, address, logo_url, website, settings } = req.body;
 
-            await tenant.update({
-                name: name || tenant.name,
-                phone: phone || tenant.phone,
-                address: address || tenant.address,
-                logo_url: logo_url || tenant.logo_url,
-                website: website || tenant.website,
-                settings: settings ? { ...tenant.settings, ...settings } : tenant.settings
-            });
+            client.name = name || client.name;
+            client.phone = phone || client.phone;
+            client.address = address || client.address;
+            client.logo_url = logo_url || client.logo_url;
+            client.website = website || client.website;
+            if (settings) {
+                client.settings = { ...client.settings, ...settings };
+            }
+
+            await client.save();
 
             res.json({
                 success: true,
-                data: tenant
+                data: client
             });
         } catch (error) {
             next(error);
@@ -80,23 +86,21 @@ router.put('/profile',
 );
 
 /**
- * @route GET /api/tenant/users
- * @desc List tenant team members
- * @access Tenant User
+ * @route GET /api/client/users
+ * @desc List client team members
+ * @access Client User
  */
 router.get('/users', async (req, res, next) => {
     try {
-        const tenantUsers = await TenantUser.findAll({
-            where: { tenant_id: req.tenant.id },
-            include: [{
-                model: User,
-                attributes: ['id', 'name', 'email', 'avatar_url', 'phone', 'status', 'last_login_at']
-            }]
-        });
+        const clientUsers = await ClientUser.find({ client_id: req.client.id })
+            .populate({
+                path: 'user_id',
+                select: 'name email avatar_url phone status last_login_at'
+            });
 
         res.json({
             success: true,
-            data: tenantUsers
+            data: clientUsers
         });
     } catch (error) {
         next(error);
@@ -104,33 +108,33 @@ router.get('/users', async (req, res, next) => {
 });
 
 /**
- * @route POST /api/tenant/users
- * @desc Add team member to tenant
- * @access Tenant Admin
+ * @route POST /api/client/users
+ * @desc Add team member to client
+ * @access Client Admin
  */
 router.post('/users',
-    requireTenantAdmin,
+    requireClientAdmin,
     [
         validators.email(),
         validators.optionalString('name', 100),
         validators.enum('role', ['admin', 'manager', 'user'], false),
         validate
     ],
-    auditAction('add_user', 'tenant'),
+    auditAction('add_user', 'client'),
     async (req, res, next) => {
         try {
             const { email, name, role, permissions, department } = req.body;
 
             // Check subscription limits
             if (req.plan?.limits?.max_users) {
-                const currentCount = await TenantUser.count({ where: { tenant_id: req.tenant.id } });
+                const currentCount = await ClientUser.countDocuments({ client_id: req.client.id });
                 if (currentCount >= req.plan.limits.max_users) {
                     throw ApiError.forbidden(`User limit reached (${req.plan.limits.max_users}). Upgrade your plan for more.`);
                 }
             }
 
             // Find or create user
-            let user = await User.findOne({ where: { email } });
+            let user = await User.findOne({ email });
 
             if (!user) {
                 // Create new user with temporary password
@@ -144,16 +148,17 @@ router.post('/users',
             }
 
             // Check if already a member
-            const existing = await TenantUser.findOne({
-                where: { tenant_id: req.tenant.id, user_id: user.id }
+            const existing = await ClientUser.findOne({
+                client_id: req.client.id,
+                user_id: user.id
             });
 
             if (existing) {
                 throw ApiError.conflict('User is already a team member');
             }
 
-            const tenantUser = await TenantUser.create({
-                tenant_id: req.tenant.id,
+            const clientUser = await ClientUser.create({
+                client_id: req.client.id,
                 user_id: user.id,
                 role: role || 'user',
                 permissions: permissions || [],
@@ -163,8 +168,8 @@ router.post('/users',
             res.status(201).json({
                 success: true,
                 data: {
-                    ...tenantUser.get({ plain: true }),
-                    User: user.toSafeJSON()
+                    ...clientUser.toObject(),
+                    user: user.toSafeJSON()
                 }
             });
         } catch (error) {
@@ -174,27 +179,29 @@ router.post('/users',
 );
 
 /**
- * @route PUT /api/tenant/users/:userId
+ * @route PUT /api/client/users/:userId
  * @desc Update team member
- * @access Tenant Admin
+ * @access Client Admin
  */
 router.put('/users/:userId',
-    requireTenantAdmin,
-    auditAction('update_user', 'tenant'),
+    requireClientAdmin,
+    auditAction('update_user', 'client'),
     async (req, res, next) => {
         try {
-            const tenantUser = await TenantUser.findOne({
-                where: { tenant_id: req.tenant.id, user_id: req.params.userId }
+            const clientUser = await ClientUser.findOne({
+                client_id: req.client.id,
+                user_id: req.params.userId
             });
 
-            if (!tenantUser) {
+            if (!clientUser) {
                 throw ApiError.notFound('Team member not found');
             }
 
             // Prevent changing own role if you're the only admin
-            if (tenantUser.user_id === req.user.id && req.body.role !== tenantUser.role) {
-                const adminCount = await TenantUser.count({
-                    where: { tenant_id: req.tenant.id, role: 'admin' }
+            if (clientUser.user_id.toString() === req.user.id.toString() && req.body.role !== clientUser.role) {
+                const adminCount = await ClientUser.countDocuments({
+                    client_id: req.client.id,
+                    role: 'admin'
                 });
                 if (adminCount <= 1) {
                     throw ApiError.badRequest('Cannot change role: you are the only admin');
@@ -203,15 +210,15 @@ router.put('/users/:userId',
 
             const { role, permissions, department } = req.body;
 
-            await tenantUser.update({
-                role: role || tenantUser.role,
-                permissions: permissions || tenantUser.permissions,
-                department: department !== undefined ? department : tenantUser.department
-            });
+            if (role) clientUser.role = role;
+            if (permissions) clientUser.permissions = permissions;
+            if (department !== undefined) clientUser.department = department;
+
+            await clientUser.save();
 
             res.json({
                 success: true,
-                data: tenantUser
+                data: clientUser
             });
         } catch (error) {
             next(error);
@@ -220,32 +227,33 @@ router.put('/users/:userId',
 );
 
 /**
- * @route DELETE /api/tenant/users/:userId
+ * @route DELETE /api/client/users/:userId
  * @desc Remove team member
- * @access Tenant Admin
+ * @access Client Admin
  */
 router.delete('/users/:userId',
-    requireTenantAdmin,
-    auditAction('remove_user', 'tenant'),
+    requireClientAdmin,
+    auditAction('remove_user', 'client'),
     async (req, res, next) => {
         try {
-            const tenantUser = await TenantUser.findOne({
-                where: { tenant_id: req.tenant.id, user_id: req.params.userId }
+            const clientUser = await ClientUser.findOne({
+                client_id: req.client.id,
+                user_id: req.params.userId
             });
 
-            if (!tenantUser) {
+            if (!clientUser) {
                 throw ApiError.notFound('Team member not found');
             }
 
-            if (tenantUser.is_owner) {
-                throw ApiError.badRequest('Cannot remove tenant owner');
+            if (clientUser.is_owner) {
+                throw ApiError.badRequest('Cannot remove client owner');
             }
 
-            if (tenantUser.user_id === req.user.id) {
+            if (clientUser.user_id.toString() === req.user.id.toString()) {
                 throw ApiError.badRequest('Cannot remove yourself');
             }
 
-            await tenantUser.destroy();
+            await ClientUser.deleteOne({ _id: clientUser._id });
 
             res.json({
                 success: true,
@@ -258,14 +266,14 @@ router.delete('/users/:userId',
 );
 
 /**
- * @route GET /api/tenant/subscription
+ * @route GET /api/client/subscription
  * @desc Get current subscription
- * @access Tenant User
+ * @access Client User
  */
 router.get('/subscription', async (req, res, next) => {
     try {
         const subscriptionService = require('../services/subscriptionService');
-        const subscription = await subscriptionService.getSubscription(req.tenant.id);
+        const subscription = await subscriptionService.getSubscription(req.client.id);
 
         if (!subscription) {
             return res.json({
@@ -280,7 +288,7 @@ router.get('/subscription', async (req, res, next) => {
         res.json({
             success: true,
             data: {
-                ...subscription.get({ plain: true }),
+                ...subscription.toObject({ virtuals: true }),
                 usage
             }
         });
@@ -290,21 +298,22 @@ router.get('/subscription', async (req, res, next) => {
 });
 
 /**
- * @route GET /api/tenant/stats
- * @desc Get tenant dashboard stats
- * @access Tenant User
+ * @route GET /api/client/stats
+ * @desc Get client dashboard stats
+ * @access Client User
  */
 router.get('/stats', async (req, res, next) => {
     try {
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+        // In Mongoose, we use counts on the models
         const [leadCount, newLeadsThisMonth, campaignCount, activeCampaigns, teamCount] = await Promise.all([
-            Lead.count({ where: { tenant_id: req.tenant.id } }),
-            Lead.count({ where: { tenant_id: req.tenant.id, created_at: { [Op.gte]: thirtyDaysAgo } } }),
-            Campaign.count({ where: { tenant_id: req.tenant.id } }),
-            Campaign.count({ where: { tenant_id: req.tenant.id, status: 'running' } }),
-            TenantUser.count({ where: { tenant_id: req.tenant.id } })
+            Lead.countDocuments({ client_id: req.client.id }),
+            Lead.countDocuments({ client_id: req.client.id, created_at: { $gte: thirtyDaysAgo } }),
+            Campaign.countDocuments({ client_id: req.client.id }),
+            Campaign.countDocuments({ client_id: req.client.id, status: 'running' }),
+            ClientUser.countDocuments({ client_id: req.client.id })
         ]);
 
         res.json({

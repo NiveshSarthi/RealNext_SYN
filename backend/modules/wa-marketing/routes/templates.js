@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { Template } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
-const { requireTenantAccess } = require('../../../middleware/roles');
-const { enforceTenantScope } = require('../../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../../middleware/roles');
+const { enforceClientScope } = require('../../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
@@ -11,7 +11,7 @@ const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = requir
 const { validate, validators } = require('../../../utils/validators');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 /**
  * @route GET /api/templates
@@ -27,21 +27,21 @@ router.get('/', requireFeature('templates'), async (req, res, next) => {
         const categoryFilter = req.query.category ? { category: req.query.category } : null;
 
         const where = mergeFilters(
-            { tenant_id: req.tenant.id },
+            { client_id: req.client.id },
             statusFilter,
             categoryFilter
         );
 
-        const { count, rows } = await Template.findAndCountAll({
-            where,
-            order: sorting,
-            limit: pagination.limit,
-            offset: pagination.offset
-        });
+        const templates = await Template.find(where)
+            .sort(sorting)
+            .limit(pagination.limit)
+            .skip(pagination.offset);
+
+        const count = await Template.countDocuments(where);
 
         res.json({
             success: true,
-            ...getPaginatedResponse(rows, count, pagination)
+            ...getPaginatedResponse(templates, count, pagination)
         });
     } catch (error) {
         next(error);
@@ -69,7 +69,7 @@ router.post('/',
             } = req.body;
 
             const template = await Template.create({
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 name,
                 category,
                 language: language || 'en',
@@ -101,7 +101,8 @@ router.post('/',
 router.get('/:id', requireFeature('templates'), async (req, res, next) => {
     try {
         const template = await Template.findOne({
-            where: { id: req.params.id, tenant_id: req.tenant.id }
+            _id: req.params.id,
+            client_id: req.client.id
         });
 
         if (!template) {
@@ -128,7 +129,8 @@ router.put('/:id',
     async (req, res, next) => {
         try {
             const template = await Template.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!template) {
@@ -136,7 +138,7 @@ router.put('/:id',
             }
 
             const updateData = { ...req.body };
-            delete updateData.tenant_id;
+            delete updateData.client_id;
             delete updateData.id;
 
             // If template is approved, changes require re-approval
@@ -145,7 +147,8 @@ router.put('/:id',
                 updateData.status = 'pending';
             }
 
-            await template.update(updateData);
+            Object.assign(template, updateData);
+            await template.save();
 
             res.json({
                 success: true,
@@ -168,14 +171,15 @@ router.delete('/:id',
     async (req, res, next) => {
         try {
             const template = await Template.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!template) {
                 throw ApiError.notFound('Template not found');
             }
 
-            await template.destroy();
+            await template.deleteOne();
 
             res.json({
                 success: true,

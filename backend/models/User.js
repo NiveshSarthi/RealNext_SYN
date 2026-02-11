@@ -1,105 +1,112 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const { Schema } = mongoose;
 
-const User = sequelize.define('users', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const userSchema = new Schema({
     email: {
-        type: DataTypes.STRING(255),
-        allowNull: false,
+        type: String,
+        required: true,
         unique: true,
-        validate: {
-            isEmail: true
-        }
+        lowercase: true,
+        trim: true
     },
     password_hash: {
-        type: DataTypes.STRING(255),
-        allowNull: true // Null for OAuth-only users
+        type: String,
+        required: false // Null for OAuth-only users
     },
     name: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     phone: {
-        type: DataTypes.STRING(20),
-        allowNull: true
+        type: String,
+        required: false
     },
     avatar_url: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     google_id: {
-        type: DataTypes.STRING(100),
-        allowNull: true,
-        unique: true
+        type: String,
+        required: false,
+        unique: true,
+        sparse: true // Allow multiple nulls
     },
     email_verified: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false
+        type: Boolean,
+        default: false
     },
     system_role_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        comment: 'Role ID for Super Admin Team members'
+        type: String, // Storing as String/UUID for now to match legacy
+        required: false
     },
     is_super_admin: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false
+        type: Boolean,
+        default: false
     },
     status: {
-        type: DataTypes.STRING(20),
-        defaultValue: 'active',
-        validate: {
-            isIn: [['active', 'suspended', 'pending']]
-        }
+        type: String,
+        default: 'active',
+        enum: ['active', 'suspended', 'pending']
     },
     last_login_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
+    },
+    deleted_at: {
+        type: Date,
+        default: null
     }
 }, {
-    tableName: 'users',
-    timestamps: true,
-    paranoid: true, // Soft delete
-    underscored: true,
-    indexes: [
-        { fields: ['email'] },
-        { fields: ['google_id'] },
-        { fields: ['status'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'users'
 });
 
 // Instance methods
-User.prototype.validatePassword = async function (password) {
+userSchema.methods.validatePassword = async function (password) {
     if (!this.password_hash) return false;
     return bcrypt.compare(password, this.password_hash);
 };
 
-User.prototype.toSafeJSON = function () {
-    const values = { ...this.get() };
-    delete values.password_hash;
-    return values;
+userSchema.methods.toSafeJSON = function () {
+    const obj = this.toObject();
+    delete obj.password_hash;
+    // Map _id to id for compatibility
+    obj.id = obj._id.toString();
+    return obj;
 };
 
 // Hooks
-User.beforeCreate(async (user) => {
-    if (user.password_hash) {
-        user.password_hash = await bcrypt.hash(user.password_hash, 12);
+userSchema.pre('save', async function () {
+    try {
+        if (!this.isModified('password_hash')) return;
+
+        if (this.password_hash) {
+            console.log(`DEBUG: Hashing password for user: ${this.email}`);
+            const salt = await bcrypt.genSalt(12);
+            this.password_hash = await bcrypt.hash(this.password_hash, salt);
+            console.log(`DEBUG: Hashing complete for user: ${this.email}`);
+        }
+    } catch (err) {
+        console.error('ERROR in User pre-save hook:', err);
+        throw err;
     }
 });
 
-User.beforeUpdate(async (user) => {
-    if (user.changed('password_hash') && user.password_hash) {
-        user.password_hash = await bcrypt.hash(user.password_hash, 12);
-    }
+// Virtual for ID
+userSchema.virtual('id').get(function () {
+    return this._id.toHexString();
 });
+
+// Ensure virtuals are serialized
+userSchema.set('toJSON', { virtuals: true });
+userSchema.set('toObject', { virtuals: true });
+
+const User = mongoose.model('User', userSchema);
 
 module.exports = User;
+

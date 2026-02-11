@@ -4,16 +4,16 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { authenticate } = require('../../../middleware/auth');
-const { requireTenantAccess } = require('../../../middleware/roles');
-const { enforceTenantScope } = require('../../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../../middleware/roles');
+const { enforceClientScope } = require('../../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
 const logger = require('../../../config/logger');
-const { FacebookPageConnection, FacebookLeadForm, Lead, sequelize } = require('../../../models');
+const { FacebookPageConnection, FacebookLeadForm, Lead } = require('../../../models');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 const GRAPH_API_VERSION = 'v19.0';
 const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -23,7 +23,7 @@ const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
  * @desc Connect Facebook Account & Fetch Pages
  */
 router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
-    const t = await sequelize.transaction();
+// const t = await sequelize.transaction();
     try {
         const { user_token } = req.body;
         if (!user_token) throw new ApiError(400, 'User Access Token is required');
@@ -49,11 +49,11 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
                 access_token: page.access_token, // Page Access Token
                 status: 'active',
                 last_sync_at: new Date()
-            }, { transaction: t });
+            });
             connectedPages.push(connection);
         }
 
-        await t.commit();
+// await t.commit();
 
         res.json({
             success: true,
@@ -61,7 +61,7 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
             data: connectedPages
         });
     } catch (error) {
-        await t.rollback();
+// await t.rollback();
         // Handle Graph API errors
         if (error.response?.data?.error) {
             return next(new ApiError(400, `Facebook API Error: ${error.response.data.error.message}`));
@@ -184,13 +184,11 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
 
                         // Check if lead exists (deduplication)
                         const existingLead = await Lead.findOne({
-                            where: {
-                                tenant_id: req.tenant.id,
-                                [require('sequelize').Op.or]: [
-                                    { phone: phoneField || 'N/A' },
-                                    { email: emailField || 'N/A' }
-                                ]
-                            }
+                            client_id: req.client.id,
+                            $or: [
+                                { phone: phoneField || 'N/A' },
+                                { email: emailField || 'N/A' }
+                            ]
                         });
 
                         if (!existingLead) {
@@ -363,13 +361,11 @@ router.post('/webhook', async (req, res) => {
 
                             // Check for duplicates
                             const existingLead = await Lead.findOne({
-                                where: {
-                                    tenant_id: pageConnection.tenant_id,
-                                    [require('sequelize').Op.or]: [
-                                        { phone: phoneField || 'N/A' },
-                                        { email: emailField || 'N/A' }
-                                    ]
-                                }
+                                client_id: pageConnection.client_id,
+                                $or: [
+                                    { phone: phoneField || 'N/A' },
+                                    { email: emailField || 'N/A' }
+                                ]
                             });
 
                             if (existingLead) {

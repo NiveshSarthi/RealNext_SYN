@@ -156,6 +156,15 @@ export function AuthProvider({ children, router }) {
     }
   };
 
+  const refreshSubscription = async () => {
+    try {
+      // Force re-authentication to get fresh subscription data
+      await checkAuth();
+    } catch (error) {
+      console.error('Failed to refresh subscription:', error);
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -163,6 +172,7 @@ export function AuthProvider({ children, router }) {
     register,
     logout,
     updateProfile,
+    refreshSubscription,
     router,
     isAuthenticated: !!user
   };

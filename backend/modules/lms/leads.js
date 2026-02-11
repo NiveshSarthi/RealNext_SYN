@@ -2,17 +2,17 @@ const express = require('express');
 const router = express.Router();
 const { Lead, User } = require('../../models');
 const { authenticate } = require('../../middleware/auth');
-const { requireTenantAccess } = require('../../middleware/roles');
-const { enforceTenantScope } = require('../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../middleware/roles');
+const { enforceClientScope } = require('../../middleware/scopeEnforcer');
 const { requireFeature, checkUsageLimit, incrementUsage } = require('../../middleware/featureGate');
 const { auditAction } = require('../../middleware/auditLogger');
 const { ApiError } = require('../../middleware/errorHandler');
 const { getPagination, getPaginatedResponse, getSorting, buildSearchFilter, mergeFilters, buildDateRangeFilter } = require('../../utils/helpers');
 const { createLead, validate, validators } = require('../../utils/validators');
-const { Op } = require('sequelize');
+const mongoose = require('mongoose');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 /**
  * @route GET /api/leads
@@ -32,7 +32,7 @@ router.get('/', requireFeature('leads'), async (req, res, next) => {
         const dateFilter = buildDateRangeFilter('created_at', req.query.start_date, req.query.end_date);
 
         const where = mergeFilters(
-            { tenant_id: req.tenant.id },
+            { client_id: req.client.id },
             searchFilter,
             statusFilter,
             sourceFilter,
@@ -40,22 +40,20 @@ router.get('/', requireFeature('leads'), async (req, res, next) => {
             dateFilter
         );
 
-        const { count, rows } = await Lead.findAndCountAll({
-            where,
-            include: [{
-                model: User,
-                as: 'assignedUser',
-                attributes: ['id', 'name', 'email', 'avatar_url'],
-                required: false
-            }],
-            order: sorting,
-            limit: pagination.limit,
-            offset: pagination.offset
-        });
+        const leads = await Lead.find(where)
+            .populate({
+                path: 'assigned_to',
+                select: 'name email avatar_url'
+            })
+            .sort(sorting)
+            .limit(pagination.limit)
+            .skip(pagination.offset);
+
+        const count = await Lead.countDocuments(where);
 
         res.json({
             success: true,
-            ...getPaginatedResponse(rows, count, pagination)
+            ...getPaginatedResponse(leads, count, pagination)
         });
     } catch (error) {
         next(error);
@@ -80,7 +78,7 @@ router.post('/',
             } = req.body;
 
             const lead = await Lead.create({
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 name,
                 email,
                 phone,
@@ -116,34 +114,27 @@ router.post('/',
  */
 router.get('/stats/overview', requireFeature('leads'), async (req, res, next) => {
     try {
-        const { fn, col } = require('sequelize');
+        const byStatus = await Lead.aggregate([
+            { $match: { client_id: new mongoose.Types.ObjectId(req.client.id) } },
+            { $group: { _id: '$status', count: { $sum: 1 } } }
+        ]);
 
-        const byStatus = await Lead.findAll({
-            where: { tenant_id: req.tenant.id },
-            attributes: ['status', [fn('COUNT', col('id')), 'count']],
-            group: ['status'],
-            raw: true
-        });
+        const bySource = await Lead.aggregate([
+            { $match: { client_id: new mongoose.Types.ObjectId(req.client.id) } },
+            { $group: { _id: '$source', count: { $sum: 1 } } }
+        ]);
 
-        const bySource = await Lead.findAll({
-            where: { tenant_id: req.tenant.id },
-            attributes: ['source', [fn('COUNT', col('id')), 'count']],
-            group: ['source'],
-            raw: true
-        });
-
-        const avgScore = await Lead.findAll({
-            where: { tenant_id: req.tenant.id, ai_score: { [Op.ne]: null } },
-            attributes: [[fn('AVG', col('ai_score')), 'average']],
-            raw: true
-        });
+        const avgScore = await Lead.aggregate([
+            { $match: { client_id: new mongoose.Types.ObjectId(req.client.id), ai_score: { $ne: null } } },
+            { $group: { _id: null, average: { $avg: '$ai_score' } } }
+        ]);
 
         res.json({
             success: true,
             data: {
-                by_status: byStatus,
-                by_source: bySource,
-                average_ai_score: parseFloat(avgScore[0]?.average) || 0
+                by_status: byStatus.map(s => ({ status: s._id, count: s.count })),
+                by_source: bySource.map(s => ({ source: s._id, count: s.count })),
+                average_ai_score: avgScore[0]?.average || 0
             }
         });
     } catch (error) {
@@ -159,13 +150,11 @@ router.get('/stats/overview', requireFeature('leads'), async (req, res, next) =>
 router.get('/:id', requireFeature('leads'), async (req, res, next) => {
     try {
         const lead = await Lead.findOne({
-            where: { id: req.params.id, tenant_id: req.tenant.id },
-            include: [{
-                model: User,
-                as: 'assignedUser',
-                attributes: ['id', 'name', 'email', 'avatar_url'],
-                required: false
-            }]
+            _id: req.params.id,
+            client_id: req.client.id
+        }).populate({
+            path: 'assigned_to',
+            select: 'name email avatar_url'
         });
 
         if (!lead) {
@@ -198,7 +187,8 @@ router.put('/:id',
     async (req, res, next) => {
         try {
             const lead = await Lead.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!lead) {
@@ -206,21 +196,20 @@ router.put('/:id',
             }
 
             const updateData = { ...req.body };
-            delete updateData.tenant_id; // Prevent tenant change
+            delete updateData.client_id; // Prevent client change
             delete updateData.id;
 
             // Track status change
             if (updateData.status && updateData.status !== lead.status) {
-                updateData.metadata = {
-                    ...lead.metadata,
-                    status_history: [
-                        ...(lead.metadata?.status_history || []),
-                        { from: lead.status, to: updateData.status, at: new Date(), by: req.user.id }
-                    ]
-                };
+                const history = { from: lead.status, to: updateData.status, at: new Date(), by: req.user.id };
+                if (!lead.metadata) lead.metadata = {};
+                if (!lead.metadata.status_history) lead.metadata.status_history = [];
+                lead.metadata.status_history.push(history);
+                lead.markModified('metadata');
             }
 
-            await lead.update(updateData);
+            Object.assign(lead, updateData);
+            await lead.save();
 
             res.json({
                 success: true,
@@ -243,7 +232,8 @@ router.put('/:id/assign',
     async (req, res, next) => {
         try {
             const lead = await Lead.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!lead) {
@@ -252,18 +242,20 @@ router.put('/:id/assign',
 
             const { user_id } = req.body;
 
-            // Verify user is part of tenant
+            // Verify user is part of client
             if (user_id) {
-                const { TenantUser } = require('../models');
-                const isMember = await TenantUser.findOne({
-                    where: { tenant_id: req.tenant.id, user_id }
+                const { ClientUser } = require('../../models');
+                const isMember = await ClientUser.findOne({
+                    client_id: req.client.id,
+                    user_id
                 });
                 if (!isMember) {
                     throw ApiError.badRequest('User is not a team member');
                 }
             }
 
-            await lead.update({ assigned_to: user_id || null });
+            lead.assigned_to = user_id || null;
+            await lead.save();
 
             res.json({
                 success: true,
@@ -286,14 +278,15 @@ router.delete('/:id',
     async (req, res, next) => {
         try {
             const lead = await Lead.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!lead) {
                 throw ApiError.notFound('Lead not found');
             }
 
-            await lead.destroy();
+            await lead.deleteOne();
 
             res.json({
                 success: true,
@@ -326,26 +319,23 @@ router.post('/import',
                 throw ApiError.badRequest('Cannot import more than 500 leads at once');
             }
 
-            // Map leads to include tenant_id
+            // Map leads to include client_id
             const leadsToCreate = leads.map(lead => ({
                 ...lead,
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 source: lead.source || 'import',
                 status: lead.status || 'new'
             }));
 
-            const created = await Lead.bulkCreate(leadsToCreate, {
-                ignoreDuplicates: true,
-                validate: true
-            });
+            const result = await Lead.insertMany(leadsToCreate, { ordered: false });
 
             // Track usage
-            await incrementUsage(req, 'leads', created.length);
+            await incrementUsage(req, 'leads', result.length);
 
             res.status(201).json({
                 success: true,
                 data: {
-                    imported: created.length,
+                    imported: result.length,
                     total: leads.length
                 }
             });
