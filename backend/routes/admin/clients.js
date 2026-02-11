@@ -178,45 +178,46 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id/override',
     auditAction('override', 'client'),
     async (req, res, next) => {
-        console.log(`[CLIENT OVERRIDE] Updating client ${req.params.id} with body:`, req.body);
-        const client = await Client.findById(req.params.id);
+        try {
+            console.log(`[CLIENT OVERRIDE] Updating client ${req.params.id} with body:`, req.body);
+            const client = await Client.findById(req.params.id);
 
-        if (!client) {
-            console.log(`[CLIENT OVERRIDE] Client not found: ${req.params.id}`);
-            throw ApiError.notFound('Client not found');
+            if (!client) {
+                console.log(`[CLIENT OVERRIDE] Client not found: ${req.params.id}`);
+                throw ApiError.notFound('Client not found');
+            }
+
+            const { settings, metadata, status, environment, is_demo } = req.body;
+
+            client.settings = settings ? {
+                ...client.settings,
+                ...settings,
+                features: settings.features ? { ...client.settings.features, ...settings.features } : client.settings.features,
+                menu_access: settings.menu_access ? { ...client.settings.menu_access, ...settings.menu_access } : client.settings.menu_access,
+                _admin_override: true
+            } : client.settings;
+
+            client.metadata = metadata ? { ...client.metadata, ...metadata } : client.metadata;
+
+            if (status) {
+                console.log(`[CLIENT OVERRIDE] Changing status from ${client.status} to ${status}`);
+                client.status = status;
+            }
+
+            client.environment = environment || client.environment;
+            client.is_demo = is_demo !== undefined ? is_demo : client.is_demo;
+
+            await client.save();
+            console.log(`[CLIENT OVERRIDE] Successfully updated client ${client.name}`);
+
+            res.json({
+                success: true,
+                data: client
+            });
+        } catch (error) {
+            console.error('[CLIENT OVERRIDE ERROR]', error);
+            next(error);
         }
-
-        const { settings, metadata, status, environment, is_demo } = req.body;
-
-        client.settings = settings ? {
-            ...client.settings,
-            ...settings,
-            features: settings.features ? { ...client.settings.features, ...settings.features } : client.settings.features,
-            menu_access: settings.menu_access ? { ...client.settings.menu_access, ...settings.menu_access } : client.settings.menu_access,
-            _admin_override: true
-        } : client.settings;
-
-        client.metadata = metadata ? { ...client.metadata, ...metadata } : client.metadata;
-
-        if (status) {
-            console.log(`[CLIENT OVERRIDE] Changing status from ${client.status} to ${status}`);
-            client.status = status;
-        }
-
-        client.environment = environment || client.environment;
-        client.is_demo = is_demo !== undefined ? is_demo : client.is_demo;
-
-        await client.save();
-        console.log(`[CLIENT OVERRIDE] Successfully updated client ${client.name}`);
-
-        res.json({
-            success: true,
-            data: client
-        });
-    } catch (error) {
-        console.error('[CLIENT OVERRIDE ERROR]', error);
-        next(error);
-    }
     }
 );
 
