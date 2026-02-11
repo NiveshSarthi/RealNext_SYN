@@ -39,15 +39,15 @@ export default function Layout({ children }) {
   if (user?.is_super_admin) {
     // Super Admin: Always sees everything in ADMIN_NAVIGATION
     navigation = ADMIN_NAVIGATION;
-  } else if (user?.context?.tenantRole === 'admin') {
+  } else if (user?.client_role === 'admin' || user?.context?.clientRole === 'admin') {
     // Client Admin: Use Admin Navigation (backend handles data isolation)
     navigation = ADMIN_NAVIGATION;
   } else if (user?.context?.partner) {
     // Partner: Hide or separate logic (Legacy)
     navigation = [];
   } else {
-    // Tenant User: Filter based on Role, Features, and Menu Access
-    const userRole = user?.context?.tenantRole || 'user';
+    // Client User: Filter based on Role, Features, and Menu Access
+    const userRole = user?.client_role || user?.context?.clientRole || 'user';
     const menuAccess = user?.client?.settings?.menu_access || {};
     const features = user?.subscription?.features || [];
 

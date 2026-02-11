@@ -152,4 +152,38 @@ router.get('/clients', async (req, res, next) => {
     }
 });
 
+/**
+ * @route GET /api/admin/analytics/dashboard-stats
+ * @desc Get consolidated stats for the Super Admin Dashboard
+ * @access Super Admin
+ */
+router.get('/dashboard-stats', async (req, res, next) => {
+    try {
+        const [
+            activeClients,
+            totalUsers,
+            revenueResult
+        ] = await Promise.all([
+            Client.countDocuments({ status: 'active' }),
+            User.countDocuments({ status: 'active' }),
+            Payment.aggregate([
+                { $match: { status: 'completed' } },
+                { $group: { _id: null, total: { $sum: "$amount" } } }
+            ])
+        ]);
+
+        res.json({
+            success: true,
+            data: {
+                totalRevenue: revenueResult.length > 0 ? revenueResult[0].total : 0,
+                activeClients,
+                totalUsers,
+                systemLoad: 'Normal' // Placeholder as we don't have real-time monitoring yet
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 module.exports = router;

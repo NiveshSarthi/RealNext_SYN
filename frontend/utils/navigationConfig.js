@@ -66,7 +66,7 @@ export const USER_NAVIGATION = [
 
 export const ADMIN_NAVIGATION = [
     { id: 'admin.overview', label: 'Overview', href: '/admin', icon: HomeIcon },
-    { id: 'admin.clients', label: 'Clients', href: '/admin/tenants', icon: BuildingStorefrontIcon },
+    { id: 'admin.clients', label: 'Clients', href: '/admin/clients', icon: BuildingStorefrontIcon },
     { id: 'admin.plans', label: 'Plans', href: '/admin/plans', icon: CreditCardIcon },
     { id: 'admin.features', label: 'Features', href: '/admin/features', icon: BoltIcon },
     // Add feature modules for Super Admin convenience

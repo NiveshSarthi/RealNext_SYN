@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
     BuildingOfficeIcon,
@@ -9,18 +10,21 @@ import {
 } from '@heroicons/react/24/outline';
 import Layout from '../../components/Layout';
 import { Card } from '../../components/ui/Card';
+import axios from '../../utils/api';
 
-const StatCard = ({ title, value, change, trend }) => (
+const StatCard = ({ title, value, change, trend, loading }) => (
     <Card className="p-6">
         <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
-            {trend && (
+            {trend && !loading && (
                 <span className={`text-xs px-2 py-1 rounded-full ${title === 'System Load' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-green-500/10 text-green-500'}`}>
                     {change}
                 </span>
             )}
         </div>
-        <div className="mt-4 text-3xl font-bold text-foreground">{value}</div>
+        <div className="mt-4 text-3xl font-bold text-foreground">
+            {loading ? <div className="h-9 w-24 bg-gray-800 animate-pulse rounded" /> : value}
+        </div>
     </Card>
 );
 
@@ -37,26 +41,42 @@ const QuickLinkCard = ({ title, description, icon: Icon, href }) => (
 );
 
 export default function AdminDashboard() {
-    // TODO: Fetch real stats from API
-    const stats = [
-        { title: 'Total Revenue', value: '$45,231', change: '+12.5%', trend: 'up' },
-        { title: 'Active Tenants', value: '142', change: '+8', trend: 'up' },
-        { title: 'Total Users', value: '1,234', change: '+24', trend: 'up' },
-        { title: 'System Load', value: '34%', change: 'Normal', trend: 'flat' },
+    const [stats, setStats] = useState({
+        totalRevenue: 0,
+        activeClients: 0,
+        totalUsers: 0,
+        systemLoad: 'Normal'
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await axios.get('/api/admin/analytics/dashboard-stats');
+                setStats(res.data.data);
+                setLoading(false);
+            } catch (error) {
+                console.error('Failed to fetch dashboard stats', error);
+                setLoading(false);
+            }
+        };
+
+        fetchStats();
+    }, []);
+
+    const statCards = [
+        { title: 'Total Revenue', value: `$${stats.totalRevenue.toLocaleString()}`, change: '+12.5%', trend: 'up' },
+        { title: 'Active Clients', value: stats.activeClients.toString(), change: '+8', trend: 'up' },
+        { title: 'Total Users', value: stats.totalUsers.toString(), change: '+24', trend: 'up' },
+        { title: 'System Load', value: stats.systemLoad, change: 'Normal', trend: 'flat' },
     ];
 
     const modules = [
         {
-            title: 'Partner Management',
-            description: 'Onboard and manage reseller partners, assign commissions, and track performance.',
-            icon: UsersIcon,
-            href: '/admin/partners'
-        },
-        {
-            title: 'Tenant Overview',
-            description: 'Monitor all tenant instances, manage subscriptions, and provide support.',
+            title: 'Client Overview',
+            description: 'Monitor all client instances, manage subscriptions, and provide support.',
             icon: BuildingOfficeIcon,
-            href: '/admin/tenants'
+            href: '/admin/clients'
         },
         {
             title: 'Plans & Pricing',
@@ -96,8 +116,8 @@ export default function AdminDashboard() {
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {stats.map((stat, idx) => (
-                        <StatCard key={idx} {...stat} />
+                    {statCards.map((stat, idx) => (
+                        <StatCard key={idx} {...stat} loading={loading} />
                     ))}
                 </div>
 

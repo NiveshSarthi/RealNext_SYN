@@ -31,7 +31,7 @@ async function verify() {
 
     // 4. Call an API with x-client-id
     const axios = require('axios');
-    const port = process.env.PORT || 5001;
+    const port = process.env.PORT || 5006;
     const baseUrl = `http://localhost:${port}/api`;
 
     try {
