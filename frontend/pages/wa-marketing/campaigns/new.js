@@ -75,10 +75,19 @@ export default function NewCampaign() {
             console.log('Leads API Response:', response);
             console.log('Leads Data:', response.data);
 
-            // Correct data extraction based on backend response structure
-            const leadsData = response.data?.data || [];
-            console.log('Extracted Leads:', leadsData);
+            // Robust data extraction
+            const rawData = response.data;
+            let leadsData = [];
 
+            if (Array.isArray(rawData)) {
+                leadsData = rawData;
+            } else if (Array.isArray(rawData?.data)) {
+                leadsData = rawData.data;
+            } else if (Array.isArray(rawData?.contacts)) {
+                leadsData = rawData.contacts;
+            }
+
+            console.log('Extracted Leads:', leadsData);
             setLeads(leadsData);
         } catch (error) {
             console.error('Failed to fetch leads:', error);
