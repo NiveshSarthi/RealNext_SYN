@@ -1,14 +1,12 @@
 1. Authenticating...
    Login successful.
 1.5. Fetching Leads...
-   Found 0 leads.
-   No leads found. Creating a test lead...
-   Created Test Lead ID: 698c7fd9a56294906bec0296
+   Found 1 leads.
 2. Creating Campaign with 1 Leads...
    Create Status: 201
    Created Campaign: {
   "client_id": "698c3cca6689808bc40651da",
-  "name": "Test Campaign 1770815449176",
+  "name": "Test Campaign 1770815599151",
   "type": "broadcast",
   "status": "draft",
   "template_name": "hello_world",
@@ -33,9 +31,9 @@
     "audience_type": "all"
   },
   "deleted_at": null,
-  "_id": "698c7fd9a56294906bec02a5",
-  "created_at": "2026-02-11T13:10:49.496Z",
-  "updated_at": "2026-02-11T13:10:49.496Z",
+  "_id": "698c806fa56294906bec02cc",
+  "created_at": "2026-02-11T13:13:19.493Z",
+  "updated_at": "2026-02-11T13:13:19.493Z",
   "__v": 0,
-  "id": "698c7fd9a56294906bec02a5"
+  "id": "698c806fa56294906bec02cc"
 }

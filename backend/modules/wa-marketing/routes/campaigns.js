@@ -99,17 +99,17 @@ router.post('/',
             if (scheduled_at) {
                 targetStatus = 'scheduled';
             } else if (!scheduled_at) {
-                // If no schedule and user clicked "Launch", it implies immediate
-                // But new.js sets immediate by setting scheduled_at = null
-                // We should probably rely on an explicit status or assume "Launch" button means go.
-                // let's assume 'running' for immediate.
                 targetStatus = 'running';
             }
+
+            console.log(`[DEBUG_CAMPAIGN] ID: ${campaign._id}, InitialStatus: draft, Target: ${targetStatus}, Sched: ${scheduled_at}`);
 
             // Only trigger if we are "launching" (not just saving draft, though front-end only keeps launch button)
             if (targetStatus !== 'draft') {
                 try {
                     const contactIds = target_audience?.include || [];
+                    console.log(`[DEBUG_CAMPAIGN] Contacts: ${contactIds.length}`);
+
                     if (contactIds.length > 0) {
                         const externalPayload = {
                             template_name,
@@ -119,8 +119,10 @@ router.post('/',
                             schedule_time: scheduled_at ? new Date(scheduled_at).toISOString() : null
                         };
 
+                        console.log(`[DEBUG_CAMPAIGN] Triggering External Service...`);
                         logger.info(`Triggering external campaign for ${campaign._id}`);
                         const externalResponse = await waService.createCampaign(externalPayload);
+                        console.log(`[DEBUG_CAMPAIGN] External Success: ${JSON.stringify(externalResponse)}`);
 
                         // Update local campaign with external ID if available
                         if (externalResponse && externalResponse.id) {
@@ -130,8 +132,12 @@ router.post('/',
                         campaign.status = targetStatus;
                         if (targetStatus === 'running') campaign.started_at = new Date();
                         await campaign.save();
+                        console.log(`[DEBUG_CAMPAIGN] Status updated to ${targetStatus}`);
+                    } else {
+                        console.log(`[DEBUG_CAMPAIGN] No contacts. Skipping.`);
                     }
                 } catch (extError) {
+                    console.log(`[DEBUG_CAMPAIGN] External Error: ${extError.message}`);
                     logger.error(`External API trigger failed for campaign ${campaign._id}:`, extError);
                     // Fallback status
                     campaign.status = 'failed';

@@ -50,8 +50,21 @@ const StatsCard = ({ title, value, icon: Icon, colorClass, bgClass, delay = 0 })
 );
 
 // Lead Card Component
-const LeadCard = ({ lead, onEdit, onDelete, onView, index }) => {
+const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, index }) => {
   const isMetaLead = lead.source === 'Facebook Ads' || (lead.tags && lead.tags.includes('Meta'));
+
+  const statusColors = {
+    'New': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    'Contacted': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    'Screening': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    'Qualified': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    'Proposal': 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    'Negotiation': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+    'Site Visit': 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+    'Agreement': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    'Payment': 'bg-green-500/10 text-green-400 border-green-500/20',
+    'Closed Won': 'bg-teal-500/10 text-teal-400 border-teal-500/20'
+  };
 
   return (
     <motion.div
@@ -74,15 +87,18 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, index }) => {
                   Meta Ads
                 </span>
               )}
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${lead.status === 'qualified' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                  lead.status === 'interested' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
-                    lead.status === 'won' || lead.status === 'closed' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                      lead.status === 'lost' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                        'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                }`}>
-                {lead.status || 'New'}
-              </span>
+              <select
+                value={lead.status || 'New'}
+                onChange={(e) => onStatusChange(lead, e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+              >
+                {['New', 'Contacted', 'Screening', 'Qualified', 'Proposal', 'Negotiation', 'Site Visit', 'Agreement', 'Payment', 'Closed Won'].map(status => (
+                  <option key={status} value={status} className="bg-[#161B22] text-gray-300">
+                    {status}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
@@ -213,12 +229,29 @@ export default function Leads() {
 
   const tabs = [
     { id: 'all', label: 'All Activity' },
-    { id: 'new', label: 'Fresh Leads' },
-    { id: 'contacted', label: 'In Progress' },
-    { id: 'qualified', label: 'Qualified' },
-    { id: 'won', label: 'Success' },
-    { id: 'lost', label: 'Closed' },
+    { id: 'New', label: 'New' },
+    { id: 'Contacted', label: 'Contacted' },
+    { id: 'Screening', label: 'Screening' },
+    { id: 'Qualified', label: 'Qualified' },
+    { id: 'Proposal', label: 'Proposal' },
+    { id: 'Negotiation', label: 'Negotiation' },
+    { id: 'Site Visit', label: 'Site Visit' },
+    { id: 'Agreement', label: 'Agreement' },
+    { id: 'Payment', label: 'Payment' },
+    { id: 'Closed Won', label: 'Closed Won' },
   ];
+
+  const handleStatusChange = async (lead, newStatus) => {
+    try {
+      await leadsAPI.updateLead(lead.id, { status: newStatus });
+      toast.success(`Status updated to ${newStatus}`);
+      fetchLeads();
+      fetchStats();
+    } catch (error) {
+      toast.error('Failed to update status');
+      console.error(error);
+    }
+  };
 
   return (
     <Layout>
@@ -337,6 +370,7 @@ export default function Leads() {
                       onView={() => router.push(`/lms/leads/${lead.id}`)}
                       onEdit={() => router.push(`/lms/leads/${lead.id}/edit`)}
                       onDelete={() => handleDelete(lead)}
+                      onStatusChange={handleStatusChange}
                     />
                   ))
                 ) : (
