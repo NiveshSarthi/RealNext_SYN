@@ -36,9 +36,10 @@ export function AuthProvider({ children, router }) {
           )
         ]);
         const userData = response.data.data?.user || response.data;
-        const contextData = response.data.data?.context || {};
+        const subscription = response.data.data?.subscription;
+        const client = response.data.data?.client;
 
-        const fullUser = { ...userData, context: contextData };
+        const fullUser = { ...userData, subscription, client };
         setUser(fullUser);
         localStorage.setItem('user', JSON.stringify(fullUser)); // Update local storage with fresh data
       }

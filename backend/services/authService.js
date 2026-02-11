@@ -27,6 +27,8 @@ class AuthService {
 
         const validPassword = await user.validatePassword(password);
 
+        console.log(`[LOGIN] User: ${user.email}, password valid: ${validPassword}`);
+
         if (!validPassword) {
             await logAuthEvent(req, 'login_failed', false, user._id || user.id, 'Invalid password');
             throw ApiError.unauthorized('Invalid email or password');

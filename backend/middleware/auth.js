@@ -96,6 +96,8 @@ const authenticate = async (req, res, next) => {
                         req.features[code] = req.client.settings.features[code];
                     });
                 }
+
+                console.log(`[AUTH] Final features for user ${user.email}: ${Object.keys(req.features).join(', ')}`);
             } else {
                 console.log(`[AUTH] ❌ ClientUser link not found for user ${user.id} and client ${clientId}`);
             }

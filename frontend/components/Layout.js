@@ -36,9 +36,9 @@ export default function Layout({ children }) {
 
   let navigation = [];
 
-  if (user?.is_super_admin) {
-    // Super Admin: Use Admin Navigation
-    // Filter based on system_permissions if not root admin (TODO: Implement granular admin permissions)
+  if (user?.is_super_admin || user?.context?.tenantRole === 'admin') {
+    // Super Admin or Client Admin: Use Admin Navigation
+    // For client admins, the backend will restrict data access to their client only
     navigation = ADMIN_NAVIGATION;
   } else if (user?.context?.partner) {
     // Partner: Hide or separate logic (Legacy)
@@ -46,8 +46,8 @@ export default function Layout({ children }) {
   } else {
     // Tenant User: Filter based on Role, Features, and Menu Access
     const userRole = user?.context?.tenantRole || 'user';
-    const menuAccess = user?.context?.menu_access || {};
-    const features = user?.context?.features || [];
+    const menuAccess = user?.client?.settings?.menu_access || {};
+    const features = user?.subscription?.features || [];
 
     // Recursive helper to filter navigation items
     const filterNavItems = (items) => {

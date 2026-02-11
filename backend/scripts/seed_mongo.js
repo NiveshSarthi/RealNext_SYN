@@ -32,7 +32,7 @@ async function seed() {
         ];
 
         for (const role of systemRoles) {
-            await Role.findOneAndUpdate({ name: role.name, tenant_id: null }, role, { upsert: true });
+            await Role.findOneAndUpdate({ name: role.name, client_id: null }, role, { upsert: true });
         }
         logger.info('System roles seeded');
 
@@ -58,8 +58,8 @@ async function seed() {
         for (const planData of plans) {
             const plan = await Plan.findOneAndUpdate({ code: planData.code }, planData, { upsert: true, new: true });
 
-            // Link features to Pro plan
-            if (plan.code === 'pro') {
+            // Link features to plans
+            if (plan.code === 'starter' || plan.code === 'pro') {
                 const allFeatures = await Feature.find();
                 for (const f of allFeatures) {
                     await PlanFeature.findOneAndUpdate(

@@ -7,11 +7,13 @@ import {
     ListBulletIcon,
     ChevronRightIcon,
     ChevronDownIcon,
-    CpuChipIcon
+    CpuChipIcon,
+    CreditCardIcon
 } from '@heroicons/react/24/outline';
 import axios from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import { USER_NAVIGATION } from '../../utils/navigationConfig';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function AdminClients() {
     const [clients, setClients] = useState([]);
@@ -19,10 +21,14 @@ export default function AdminClients() {
     const [showMenuModal, setShowMenuModal] = useState(false);
     const [showFeatureModal, setShowFeatureModal] = useState(false);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showAssignModal, setShowAssignModal] = useState(false);
     const [selectedClient, setSelectedClient] = useState(null);
+    const [selectedClientForAssign, setSelectedClientForAssign] = useState(null);
     const [menuAccess, setMenuAccess] = useState({});
     const [clientFeatures, setClientFeatures] = useState({});
     const [expandedNodes, setExpandedNodes] = useState({});
+    const [plans, setPlans] = useState([]);
+    const [selectedPlanId, setSelectedPlanId] = useState('');
     const [createForm, setCreateForm] = useState({
         name: '',
         email: '',
@@ -31,9 +37,21 @@ export default function AdminClients() {
         company_name: ''
     });
 
+    const { user } = useAuth();
+
     useEffect(() => {
         fetchClients();
+        fetchPlans();
     }, []);
+
+    const fetchPlans = async () => {
+        try {
+            const res = await axios.get('/api/admin/plans');
+            setPlans(res.data.data);
+        } catch (error) {
+            console.error('Failed to fetch plans');
+        }
+    };
 
     const fetchClients = async () => {
         try {
@@ -43,6 +61,31 @@ export default function AdminClients() {
         } catch (error) {
             toast.error('Failed to load clients');
             setLoading(false);
+        }
+    };
+
+    // --- Assign Subscription Logic ---
+    const openAssignModal = (client) => {
+        setSelectedClientForAssign(client);
+        setSelectedPlanId('');
+        setShowAssignModal(true);
+    };
+
+    const handleAssignSubscription = async () => {
+        if (!selectedPlanId) {
+            toast.error('Please select a plan');
+            return;
+        }
+        try {
+            await axios.post('/api/admin/subscriptions', {
+                plan_id: selectedPlanId,
+                client_id: selectedClientForAssign.id
+            });
+            toast.success('Subscription assigned successfully');
+            setShowAssignModal(false);
+            fetchClients();
+        } catch (error) {
+            toast.error('Failed to assign subscription');
         }
     };
 
@@ -221,7 +264,7 @@ export default function AdminClients() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-900/30 text-blue-200 border border-blue-800">
-                                            {client.subscriptions?.[0]?.plan?.name || 'No Plan'}
+                                            {client.plan ? `${client.plan.name} (${client.subscription?.status})` : 'No Plan'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -249,6 +292,16 @@ export default function AdminClients() {
                                             <ListBulletIcon className="h-4 w-4 mr-1" />
                                             Menu Access
                                         </button>
+                                        {user?.is_super_admin && (
+                                            <button
+                                                onClick={() => openAssignModal(client)}
+                                                className="text-green-400 hover:text-green-300 inline-flex items-center"
+                                                title="Assign Subscription"
+                                            >
+                                                <CreditCardIcon className="h-4 w-4 mr-1" />
+                                                Assign Subscription
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -319,6 +372,44 @@ export default function AdminClients() {
                             </Button>
                             <Button onClick={saveFeatures}>
                                 Save Features
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Assign Subscription Modal */}
+            {showAssignModal && selectedClientForAssign && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#161B22] border border-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
+                        <h2 className="text-xl font-bold text-white mb-6">
+                            Assign Subscription: <span className="text-primary">{selectedClientForAssign.name}</span>
+                        </h2>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Select Plan *</label>
+                                <select
+                                    className="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                    value={selectedPlanId}
+                                    onChange={(e) => setSelectedPlanId(e.target.value)}
+                                >
+                                    <option value="">Choose a plan...</option>
+                                    {plans.map((plan) => (
+                                        <option key={plan.id} value={plan.id}>
+                                            {plan.name} - ${plan.price_monthly}/month
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end space-x-3 pt-6 border-t border-gray-800 mt-6">
+                            <Button variant="ghost" onClick={() => setShowAssignModal(false)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleAssignSubscription}>
+                                Assign Subscription
                             </Button>
                         </div>
                     </div>

@@ -10,6 +10,9 @@ router.use('/subscriptions', require('./subscriptions'));
 router.use('/analytics', require('./analytics'));
 router.use('/team', require('./team'));
 router.use('/roles', require('./roles'));
+router.use('/lms', require('./lms'));
+router.use('/wa-marketing', require('./wa-marketing'));
+router.use('/inventory', require('./inventory'));
 
 // Admin root - overview dashboard
 router.get('/', async (req, res) => {
@@ -20,7 +23,13 @@ router.get('/', async (req, res) => {
             '/api/admin/clients',
             '/api/admin/plans',
             '/api/admin/features',
-            '/api/admin/analytics'
+            '/api/admin/analytics',
+            '/api/admin/lms',
+            '/api/admin/wa-marketing',
+            '/api/admin/inventory',
+            '/api/admin/subscriptions',
+            '/api/admin/team',
+            '/api/admin/roles'
         ]
     });
 });
