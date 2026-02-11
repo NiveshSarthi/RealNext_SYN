@@ -150,7 +150,7 @@ router.post('/',
         } catch (error) {
             next(error);
         }
-    }
+    });
 
 /**
  * @route GET /api/campaigns/:id
@@ -158,25 +158,25 @@ router.post('/',
  * @access Tenant User
  */
 router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
-        try {
-            ensureClient(req);
-            const campaign = await Campaign.findOne({
-                _id: req.params.id,
-                client_id: req.client.id
-            });
+    try {
+        ensureClient(req);
+        const campaign = await Campaign.findOne({
+            _id: req.params.id,
+            client_id: req.client.id
+        });
 
-            if (!campaign) {
-                throw ApiError.notFound('Campaign not found');
-            }
-
-            res.json({
-                success: true,
-                data: campaign
-            });
-        } catch (error) {
-            next(error);
+        if (!campaign) {
+            throw ApiError.notFound('Campaign not found');
         }
-    });
+
+        res.json({
+            success: true,
+            data: campaign
+        });
+    } catch (error) {
+        next(error);
+    }
+});
 
 /**
  * @route PUT /api/campaigns/:id
