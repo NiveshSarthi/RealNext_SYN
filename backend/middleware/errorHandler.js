@@ -11,7 +11,7 @@ const errorHandler = (err, req, res, next) => {
         path: req.path,
         method: req.method,
         user_id: req.user?.id,
-        tenant_id: req.tenant?.id
+        client_id: req.client?.id
     });
 
     // Sequelize validation errors

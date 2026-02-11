@@ -3,7 +3,7 @@ const router = express.Router();
 const { Campaign, Template, Lead } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
 const { requireClientAccess } = require('../../../middleware/roles');
-const { enforceClientScope } = require('../../../middleware/scopeEnforcer');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const { requireFeature, checkUsageLimit, incrementUsage } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
@@ -11,7 +11,14 @@ const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = requir
 const { createCampaign, validate, validators } = require('../../../utils/validators');
 
 // Middleware
-router.use(authenticate, requireClientAccess, enforceClientScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 /**
  * @route GET /api/campaigns
@@ -20,6 +27,7 @@ router.use(authenticate, requireClientAccess, enforceClientScope);
  */
 router.get('/', requireFeature('campaigns'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const pagination = getPagination(req.query);
         const sorting = getSorting(req.query, ['name', 'status', 'type', 'created_at', 'scheduled_at'], 'created_at');
 
@@ -60,6 +68,7 @@ router.post('/',
     auditAction('create', 'campaign'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const {
                 name, type, template_name, template_data,
                 target_audience, scheduled_at, metadata
@@ -97,6 +106,7 @@ router.post('/',
  */
 router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const campaign = await Campaign.findOne({
             _id: req.params.id,
             client_id: req.client.id
@@ -125,6 +135,7 @@ router.put('/:id',
     auditAction('update', 'campaign'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const campaign = await Campaign.findOne({
                 _id: req.params.id,
                 client_id: req.client.id
@@ -167,8 +178,9 @@ router.put('/:id/status',
     auditAction('update_status', 'campaign'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const campaign = await Campaign.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                where: { id: req.params.id, client_id: req.client.id }
             });
 
             if (!campaign) {
@@ -223,6 +235,7 @@ router.delete('/:id',
     auditAction('delete', 'campaign'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const campaign = await Campaign.findOne({
                 _id: req.params.id,
                 client_id: req.client.id
@@ -255,6 +268,7 @@ router.delete('/:id',
  */
 router.get('/:id/stats', requireFeature('campaigns'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const campaign = await Campaign.findOne({
             _id: req.params.id,
             client_id: req.client.id

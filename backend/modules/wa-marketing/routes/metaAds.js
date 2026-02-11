@@ -5,7 +5,7 @@ const router = express.Router();
 const axios = require('axios');
 const { authenticate } = require('../../../middleware/auth');
 const { requireClientAccess } = require('../../../middleware/roles');
-const { enforceClientScope } = require('../../../middleware/scopeEnforcer');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
@@ -13,7 +13,14 @@ const logger = require('../../../config/logger');
 const { FacebookPageConnection, FacebookLeadForm, Lead } = require('../../../models');
 
 // Middleware
-router.use(authenticate, requireClientAccess, enforceClientScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 const GRAPH_API_VERSION = 'v19.0';
 const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -23,8 +30,9 @@ const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
  * @desc Connect Facebook Account & Fetch Pages
  */
 router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
-// const t = await sequelize.transaction();
+    // const t = await sequelize.transaction();
     try {
+        ensureClient(req);
         const { user_token } = req.body;
         if (!user_token) throw new ApiError(400, 'User Access Token is required');
 
@@ -37,13 +45,13 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
             }
         });
 
-        const pages = response.data.data;
+        const pages = response.data.data || [];
         const connectedPages = [];
 
         for (const page of pages) {
             // Upsert Page Connection
             const [connection] = await FacebookPageConnection.upsert({
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 page_id: page.id,
                 page_name: page.name,
                 access_token: page.access_token, // Page Access Token
@@ -53,7 +61,7 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
             connectedPages.push(connection);
         }
 
-// await t.commit();
+        // await t.commit();
 
         res.json({
             success: true,
@@ -61,7 +69,7 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
             data: connectedPages
         });
     } catch (error) {
-// await t.rollback();
+        // await t.rollback();
         // Handle Graph API errors
         if (error.response?.data?.error) {
             return next(new ApiError(400, `Facebook API Error: ${error.response.data.error.message}`));
@@ -76,8 +84,9 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
  */
 router.get('/pages', requireFeature('meta_ads'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const pages = await FacebookPageConnection.findAll({
-            where: { tenant_id: req.tenant.id },
+            where: { client_id: req.client.id },
             include: [{ model: FacebookLeadForm, as: 'leadForms' }],
             order: [['createdAt', 'DESC']]
         });
@@ -93,8 +102,9 @@ router.get('/pages', requireFeature('meta_ads'), async (req, res, next) => {
  */
 router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const pages = await FacebookPageConnection.findAll({
-            where: { tenant_id: req.tenant.id, status: 'active' }
+            where: { client_id: req.client.id, status: 'active' }
         });
 
         let newFormsCount = 0;
@@ -114,7 +124,7 @@ router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) =>
                     if (form.status === 'ACTIVE') {
                         const [savedForm, created] = await FacebookLeadForm.findOrCreate({
                             where: {
-                                tenant_id: req.tenant.id,
+                                client_id: req.client.id,
                                 form_id: form.id
                             },
                             defaults: {
@@ -144,8 +154,9 @@ router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) =>
  */
 router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const forms = await FacebookLeadForm.findAll({
-            where: { tenant_id: req.tenant.id, status: 'active' },
+            where: { client_id: req.client.id, status: 'active' },
             include: [{ model: FacebookPageConnection, as: 'pageConnection' }]
         });
 
@@ -193,7 +204,7 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
 
                         if (!existingLead) {
                             await Lead.create({
-                                tenant_id: req.tenant.id,
+                                client_id: req.client.id,
                                 name: nameField || 'Facebook Lead',
                                 email: emailField,
                                 phone: phoneField,
@@ -233,6 +244,7 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
  */
 router.patch('/pages/:pageId/toggle-sync', requireFeature('meta_ads'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const { pageId } = req.params;
         const { is_enabled } = req.body;
 
@@ -243,7 +255,7 @@ router.patch('/pages/:pageId/toggle-sync', requireFeature('meta_ads'), async (re
         const page = await FacebookPageConnection.findOne({
             where: {
                 id: pageId,
-                tenant_id: req.tenant.id
+                client_id: req.client.id
             }
         });
 
@@ -254,7 +266,7 @@ router.patch('/pages/:pageId/toggle-sync', requireFeature('meta_ads'), async (re
         page.is_lead_sync_enabled = is_enabled;
         await page.save();
 
-        logger.info(`Lead sync ${is_enabled ? 'enabled' : 'disabled'} for page ${page.page_name} (tenant: ${req.tenant.id})`);
+        logger.info(`Lead sync ${is_enabled ? 'enabled' : 'disabled'} for page ${page.page_name} (client: ${req.client.id})`);
 
         res.json({
             success: true,
@@ -375,7 +387,7 @@ router.post('/webhook', async (req, res) => {
 
                             // Create the lead
                             const newLead = await Lead.create({
-                                tenant_id: pageConnection.tenant_id,
+                                client_id: pageConnection.client_id,
                                 name: nameField || 'Facebook Lead',
                                 email: emailField,
                                 phone: phoneField,
