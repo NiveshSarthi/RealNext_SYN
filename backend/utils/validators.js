@@ -153,7 +153,7 @@ const validationChains = {
         validators.requiredString('name', 1, 255),
         validators.email().optional(),
         validators.phone(),
-        validators.enum('status', ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'], false),
+        validators.enum('status', ['New', 'Contacted', 'Screening', 'Qualified', 'Proposal', 'Negotiation', 'Site Visit', 'Agreement', 'Payment', 'Closed Won'], false),
         validators.optionalString('source', 100),
         validators.optionalString('location', 255),
         validate
