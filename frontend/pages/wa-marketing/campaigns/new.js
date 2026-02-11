@@ -71,9 +71,8 @@ export default function NewCampaign() {
     const fetchLeads = async () => {
         try {
             const response = await leadsAPI.getLeads({ limit: 100 });
-
-            // API returns { contacts: [...] }
-            setLeads(response.data.contacts || []);
+            // API returns { success: true, data: [...] }
+            setLeads(response.data.data || []);
         } catch (error) {
             console.error('Failed to fetch leads:', error);
         }
@@ -111,7 +110,7 @@ export default function NewCampaign() {
                 if (leads.length === 0) {
                     // Try to fetch if empty
                     const leadRes = await leadsAPI.getLeads({ limit: 1000 }); // Increase limit
-                    contactIds = (leadRes.data.contacts || []).map(l => l._id);
+                    contactIds = (leadRes.data.data || []).map(l => l._id);
                 } else {
                     contactIds = leads.map(l => l._id);
                 }
