@@ -48,7 +48,15 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    return [];
+    return [
+      { source: '/campaigns/:path*', destination: '/wa-marketing/campaigns/:path*' },
+      { source: '/flows/:path*', destination: '/wa-marketing/flows/:path*' },
+      { source: '/templates/:path*', destination: '/wa-marketing/templates/:path*' },
+      { source: '/quick-replies/:path*', destination: '/wa-marketing/quick-replies/:path*' },
+      { source: '/meta-ads/:path*', destination: '/wa-marketing/meta-ads/:path*' },
+      { source: '/leads/:path*', destination: '/lms/leads/:path*' },
+      { source: '/catalog/:path*', destination: '/inventory/:path*' },
+    ];
   },
 };
 

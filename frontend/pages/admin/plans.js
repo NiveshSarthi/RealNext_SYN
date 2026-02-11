@@ -338,12 +338,12 @@ export default function AdminPlans() {
 
                                 <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
                                     <label className="text-sm font-medium text-foreground">Active Status</label>
-                                    <Toggle enabled={formData.is_active} onChange={(e) => setFormData({ ...formData, is_active: e })} />
+                                    <Toggle checked={formData.is_active} onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })} />
                                 </div>
 
                                 <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
                                     <label className="text-sm font-medium text-foreground">Publicly Visible</label>
-                                    <Toggle enabled={formData.is_public} onChange={(e) => setFormData({ ...formData, is_public: e })} />
+                                    <Toggle checked={formData.is_public} onCheckedChange={(checked) => setFormData({ ...formData, is_public: checked })} />
                                 </div>
 
                                 <div className="flex justify-end space-x-3 mt-6">
@@ -357,74 +357,77 @@ export default function AdminPlans() {
                             </form>
                         </div>
                     </div>
-                )}
+                )
+                }
 
                 {/* Assignment Modal */}
-                {isAssignModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-card w-full max-w-lg rounded-xl shadow-2xl p-6 border border-border m-4 max-h-[90vh] overflow-y-auto">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-xl font-bold font-display text-foreground">
-                                    Assign Subscription: {selectedPlan?.name}
-                                </h3>
-                                <button onClick={() => setIsAssignModalOpen(false)} className="text-muted-foreground hover:text-foreground">
-                                    <XCircleIcon className="w-6 h-6" />
-                                </button>
+                {
+                    isAssignModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-card w-full max-w-lg rounded-xl shadow-2xl p-6 border border-border m-4 max-h-[90vh] overflow-y-auto">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-bold font-display text-foreground">
+                                        Assign Subscription: {selectedPlan?.name}
+                                    </h3>
+                                    <button onClick={() => setIsAssignModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                                        <XCircleIcon className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleAssignSubmit} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-foreground mb-1">Select Client</label>
+                                        <select
+                                            required
+                                            value={assignFormData.client_id}
+                                            onChange={(e) => setAssignFormData({ ...assignFormData, client_id: e.target.value })}
+                                            className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                        >
+                                            <option value="">Choose a client...</option>
+                                            {clients.map((client) => (
+                                                <option key={client.id} value={client.id}>
+                                                    {client.name} ({client.email})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-foreground mb-1">Billing Cycle</label>
+                                        <select
+                                            value={assignFormData.billing_cycle}
+                                            onChange={(e) => setAssignFormData({ ...assignFormData, billing_cycle: e.target.value })}
+                                            className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                        >
+                                            <option value="monthly">Monthly</option>
+                                            <option value="yearly">Yearly</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-foreground mb-1">Start Date (Optional)</label>
+                                        <Input
+                                            type="date"
+                                            value={assignFormData.start_date}
+                                            onChange={(e) => setAssignFormData({ ...assignFormData, start_date: e.target.value })}
+                                            placeholder="Leave empty for immediate start"
+                                        />
+                                    </div>
+
+                                    <div className="flex justify-end space-x-3 pt-4">
+                                        <Button variant="outline" type="button" onClick={() => setIsAssignModalOpen(false)}>
+                                            Cancel
+                                        </Button>
+                                        <Button type="submit">
+                                            Assign Subscription
+                                        </Button>
+                                    </div>
+                                </form>
                             </div>
-
-                            <form onSubmit={handleAssignSubmit} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-foreground mb-1">Select Client</label>
-                                    <select
-                                        required
-                                        value={assignFormData.client_id}
-                                        onChange={(e) => setAssignFormData({ ...assignFormData, client_id: e.target.value })}
-                                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                                    >
-                                        <option value="">Choose a client...</option>
-                                        {clients.map((client) => (
-                                            <option key={client.id} value={client.id}>
-                                                {client.name} ({client.email})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-foreground mb-1">Billing Cycle</label>
-                                    <select
-                                        value={assignFormData.billing_cycle}
-                                        onChange={(e) => setAssignFormData({ ...assignFormData, billing_cycle: e.target.value })}
-                                        className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                                    >
-                                        <option value="monthly">Monthly</option>
-                                        <option value="yearly">Yearly</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-foreground mb-1">Start Date (Optional)</label>
-                                    <Input
-                                        type="date"
-                                        value={assignFormData.start_date}
-                                        onChange={(e) => setAssignFormData({ ...assignFormData, start_date: e.target.value })}
-                                        placeholder="Leave empty for immediate start"
-                                    />
-                                </div>
-
-                                <div className="flex justify-end space-x-3 pt-4">
-                                    <Button variant="outline" type="button" onClick={() => setIsAssignModalOpen(false)}>
-                                        Cancel
-                                    </Button>
-                                    <Button type="submit">
-                                        Assign Subscription
-                                    </Button>
-                                </div>
-                            </form>
                         </div>
-                    </div>
-                )}
-            </div>
-        </Layout>
+                    )
+                }
+            </div >
+        </Layout >
     );
 }

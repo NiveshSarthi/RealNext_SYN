@@ -36,7 +36,7 @@ const clientSchema = new Schema({
     status: {
         type: String,
         default: 'active',
-        enum: ['active', 'suspended', 'cancelled']
+        enum: ['active', 'suspended', 'cancelled', 'inactive']
     },
     environment: {
         type: String,

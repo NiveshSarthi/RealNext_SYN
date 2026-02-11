@@ -8,12 +8,14 @@ import {
     ChevronRightIcon,
     ChevronDownIcon,
     CpuChipIcon,
-    CreditCardIcon
+    CreditCardIcon,
+    TrashIcon
 } from '@heroicons/react/24/outline';
 import axios from '../../utils/api';
 import { toast } from 'react-hot-toast';
 import { USER_NAVIGATION } from '../../utils/navigationConfig';
 import { useAuth } from '../../contexts/AuthContext';
+import Toggle from '../../components/ui/Switch';
 
 export default function AdminClients() {
     const [clients, setClients] = useState([]);
@@ -207,6 +209,29 @@ export default function AdminClients() {
         }
     };
 
+    const toggleClientStatus = async (client, isActive) => {
+        try {
+            await axios.put(`/api/admin/clients/${client.id}/override`, {
+                status: isActive ? 'active' : 'inactive'
+            });
+            toast.success(`Client ${isActive ? 'activated' : 'deactivated'}`);
+            fetchClients();
+        } catch (error) {
+            toast.error('Failed to update client status');
+        }
+    };
+
+    const handleDeleteClient = async (id) => {
+        if (!confirm('Are you sure you want to delete this client? This will delete ALL associated data and cannot be undone.')) return;
+        try {
+            await axios.delete(`/api/admin/clients/${id}`);
+            toast.success('Client deleted successfully');
+            fetchClients();
+        } catch (error) {
+            toast.error('Failed to delete client');
+        }
+    };
+
     const handleCreateClient = async () => {
         try {
             await axios.post('/api/admin/clients', createForm);
@@ -268,12 +293,18 @@ export default function AdminClients() {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${client.status === 'active'
-                                            ? 'bg-green-900/30 text-green-200 border border-green-800'
-                                            : 'bg-red-900/30 text-red-200 border border-red-800'
-                                            }`}>
-                                            {client.status}
-                                        </span>
+                                        <div className="flex items-center space-x-2">
+                                            <Toggle
+                                                checked={client.status === 'active'}
+                                                onCheckedChange={(checked) => toggleClientStatus(client, checked)}
+                                            />
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${client.status === 'active'
+                                                ? 'bg-green-900/30 text-green-200 border border-green-800'
+                                                : 'bg-red-900/30 text-red-200 border border-red-800'
+                                                }`}>
+                                                {client.status}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
                                         <button
@@ -302,6 +333,14 @@ export default function AdminClients() {
                                                 Assign Subscription
                                             </button>
                                         )}
+                                        <button
+                                            onClick={() => handleDeleteClient(client.id)}
+                                            className="text-red-400 hover:text-red-300 inline-flex items-center"
+                                            title="Delete Client"
+                                        >
+                                            <TrashIcon className="h-4 w-4 mr-1" />
+                                            Delete
+                                        </button>
                                     </td>
                                 </tr>
                             ))}

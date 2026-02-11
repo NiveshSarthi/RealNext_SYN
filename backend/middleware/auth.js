@@ -44,8 +44,7 @@ const authenticate = async (req, res, next) => {
                 user_id: user._id,
                 client_id: clientId
             }).populate({
-                path: 'client_id',
-                match: { status: 'active' }
+                path: 'client_id'
             });
 
             if (clientUser && clientUser.client_id) {
@@ -53,6 +52,11 @@ const authenticate = async (req, res, next) => {
                 req.clientUser = clientUser.toObject({ virtuals: true });
                 req.client = clientUser.client_id.toObject({ virtuals: true });
                 req.user.client_role = clientUser.role;
+
+                // BLOCK INACTIVE CLIENTS (Super Admins bypass this check)
+                if (req.client.status !== 'active' && !req.user.is_super_admin) {
+                    throw ApiError.forbidden('Your organization account is inactive. Kindly contact the administration.');
+                }
 
                 console.log(`[AUTH] ✅ Client context loaded: ${req.client.name} (Role: ${req.clientUser.role})`);
 

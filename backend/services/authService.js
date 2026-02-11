@@ -89,13 +89,20 @@ class AuthService {
             status: 'active'
         });
 
-        // Create client for the user
+        // Create client for the user with restricted defaults
         const client = await Client.create({
             name: userData.company_name || `${userData.name}'s Organization`,
             email: userData.email,
             phone: userData.phone,
             status: 'active',
-            environment: 'production'
+            environment: 'production',
+            settings: {
+                menu_access: {
+                    lms: false,
+                    wa_marketing: false,
+                    inventory: false
+                }
+            }
         });
 
         // Make user the client owner
@@ -158,12 +165,19 @@ class AuthService {
                 status: 'active'
             });
 
-            // Create client for new user
+            // Create client for new user with restricted defaults
             const client = await Client.create({
                 name: `${googleData.name}'s Organization`,
                 email: googleData.email,
                 status: 'active',
-                environment: 'production'
+                environment: 'production',
+                settings: {
+                    menu_access: {
+                        lms: false,
+                        wa_marketing: false,
+                        inventory: false
+                    }
+                }
             });
 
             await ClientUser.create({

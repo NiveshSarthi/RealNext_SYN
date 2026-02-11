@@ -7,13 +7,14 @@ services:
       dockerfile: Dockerfile
     container_name: realnext-backend
     ports:
-      - "5101:5000"
+      - "5078:5000"
     env_file:
       - .env
     environment:
       - PORT=5000
     restart: unless-stopped
     networks:
+      - app-network
       - coolify
 
   frontend:
@@ -21,10 +22,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5078}
     container_name: realnext-frontend
     ports:
-      - "3131:3000"
+      - "3000:3000"
     env_file:
       - .env
     environment:
@@ -33,8 +34,11 @@ services:
     depends_on:
       - backend
     networks:
+      - app-network
       - coolify
 
 networks:
+  app-network:
+    driver: bridge
   coolify:
     external: true

@@ -178,46 +178,54 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id/override',
     auditAction('override', 'client'),
     async (req, res, next) => {
-        try {
-            const client = await Client.findById(req.params.id);
+        console.log(`[CLIENT OVERRIDE] Updating client ${req.params.id} with body:`, req.body);
+        const client = await Client.findById(req.params.id);
 
-            if (!client) {
-                throw ApiError.notFound('Client not found');
-            }
-
-            const { settings, metadata, status, environment, is_demo } = req.body;
-
-            client.settings = settings ? {
-                ...client.settings,
-                ...settings,
-                features: settings.features ? { ...client.settings.features, ...settings.features } : client.settings.features,
-                menu_access: settings.menu_access ? { ...client.settings.menu_access, ...settings.menu_access } : client.settings.menu_access,
-                _admin_override: true
-            } : client.settings;
-
-            client.metadata = metadata ? { ...client.metadata, ...metadata } : client.metadata;
-            client.status = status || client.status;
-            client.environment = environment || client.environment;
-            client.is_demo = is_demo !== undefined ? is_demo : client.is_demo;
-
-            await client.save();
-
-            res.json({
-                success: true,
-                data: client
-            });
-        } catch (error) {
-            next(error);
+        if (!client) {
+            console.log(`[CLIENT OVERRIDE] Client not found: ${req.params.id}`);
+            throw ApiError.notFound('Client not found');
         }
+
+        const { settings, metadata, status, environment, is_demo } = req.body;
+
+        client.settings = settings ? {
+            ...client.settings,
+            ...settings,
+            features: settings.features ? { ...client.settings.features, ...settings.features } : client.settings.features,
+            menu_access: settings.menu_access ? { ...client.settings.menu_access, ...settings.menu_access } : client.settings.menu_access,
+            _admin_override: true
+        } : client.settings;
+
+        client.metadata = metadata ? { ...client.metadata, ...metadata } : client.metadata;
+
+        if (status) {
+            console.log(`[CLIENT OVERRIDE] Changing status from ${client.status} to ${status}`);
+            client.status = status;
+        }
+
+        client.environment = environment || client.environment;
+        client.is_demo = is_demo !== undefined ? is_demo : client.is_demo;
+
+        await client.save();
+        console.log(`[CLIENT OVERRIDE] Successfully updated client ${client.name}`);
+
+        res.json({
+            success: true,
+            data: client
+        });
+    } catch (error) {
+        console.error('[CLIENT OVERRIDE ERROR]', error);
+        next(error);
+    }
     }
 );
 
 /**
- * @route POST /api/admin/clients/:id/impersonate
- * @desc Get impersonation token for client
+ * @route DELETE /api/admin/clients/:id
+ * @desc Hard delete a client (Super Admin)
  * @access Super Admin
  */
-router.post('/:id/impersonate', auditAction('impersonate', 'client'), async (req, res, next) => {
+router.delete('/:id', auditAction('delete', 'client'), async (req, res, next) => {
     try {
         const client = await Client.findById(req.params.id);
 
@@ -225,34 +233,18 @@ router.post('/:id/impersonate', auditAction('impersonate', 'client'), async (req
             throw ApiError.notFound('Client not found');
         }
 
-        // Find owner user
-        const ownerMembership = await ClientUser.findOne({
-            client_id: client._id,
-            is_owner: true
-        }).populate('user_id');
+        // 1. Delete ClientUsers memberships
+        await ClientUser.deleteMany({ client_id: client._id });
 
-        if (!ownerMembership || !ownerMembership.user_id) {
-            throw ApiError.notFound('Client owner not found');
-        }
+        // 2. Delete Subscriptions
+        await Subscription.deleteMany({ client_id: client._id });
 
-        // Generate impersonation token
-        const { generateAccessToken, buildTokenPayload } = require('../../utils/jwt');
-        const authService = require('../../services/authService');
-
-        const context = await authService.getUserContext(ownerMembership.user_id);
-        const payload = buildTokenPayload(ownerMembership.user_id, context);
-        payload.impersonated_by = req.user.id;
-        payload.impersonation = true;
-
-        const token = generateAccessToken(payload);
+        // 3. Delete the Client
+        await client.deleteOne();
 
         res.json({
             success: true,
-            data: {
-                token,
-                client: client.toObject({ virtuals: true }),
-                user: ownerMembership.user_id.toSafeJSON()
-            }
+            message: 'Client and all associated data deleted successfully'
         });
     } catch (error) {
         next(error);

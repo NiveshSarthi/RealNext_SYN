@@ -69,6 +69,37 @@ export const ADMIN_NAVIGATION = [
     { id: 'admin.clients', label: 'Clients', href: '/admin/tenants', icon: BuildingStorefrontIcon },
     { id: 'admin.plans', label: 'Plans', href: '/admin/plans', icon: CreditCardIcon },
     { id: 'admin.features', label: 'Features', href: '/admin/features', icon: BoltIcon },
+    // Add feature modules for Super Admin convenience
+    {
+        id: 'lms',
+        label: 'LMS',
+        icon: AcademicCapIcon,
+        children: [
+            { id: 'lms.leads', label: 'Leads', href: '/lms/leads', icon: UsersIcon },
+            { id: 'lms.lms', label: 'LMS', href: '/lms', icon: AcademicCapIcon },
+            { id: 'lms.network', label: 'Network', href: '/network', icon: UserGroupIcon },
+        ]
+    },
+    {
+        id: 'wa_marketing',
+        label: 'WA Marketing',
+        icon: ChatBubbleLeftRightIcon,
+        children: [
+            { id: 'wa_marketing.campaigns', label: 'Campaigns', href: '/wa-marketing/campaigns', icon: ChatBubbleLeftRightIcon },
+            { id: 'wa_marketing.flows', label: 'Flows', href: '/wa-marketing/flows', icon: BoltIcon },
+            { id: 'wa_marketing.templates', label: 'Templates', href: '/wa-marketing/templates', icon: DocumentTextIcon },
+            { id: 'wa_marketing.quick_replies', label: 'Quick Replies', href: '/wa-marketing/quick-replies', icon: ChatBubbleBottomCenterTextIcon },
+            { id: 'wa_marketing.meta_ads', label: 'Meta Ads', href: '/wa-marketing/meta-ads', icon: MegaphoneIcon },
+        ]
+    },
+    {
+        id: 'inventory',
+        label: 'Inventory',
+        icon: ShoppingBagIcon,
+        children: [
+            { id: 'inventory.catalog', label: 'Catalog', href: '/inventory', icon: ShoppingBagIcon },
+        ]
+    },
     { id: 'admin.analytics', label: 'Analytics', href: '/admin/analytics', icon: ChartBarIcon },
     {
         id: 'admin.team',

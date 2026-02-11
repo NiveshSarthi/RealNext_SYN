@@ -36,9 +36,11 @@ export default function Layout({ children }) {
 
   let navigation = [];
 
-  if (user?.is_super_admin || user?.context?.tenantRole === 'admin') {
-    // Super Admin or Client Admin: Use Admin Navigation
-    // For client admins, the backend will restrict data access to their client only
+  if (user?.is_super_admin) {
+    // Super Admin: Always sees everything in ADMIN_NAVIGATION
+    navigation = ADMIN_NAVIGATION;
+  } else if (user?.context?.tenantRole === 'admin') {
+    // Client Admin: Use Admin Navigation (backend handles data isolation)
     navigation = ADMIN_NAVIGATION;
   } else if (user?.context?.partner) {
     // Partner: Hide or separate logic (Legacy)
@@ -49,36 +51,11 @@ export default function Layout({ children }) {
     const menuAccess = user?.client?.settings?.menu_access || {};
     const features = user?.subscription?.features || [];
 
-    // Recursive helper to filter navigation items
-    const filterNavItems = (items) => {
-      return items.filter(item => {
-        // 1. Check Granular Menu Access (Explicit Disable)
-        if (menuAccess[item.id] === false) return false;
-
-        // 2. Check Feature Dependencies (Legacy Feature Flags)
-        if (item.id === 'lms' && !features.includes('lms')) return false;
-        if (item.id === 'inventory' && (!features.includes('inventory') && !features.includes('catalog'))) return false;
-        if (item.id === 'wa_marketing' && (!features.includes('wa_marketing') && !features.includes('campaigns'))) return false;
-
-        // 3. Check Role (Hide Team for non-admins)
-        if (item.id === 'team' && (userRole !== 'admin' && userRole !== 'manager')) return false;
-
-        // 4. Process Children recursively
-        if (item.children) {
-          const filteredChildren = filterNavItems(item.children);
-          if (filteredChildren.length === 0) return false; // Hide parent if all children are hidden
-          item.children = filteredChildren; // Update children with filtered list (Clone to avoid mutation issues if strict)
-          // Note: In React we should not mutate constants. ideally we map.
-          // Let's do a map-filter approach below for safety.
-          return true;
-        }
-
-        return true;
-      });
-    };
-
     // Safe Map-Filter implementation to avoid mutating the constant
     const processNavigation = (items) => {
+      // Super Admin bypass for internal filtering just in case
+      if (user?.is_super_admin) return items;
+
       return items.reduce((acc, item) => {
         // 1. Check Granular Menu Access (Explicit Disable)
         if (menuAccess[item.id] === false) return acc;

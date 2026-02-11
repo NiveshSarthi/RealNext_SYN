@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const { CatalogItem } = require('../../models');
 const { authenticate } = require('../../middleware/auth');
@@ -19,21 +20,20 @@ router.use(authenticate, requireClientAccess, enforceClientScope);
 router.get('/', requireFeature('catalog'), async (req, res, next) => {
     try {
         const { category, search, status } = req.query;
-        const where = { tenant_id: req.tenant.id };
+        const query = { client_id: req.client.id };
 
-        if (status) where.status = status;
-        if (category) where.category = category;
+        if (status) query.status = status;
+        if (category) query.category = category;
         if (search) {
-            where[Op.or] = [
-                { name: { [Op.iLike]: `%${search}%` } },
-                { description: { [Op.iLike]: `%${search}%` } }
+            const searchRegex = new RegExp(search, 'i');
+            query.$or = [
+                { name: searchRegex },
+                { description: searchRegex }
             ];
         }
 
-        const items = await CatalogItem.findAll({
-            where,
-            order: [['created_at', 'DESC']]
-        });
+        const items = await CatalogItem.find(query)
+            .sort({ created_at: -1 });
 
         res.json({
             success: true,
@@ -51,7 +51,8 @@ router.get('/', requireFeature('catalog'), async (req, res, next) => {
 router.get('/:id', requireFeature('catalog'), async (req, res, next) => {
     try {
         const item = await CatalogItem.findOne({
-            where: { id: req.params.id, tenant_id: req.tenant.id }
+            _id: req.params.id,
+            client_id: req.client.id
         });
 
         if (!item) throw ApiError.notFound('Item not found');
@@ -79,7 +80,7 @@ router.post('/',
     async (req, res, next) => {
         try {
             const item = await CatalogItem.create({
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 ...req.body,
                 created_by: req.user.id
             });
@@ -104,12 +105,14 @@ router.put('/:id',
     async (req, res, next) => {
         try {
             const item = await CatalogItem.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!item) throw ApiError.notFound('Item not found');
 
-            await item.update(req.body);
+            Object.assign(item, req.body);
+            await item.save();
 
             res.json({
                 success: true,
@@ -131,12 +134,13 @@ router.delete('/:id',
     async (req, res, next) => {
         try {
             const item = await CatalogItem.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!item) throw ApiError.notFound('Item not found');
 
-            await item.destroy();
+            await item.deleteOne();
 
             res.json({
                 success: true,
@@ -158,16 +162,16 @@ router.post('/:id/sync',
     async (req, res, next) => {
         try {
             const item = await CatalogItem.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!item) throw ApiError.notFound('Item not found');
 
             // Mock sync logic
-            await item.update({
-                wa_catalog_id: `wa_prod_${Date.now()}`,
-                metadata: { ...item.metadata, last_sync: new Date() }
-            });
+            item.wa_catalog_id = `wa_prod_${Date.now()}`;
+            item.metadata = { ...item.metadata, last_sync: new Date() };
+            await item.save();
 
             res.json({
                 success: true,
@@ -185,14 +189,24 @@ router.post('/:id/sync',
  */
 router.get('/stats/overview', requireFeature('catalog'), async (req, res, next) => {
     try {
-        const total = await CatalogItem.count({ where: { tenant_id: req.tenant.id } });
-        const active = await CatalogItem.count({ where: { tenant_id: req.tenant.id, status: 'active' } });
+        const stats = await CatalogItem.aggregate([
+            { $match: { client_id: new mongoose.Types.ObjectId(req.client.id) } },
+            {
+                $group: {
+                    _id: null,
+                    total_items: { $sum: 1 },
+                    active_items: {
+                        $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] }
+                    }
+                }
+            }
+        ]);
 
         res.json({
             success: true,
             data: {
-                total_items: total,
-                active_items: active,
+                total_items: stats[0]?.total_items || 0,
+                active_items: stats[0]?.active_items || 0,
                 synced_items: 0 // Mock
             }
         });
