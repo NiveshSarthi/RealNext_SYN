@@ -55,17 +55,36 @@ const StatsCard = ({ title, value, icon: Icon, colorClass, bgClass, delay = 0 })
 const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, index }) => {
   const isMetaLead = lead.source === 'Facebook Ads' || (lead.tags && lead.tags.includes('Meta'));
 
+  const stageStatusMapping = {
+    'Screening': ['Uncontacted', 'Not Interested', 'Not Responding', 'Dead'],
+    'Sourcing': ['Hot', 'Warm', 'Cold', 'Lost'],
+    'Walk-in': ['Hot', 'Warm', 'Cold', 'Lost'],
+    'Closure': ['Hot', 'Warm', 'Cold', 'Lost']
+  };
+
   const statusColors = {
-    'New': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    'Contacted': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-    'Screening': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-    'Qualified': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    'Proposal': 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
-    'Negotiation': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-    'Site Visit': 'bg-pink-500/10 text-pink-400 border-pink-500/20',
-    'Agreement': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    'Payment': 'bg-green-500/10 text-green-400 border-green-500/20',
-    'Closed Won': 'bg-teal-500/10 text-teal-400 border-teal-500/20'
+    'Uncontacted': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    'Not Interested': 'bg-red-500/10 text-red-400 border-red-500/20',
+    'Not Responding': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    'Dead': 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+    'Hot': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+    'Warm': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    'Cold': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    'Lost': 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+  };
+
+  const stageColors = {
+    'Screening': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    'Sourcing': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    'Walk-in': 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+    'Closure': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+  };
+
+  const handleStageChange = async (e) => {
+    e.stopPropagation();
+    const newStage = e.target.value;
+    const defaultStatus = stageStatusMapping[newStage][0];
+    onStatusChange(lead, defaultStatus, newStage);
   };
 
   return (
@@ -90,12 +109,24 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, index }) => 
                 </span>
               )}
               <select
-                value={lead.status || 'New'}
-                onChange={(e) => onStatusChange(lead, e.target.value)}
+                value={lead.stage || 'Screening'}
+                onChange={handleStageChange}
+                onClick={(e) => e.stopPropagation()}
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${stageColors[lead.stage] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+              >
+                {Object.keys(stageStatusMapping).map(stage => (
+                  <option key={stage} value={stage} className="bg-[#161B22] text-gray-300">
+                    {stage}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={lead.status || 'Uncontacted'}
+                onChange={(e) => onStatusChange(lead, e.target.value, lead.stage)}
                 onClick={(e) => e.stopPropagation()}
                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
               >
-                {['New', 'Contacted', 'Screening', 'Qualified', 'Proposal', 'Negotiation', 'Site Visit', 'Agreement', 'Payment', 'Closed Won'].map(status => (
+                {(stageStatusMapping[lead.stage] || stageStatusMapping['Screening']).map(status => (
                   <option key={status} value={status} className="bg-[#161B22] text-gray-300">
                     {status}
                   </option>
@@ -154,6 +185,7 @@ export default function Leads() {
   });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [stageFilter, setStageFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -168,7 +200,7 @@ export default function Leads() {
       fetchLeads();
       fetchStats();
     }
-  }, [user, authLoading, searchTerm, statusFilter, currentPage]);
+  }, [user, authLoading, searchTerm, stageFilter, statusFilter, currentPage]);
 
   const fetchStats = async () => {
     try {
@@ -201,8 +233,9 @@ export default function Leads() {
     try {
       const params = {
         page: currentPage,
-        limit: 12, // Better for grid layout
+        limit: 12,
         search: searchTerm,
+        stage: stageFilter === 'all' ? '' : stageFilter,
         status: statusFilter === 'all' ? '' : statusFilter
       };
 
@@ -244,16 +277,44 @@ export default function Leads() {
     { id: 'Closed Won', label: 'Closed Won' },
   ];
 
-  const handleStatusChange = async (lead, newStatus) => {
+  const handleStatusChange = async (lead, newStatus, newStage = null) => {
     try {
-      await leadsAPI.updateLead(lead.id, { status: newStatus });
-      toast.success(`Status updated to ${newStatus}`);
+      const updateData = { status: newStatus };
+      if (newStage) updateData.stage = newStage;
+
+      await leadsAPI.updateLead(lead.id, updateData);
+      toast.success(`Updated to ${newStage || lead.stage} - ${newStatus}`);
       fetchLeads();
       fetchStats();
     } catch (error) {
       toast.error('Failed to update status');
       console.error(error);
     }
+  };
+
+  const stageStatusMapping = {
+    'Screening': ['Uncontacted', 'Not Interested', 'Not Responding', 'Dead'],
+    'Sourcing': ['Hot', 'Warm', 'Cold', 'Lost'],
+    'Walk-in': ['Hot', 'Warm', 'Cold', 'Lost'],
+    'Closure': ['Hot', 'Warm', 'Cold', 'Lost']
+  };
+
+  const stageColors = {
+    'Screening': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    'Sourcing': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    'Walk-in': 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+    'Closure': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+  };
+
+  const statusColors = {
+    'Uncontacted': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    'Not Interested': 'bg-red-500/10 text-red-400 border-red-500/20',
+    'Not Responding': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    'Dead': 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+    'Hot': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+    'Warm': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    'Cold': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    'Lost': 'bg-gray-500/10 text-gray-400 border-gray-500/20'
   };
 
   return (
@@ -309,21 +370,40 @@ export default function Leads() {
         </div>
 
         {/* Management Toolbar */}
-        <div className="bg-[#161B22]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-3 flex flex-col xl:flex-row justify-between items-center gap-6 shadow-2xl">
-          {/* Tabs */}
-          <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 w-full xl:w-auto overflow-x-auto border border-white/5 hide-scrollbar">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => { setStatusFilter(tab.id); setCurrentPage(1); }}
-                className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${statusFilter === tab.id
-                  ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-900/40'
-                  : 'text-gray-500 hover:text-white hover:bg-white/5'
-                  }`}
+        <div className="bg-[#161B22]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-4 flex flex-col lg:flex-row justify-between items-center gap-6 shadow-2xl">
+          <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
+            {/* Stage Filter */}
+            <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
+              <span className="px-3 flex items-center text-[10px] font-black uppercase tracking-widest text-gray-500">Stage:</span>
+              <select
+                value={stageFilter}
+                onChange={(e) => { setStageFilter(e.target.value); setStatusFilter('all'); setCurrentPage(1); }}
+                className="bg-transparent text-gray-300 text-xs font-black uppercase tracking-widest px-4 py-2 focus:outline-none cursor-pointer"
               >
-                {tab.label}
-              </button>
-            ))}
+                <option value="all">All Stages</option>
+                {Object.keys(stageStatusMapping).map(stage => (
+                  <option key={stage} value={stage} className="bg-[#161B22]">{stage}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
+              <span className="px-3 flex items-center text-[10px] font-black uppercase tracking-widest text-gray-500">Status:</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                className="bg-transparent text-gray-300 text-xs font-black uppercase tracking-widest px-4 py-2 focus:outline-none cursor-pointer"
+              >
+                <option value="all">All Status</option>
+                {(stageFilter === 'all'
+                  ? Array.from(new Set(Object.values(stageStatusMapping).flat()))
+                  : stageStatusMapping[stageFilter]
+                ).map(status => (
+                  <option key={status} value={status} className="bg-[#161B22]">{status}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="flex w-full xl:w-auto gap-4 px-2">
@@ -388,6 +468,7 @@ export default function Leads() {
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Lead Info</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Contact Details</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Location</th>
+                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Stages</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Status</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-right">Actions</th>
                             </tr>
@@ -451,13 +532,29 @@ export default function Leads() {
                                       {lead.location || 'Location not set'}
                                     </div>
                                   </td>
+                                  <td className="px-6 py-4 text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
+                                    <select
+                                      value={lead.stage || 'Screening'}
+                                      onChange={(e) => {
+                                        const newStage = e.target.value;
+                                        handleStatusChange(lead, stageStatusMapping[newStage][0], newStage);
+                                      }}
+                                      className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${stageColors[lead.stage] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+                                    >
+                                      {Object.keys(stageStatusMapping).map(stage => (
+                                        <option key={stage} value={stage} className="bg-[#161B22] text-gray-300">
+                                          {stage}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
                                   <td className="px-6 py-4">
                                     <select
-                                      value={lead.status || 'New'}
-                                      onChange={(e) => handleStatusChange(lead, e.target.value)}
+                                      value={lead.status || 'Uncontacted'}
+                                      onChange={(e) => handleStatusChange(lead, e.target.value, lead.stage)}
                                       className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
                                     >
-                                      {['New', 'Contacted', 'Screening', 'Qualified', 'Proposal', 'Negotiation', 'Site Visit', 'Agreement', 'Payment', 'Closed Won'].map(status => (
+                                      {(stageStatusMapping[lead.stage] || stageStatusMapping['Screening']).map(status => (
                                         <option key={status} value={status} className="bg-[#161B22] text-gray-300">
                                           {status}
                                         </option>

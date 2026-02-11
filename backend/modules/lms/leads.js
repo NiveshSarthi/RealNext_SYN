@@ -35,6 +35,7 @@ router.get('/', requireFeature('leads'), async (req, res, next) => {
         // Build filters
         const searchFilter = buildSearchFilter(req.query.search, ['name', 'email', 'phone', 'location']);
         const statusFilter = req.query.status ? { status: req.query.status } : null;
+        const stageFilter = req.query.stage ? { stage: req.query.stage } : null;
         const sourceFilter = req.query.source ? { source: req.query.source } : null;
         const assignedFilter = req.query.assigned_to ? { assigned_to: req.query.assigned_to } : null;
         const dateFilter = buildDateRangeFilter('created_at', req.query.start_date, req.query.end_date);
@@ -43,6 +44,7 @@ router.get('/', requireFeature('leads'), async (req, res, next) => {
             { client_id: req.client.id },
             searchFilter,
             statusFilter,
+            stageFilter,
             sourceFilter,
             assignedFilter,
             dateFilter
@@ -91,7 +93,8 @@ router.post('/',
                 name,
                 email,
                 phone,
-                status: status || 'new',
+                stage: req.body.stage || 'Screening',
+                status: status || 'Uncontacted',
                 source: source || 'manual',
                 budget_min,
                 budget_max,
@@ -139,10 +142,16 @@ router.get('/stats/overview', requireFeature('leads'), async (req, res, next) =>
             { $group: { _id: null, average: { $avg: '$ai_score' } } }
         ]);
 
+        const byStage = await Lead.aggregate([
+            { $match: { client_id: new mongoose.Types.ObjectId(req.client.id) } },
+            { $group: { _id: '$stage', count: { $sum: 1 } } }
+        ]);
+
         res.json({
             success: true,
             data: {
                 by_status: byStatus.map(s => ({ status: s._id, count: s.count })),
+                by_stage: byStage.map(s => ({ stage: s._id, count: s.count })),
                 by_source: bySource.map(s => ({ source: s._id, count: s.count })),
                 average_ai_score: avgScore[0]?.average || 0
             }

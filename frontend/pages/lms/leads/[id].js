@@ -102,14 +102,27 @@ export default function LeadDetail() {
     }
 
     const getStatusColor = (status) => {
-        switch (status) {
-            case 'qualified': return 'bg-green-500/10 text-green-400 border-green-500/20';
-            case 'contacted': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-            case 'interested': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
-            case 'closed': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-            case 'lost': return 'bg-red-500/10 text-red-400 border-red-500/20';
-            default: return 'bg-gray-500/10 text-gray-400 border-gray-500/20';
-        }
+        const colors = {
+            'Uncontacted': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+            'Not Interested': 'bg-red-500/10 text-red-400 border-red-500/20',
+            'Not Responding': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+            'Dead': 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+            'Hot': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+            'Warm': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+            'Cold': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+            'Lost': 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+        };
+        return colors[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+    };
+
+    const getStageColor = (stage) => {
+        const colors = {
+            'Screening': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+            'Sourcing': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+            'Walk-in': 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+            'Closure': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+        };
+        return colors[stage] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
     };
 
     return (
@@ -154,8 +167,11 @@ export default function LeadDetail() {
                             <div className="ml-6">
                                 <h1 className="text-2xl font-bold font-display text-white">{lead.name || 'Anonymous Lead'}</h1>
                                 <div className="mt-2 flex items-center space-x-4">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStageColor(lead.stage)}`}>
+                                        {lead.stage?.toUpperCase() || 'SCREENING'}
+                                    </span>
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(lead.status)}`}>
-                                        {lead.status?.toUpperCase() || 'NEW'}
+                                        {lead.status?.toUpperCase() || 'UNCONTACTED'}
                                     </span>
                                     <span className="text-sm text-gray-400 flex items-center">
                                         <TagIcon className="h-4 w-4 mr-1 text-gray-500" />

@@ -17,6 +17,13 @@ import {
 } from '@heroicons/react/24/outline';
 import { Button } from '../../../components/ui/Button';
 
+const stageStatusMapping = {
+    'Screening': ['Uncontacted', 'Not Interested', 'Not Responding', 'Dead'],
+    'Sourcing': ['Hot', 'Warm', 'Cold', 'Lost'],
+    'Walk-in': ['Hot', 'Warm', 'Cold', 'Lost'],
+    'Closure': ['Hot', 'Warm', 'Cold', 'Lost']
+};
+
 export default function NewLead() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
@@ -25,7 +32,8 @@ export default function NewLead() {
         name: '',
         phone: '',
         email: '',
-        status: 'new',
+        stage: 'Screening',
+        status: 'Uncontacted',
         source: 'manual',
         location: '',
         budget_min: '',
@@ -185,12 +193,29 @@ export default function NewLead() {
                             </div>
                         </div>
 
-                        {/* Status */}
+                        {/* Stage and Status */}
                         <div>
                             <h3 className="text-lg font-medium leading-6 text-white mb-6 flex items-center border-b border-border/50 pb-2">
-                                Initial Status
+                                Lead Lifecycle
                             </h3>
                             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Lead Stage</label>
+                                    <select
+                                        name="stage"
+                                        value={formData.stage}
+                                        onChange={(e) => {
+                                            const newStage = e.target.value;
+                                            const defaultStatus = stageStatusMapping[newStage][0];
+                                            setFormData(prev => ({ ...prev, stage: newStage, status: defaultStatus }));
+                                        }}
+                                        className="block w-full bg-[#0E1117] border border-border/50 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 sm:text-sm transition-all"
+                                    >
+                                        {Object.keys(stageStatusMapping).map(stage => (
+                                            <option key={stage} value={stage}>{stage}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-300 mb-1.5">Lead Status</label>
                                     <select
@@ -199,16 +224,15 @@ export default function NewLead() {
                                         onChange={handleChange}
                                         className="block w-full bg-[#0E1117] border border-border/50 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 sm:text-sm transition-all"
                                     >
-                                        <option value="new">New</option>
-                                        <option value="contacted">Contacted</option>
-                                        <option value="interested">Interested</option>
-                                        <option value="qualified">Qualified</option>
-                                        <option value="closed">Closed</option>
-                                        <option value="lost">Lost</option>
+                                        {(stageStatusMapping[formData.stage] || stageStatusMapping['Screening']).map(status => (
+                                            <option key={status} value={status}>{status}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
                         </div>
+
+
 
                         <div className="flex justify-end pt-5 border-t border-border/50">
                             <Link href="/leads">

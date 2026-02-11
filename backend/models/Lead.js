@@ -21,10 +21,19 @@ const leadSchema = new Schema({
         type: String,
         required: false
     },
+    stage: {
+        type: String,
+        required: false,
+        enum: ['Screening', 'Sourcing', 'Walk-in', 'Closure'],
+        default: 'Screening'
+    },
     status: {
         type: String,
-        default: 'new',
-        enum: ['New', 'Contacted', 'Screening', 'Qualified', 'Proposal', 'Negotiation', 'Site Visit', 'Agreement', 'Payment', 'Closed Won']
+        default: 'Uncontacted',
+        enum: [
+            'Uncontacted', 'Not Interested', 'Not Responding', 'Dead', // Screening
+            'Hot', 'Warm', 'Cold', 'Lost' // Sourcing, Walk-in, Closure
+        ]
     },
     source: {
         type: String,
