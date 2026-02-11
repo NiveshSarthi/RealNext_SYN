@@ -20,6 +20,8 @@ import {
   FileText,
   CheckCircle2,
   Star,
+  LayoutGrid,
+  List,
   Sparkles,
   Facebook,
   Zap
@@ -155,6 +157,7 @@ export default function Leads() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [viewMode, setViewMode] = useState('table');
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
@@ -334,6 +337,20 @@ export default function Leads() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5 shadow-inner">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-3 rounded-xl transition-all ${viewMode === 'table' ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+              >
+                <List className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setViewMode('card')}
+                className={`p-3 rounded-xl transition-all ${viewMode === 'card' ? 'bg-indigo-600 text-white shadow-xl' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+              >
+                <LayoutGrid className="h-5 w-5" />
+              </button>
+            </div>
             <Button variant="outline" className="h-14 w-14 p-0 rounded-2xl border-white/5 bg-[#0E1117]/80 hover:bg-white/5">
               <Filter className="h-5 w-5 text-gray-500" />
             </Button>
@@ -356,23 +373,144 @@ export default function Leads() {
               </motion.div>
             ) : (
               <motion.div
-                key="grid"
+                key={viewMode}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                className="w-full"
               >
                 {leads.length > 0 ? (
-                  leads.map((lead, idx) => (
-                    <LeadCard
-                      key={lead.id}
-                      lead={lead}
-                      index={idx}
-                      onView={() => router.push(`/lms/leads/${lead.id}`)}
-                      onEdit={() => router.push(`/lms/leads/${lead.id}/edit`)}
-                      onDelete={() => handleDelete(lead)}
-                      onStatusChange={handleStatusChange}
-                    />
-                  ))
+                  viewMode === 'table' ? (
+                    <div className="bg-[#161B22]/60 backdrop-blur-xl border border-white/5 rounded-3xl overflow-hidden shadow-2xl">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="border-b border-white/5 bg-[#0D1117]/50">
+                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Lead Info</th>
+                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Contact Details</th>
+                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Location</th>
+                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Status</th>
+                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {leads.map((lead, idx) => {
+                              const isMetaLead = lead.source === 'Facebook Ads' || (lead.tags && lead.tags.includes('Meta'));
+                              const statusColors = {
+                                'New': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+                                'Contacted': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+                                'Screening': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+                                'Qualified': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                                'Proposal': 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+                                'Negotiation': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+                                'Site Visit': 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+                                'Agreement': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+                                'Payment': 'bg-green-500/10 text-green-400 border-green-500/20',
+                                'Closed Won': 'bg-teal-500/10 text-teal-400 border-teal-500/20'
+                              };
+
+                              return (
+                                <tr key={lead.id} className="hover:bg-white/[0.02] transition-colors group">
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-4">
+                                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-white/10 text-indigo-400 font-bold text-sm shadow-inner group-hover:scale-110 transition-transform">
+                                        {lead.name?.charAt(0)?.toUpperCase() || '?'}
+                                      </div>
+                                      <div>
+                                        <p className="text-white font-bold text-sm">{lead.name || 'Unknown Lead'}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1">
+                                            <Calendar className="h-3 w-3" />
+                                            {format(new Date(lead.created_at || lead.createdAt), 'MMM dd, yyyy')}
+                                          </span>
+                                          {isMetaLead && (
+                                            <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-blue-400 bg-blue-400/5 px-1.5 py-0.5 rounded-full border border-blue-400/20">
+                                              Meta
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
+                                        <Phone className="h-3 w-3 mr-2 opacity-50" />
+                                        {lead.phone || 'No phone'}
+                                      </div>
+                                      {lead.email && (
+                                        <div className="flex items-center text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
+                                          <Mail className="h-3 w-3 mr-2 opacity-50" />
+                                          {lead.email}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
+                                      <MapPin className="h-3 w-3 mr-2 opacity-50" />
+                                      {lead.location || 'Location not set'}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <select
+                                      value={lead.status || 'New'}
+                                      onChange={(e) => handleStatusChange(lead, e.target.value)}
+                                      className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+                                    >
+                                      {['New', 'Contacted', 'Screening', 'Qualified', 'Proposal', 'Negotiation', 'Site Visit', 'Agreement', 'Payment', 'Closed Won'].map(status => (
+                                        <option key={status} value={status} className="bg-[#161B22] text-gray-300">
+                                          {status}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        onClick={() => router.push(`/lms/leads/${lead.id}`)}
+                                        className="p-2 text-indigo-400 hover:text-white hover:bg-indigo-500/10 rounded-lg transition-colors"
+                                        title="View Details"
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => router.push(`/lms/leads/${lead.id}/edit`)}
+                                        className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                                        title="Edit"
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(lead)}
+                                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                        title="Delete"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {leads.map((lead, idx) => (
+                        <LeadCard
+                          key={lead.id}
+                          lead={lead}
+                          index={idx}
+                          onView={() => router.push(`/lms/leads/${lead.id}`)}
+                          onEdit={() => router.push(`/lms/leads/${lead.id}/edit`)}
+                          onDelete={() => handleDelete(lead)}
+                          onStatusChange={handleStatusChange}
+                        />
+                      ))}
+                    </div>
+                  )
                 ) : (
                   <div className="col-span-full py-32 text-center bg-[#161B22]/20 rounded-[3rem] border-2 border-dashed border-white/5">
                     <div className="h-24 w-24 bg-indigo-500/5 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border border-indigo-500/10">
