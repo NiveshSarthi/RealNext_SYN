@@ -3,7 +3,7 @@ const router = express.Router();
 const { Template } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
 const { requireClientAccess } = require('../../../middleware/roles');
-const { enforceClientScope } = require('../../../middleware/scopeEnforcer');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
@@ -11,7 +11,14 @@ const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = requir
 const { validate, validators } = require('../../../utils/validators');
 
 // Middleware
-router.use(authenticate, requireClientAccess, enforceClientScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 /**
  * @route GET /api/templates
@@ -20,6 +27,7 @@ router.use(authenticate, requireClientAccess, enforceClientScope);
  */
 router.get('/', requireFeature('templates'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const pagination = getPagination(req.query);
         const sorting = getSorting(req.query, ['name', 'status', 'category', 'created_at'], 'created_at');
 
@@ -63,6 +71,7 @@ router.post('/',
     auditAction('create', 'template'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const {
                 name, category, language, components, header_type,
                 body_text, footer_text, buttons, metadata
@@ -100,6 +109,7 @@ router.post('/',
  */
 router.get('/:id', requireFeature('templates'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const template = await Template.findOne({
             _id: req.params.id,
             client_id: req.client.id
@@ -128,6 +138,7 @@ router.put('/:id',
     auditAction('update', 'template'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const template = await Template.findOne({
                 _id: req.params.id,
                 client_id: req.client.id
@@ -170,6 +181,7 @@ router.delete('/:id',
     auditAction('delete', 'template'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const template = await Template.findOne({
                 _id: req.params.id,
                 client_id: req.client.id

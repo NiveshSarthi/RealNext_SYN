@@ -180,7 +180,8 @@ router.put('/:id/status',
         try {
             ensureClient(req);
             const campaign = await Campaign.findOne({
-                where: { id: req.params.id, client_id: req.client.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!campaign) {

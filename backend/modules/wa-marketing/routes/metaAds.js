@@ -49,15 +49,17 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
         const connectedPages = [];
 
         for (const page of pages) {
-            // Upsert Page Connection
-            const [connection] = await FacebookPageConnection.upsert({
-                client_id: req.client.id,
-                page_id: page.id,
-                page_name: page.name,
-                access_token: page.access_token, // Page Access Token
-                status: 'active',
-                last_sync_at: new Date()
-            });
+            // Upsert Page Connection using Mongoose findOneAndUpdate
+            const connection = await FacebookPageConnection.findOneAndUpdate(
+                { client_id: req.client.id, page_id: page.id },
+                {
+                    page_name: page.name,
+                    access_token: page.access_token, // Page Access Token
+                    status: 'active',
+                    last_sync_at: new Date()
+                },
+                { upsert: true, new: true }
+            );
             connectedPages.push(connection);
         }
 
@@ -85,11 +87,11 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
 router.get('/pages', requireFeature('meta_ads'), async (req, res, next) => {
     try {
         ensureClient(req);
-        const pages = await FacebookPageConnection.findAll({
-            where: { client_id: req.client.id },
-            include: [{ model: FacebookLeadForm, as: 'leadForms' }],
-            order: [['createdAt', 'DESC']]
-        });
+        const pages = await FacebookPageConnection.find({
+            client_id: req.client.id
+        })
+            .populate({ path: 'leadForms', as: 'leadForms' })
+            .sort({ created_at: -1 });
         res.json({ success: true, data: pages });
     } catch (error) {
         next(error);
@@ -103,8 +105,9 @@ router.get('/pages', requireFeature('meta_ads'), async (req, res, next) => {
 router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) => {
     try {
         ensureClient(req);
-        const pages = await FacebookPageConnection.findAll({
-            where: { client_id: req.client.id, status: 'active' }
+        const pages = await FacebookPageConnection.find({
+            client_id: req.client.id,
+            status: 'active'
         });
 
         let newFormsCount = 0;
@@ -122,18 +125,21 @@ router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) =>
                 const forms = response.data.data || [];
                 for (const form of forms) {
                     if (form.status === 'ACTIVE') {
-                        const [savedForm, created] = await FacebookLeadForm.findOrCreate({
-                            where: {
+                        let savedForm = await FacebookLeadForm.findOne({
+                            client_id: req.client.id,
+                            form_id: form.id
+                        });
+
+                        if (!savedForm) {
+                            savedForm = await FacebookLeadForm.create({
                                 client_id: req.client.id,
-                                form_id: form.id
-                            },
-                            defaults: {
+                                form_id: form.id,
                                 page_connection_id: page.id,
                                 name: form.name,
                                 status: 'active'
-                            }
-                        });
-                        if (created) newFormsCount++;
+                            });
+                            newFormsCount++;
+                        }
                     }
                 }
             } catch (pageError) {
@@ -155,10 +161,10 @@ router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) =>
 router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) => {
     try {
         ensureClient(req);
-        const forms = await FacebookLeadForm.findAll({
-            where: { client_id: req.client.id, status: 'active' },
-            include: [{ model: FacebookPageConnection, as: 'pageConnection' }]
-        });
+        const forms = await FacebookLeadForm.find({
+            client_id: req.client.id,
+            status: 'active'
+        }).populate({ path: 'pageConnection', as: 'pageConnection' });
 
         let newLeadsCount = 0;
         let skippedCount = 0;
@@ -253,10 +259,8 @@ router.patch('/pages/:pageId/toggle-sync', requireFeature('meta_ads'), async (re
         }
 
         const page = await FacebookPageConnection.findOne({
-            where: {
-                id: pageId,
-                client_id: req.client.id
-            }
+            _id: pageId,
+            client_id: req.client.id
         });
 
         if (!page) {
@@ -325,7 +329,7 @@ router.post('/webhook', async (req, res) => {
 
                         // Find the page connection
                         const pageConnection = await FacebookPageConnection.findOne({
-                            where: { page_id: pageId }
+                            page_id: pageId
                         });
 
                         if (!pageConnection) {
@@ -341,7 +345,7 @@ router.post('/webhook', async (req, res) => {
 
                         // Find the form
                         const leadForm = await FacebookLeadForm.findOne({
-                            where: { form_id: formId }
+                            form_id: formId
                         });
 
                         if (!leadForm) {
@@ -404,8 +408,13 @@ router.post('/webhook', async (req, res) => {
                             logger.info(`✅ Created lead: ${newLead.name} (ID: ${newLead.id})`);
 
                             // Update form lead count
-                            await leadForm.increment('lead_count');
-                            await leadForm.update({ last_lead_fetched_at: new Date() });
+                            await FacebookLeadForm.updateOne(
+                                { _id: leadForm._id },
+                                {
+                                    $inc: { lead_count: 1 },
+                                    $set: { last_lead_fetched_at: new Date() }
+                                }
+                            );
 
                         } catch (fetchError) {
                             logger.error(`Failed to fetch lead ${leadgenId}: ${fetchError.message}`);

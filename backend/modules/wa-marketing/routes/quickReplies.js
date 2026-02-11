@@ -4,14 +4,21 @@ const router = express.Router();
 const { QuickReply } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
 const { requireClientAccess } = require('../../../middleware/roles');
-const { enforceClientScope } = require('../../../middleware/scopeEnforcer');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
 const { validate, validators } = require('../../../utils/validators');
 
 // Middleware
-router.use(authenticate, requireClientAccess, enforceClientScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 /**
  * @route GET /api/quick-replies
@@ -19,6 +26,7 @@ router.use(authenticate, requireClientAccess, enforceClientScope);
  */
 router.get('/', requireFeature('quick_replies'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const { category, search } = req.query;
         const query = { client_id: req.client.id };
 
@@ -59,6 +67,7 @@ router.post('/',
     auditAction('create', 'quick_reply'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const { shortcut, title, content, category } = req.body;
 
             // Ensure shortcut starts with /
@@ -92,6 +101,7 @@ router.put('/:id',
     auditAction('update', 'quick_reply'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const reply = await QuickReply.findOne({
                 _id: req.params.id,
                 client_id: req.client.id
@@ -121,6 +131,7 @@ router.delete('/:id',
     auditAction('delete', 'quick_reply'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const reply = await QuickReply.findOne({
                 _id: req.params.id,
                 client_id: req.client.id
@@ -146,6 +157,7 @@ router.delete('/:id',
  */
 router.post('/process', requireFeature('quick_replies'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const { message } = req.body;
         if (!message) return res.json({ success: true, data: '' });
 
@@ -190,6 +202,7 @@ router.post('/process', requireFeature('quick_replies'), async (req, res, next) 
  */
 router.get('/stats/overview', requireFeature('quick_replies'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const stats = await QuickReply.aggregate([
             { $match: { client_id: new mongoose.Types.ObjectId(req.client.id) } },
             {

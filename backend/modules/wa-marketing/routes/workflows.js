@@ -316,13 +316,14 @@ router.delete('/:id',
         try {
             ensureClient(req);
             const workflow = await Workflow.findOne({
-                where: { id: req.params.id, client_id: req.client.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!workflow) throw ApiError.notFound('Workflow not found');
             if (workflow.status === 'active') throw ApiError.badRequest('Cannot delete active workflow');
 
-            await workflow.destroy();
+            await workflow.deleteOne();
 
             res.json({
                 success: true,

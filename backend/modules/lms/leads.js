@@ -3,7 +3,7 @@ const router = express.Router();
 const { Lead, User } = require('../../models');
 const { authenticate } = require('../../middleware/auth');
 const { requireClientAccess } = require('../../middleware/roles');
-const { enforceClientScope } = require('../../middleware/scopeEnforcer');
+const { enforceClientScope, setClientContext } = require('../../middleware/scopeEnforcer');
 const { requireFeature, checkUsageLimit, incrementUsage } = require('../../middleware/featureGate');
 const { auditAction } = require('../../middleware/auditLogger');
 const { ApiError } = require('../../middleware/errorHandler');
@@ -12,7 +12,14 @@ const { createLead, validate, validators } = require('../../utils/validators');
 const mongoose = require('mongoose');
 
 // Middleware
-router.use(authenticate, requireClientAccess, enforceClientScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 /**
  * @route GET /api/leads
@@ -21,6 +28,7 @@ router.use(authenticate, requireClientAccess, enforceClientScope);
  */
 router.get('/', requireFeature('leads'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const pagination = getPagination(req.query);
         const sorting = getSorting(req.query, ['name', 'email', 'status', 'created_at', 'ai_score'], 'created_at');
 
@@ -72,6 +80,7 @@ router.post('/',
     auditAction('create', 'lead'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const {
                 name, email, phone, status, source, budget_min, budget_max,
                 location, tags, custom_fields, assigned_to, metadata
@@ -114,6 +123,7 @@ router.post('/',
  */
 router.get('/stats/overview', requireFeature('leads'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const byStatus = await Lead.aggregate([
             { $match: { client_id: new mongoose.Types.ObjectId(req.client.id) } },
             { $group: { _id: '$status', count: { $sum: 1 } } }
@@ -149,6 +159,7 @@ router.get('/stats/overview', requireFeature('leads'), async (req, res, next) =>
  */
 router.get('/:id', requireFeature('leads'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const lead = await Lead.findOne({
             _id: req.params.id,
             client_id: req.client.id
@@ -186,6 +197,7 @@ router.put('/:id',
     auditAction('update', 'lead'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const lead = await Lead.findOne({
                 _id: req.params.id,
                 client_id: req.client.id
@@ -231,6 +243,7 @@ router.put('/:id/assign',
     auditAction('assign', 'lead'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const lead = await Lead.findOne({
                 _id: req.params.id,
                 client_id: req.client.id
@@ -277,6 +290,7 @@ router.delete('/:id',
     auditAction('delete', 'lead'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const lead = await Lead.findOne({
                 _id: req.params.id,
                 client_id: req.client.id
@@ -309,6 +323,7 @@ router.post('/import',
     auditAction('import', 'lead'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const { leads } = req.body;
 
             if (!Array.isArray(leads) || leads.length === 0) {
