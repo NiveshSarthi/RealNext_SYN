@@ -6,22 +6,22 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { leadsAPI } from '../../../utils/api';
 import toast from 'react-hot-toast';
 import {
-  PlusIcon,
-  MagnifyingGlassIcon,
-  FunnelIcon,
-  PencilIcon,
-  TrashIcon,
-  EyeIcon,
-  PhoneIcon,
-  EnvelopeIcon,
-  UsersIcon,
-  MapPinIcon,
-  CalendarDaysIcon,
-  DocumentTextIcon,
-  CheckCircleIcon,
-  StarIcon,
-  SparklesIcon,
-  FacebookIcon,
+  Plus,
+  Search,
+  Filter,
+  Pencil,
+  Trash2,
+  Eye,
+  Phone,
+  Mail,
+  Users,
+  MapPin,
+  Calendar,
+  FileText,
+  CheckCircle2,
+  Star,
+  Sparkles,
+  Facebook,
   Zap
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
@@ -75,11 +75,11 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, index }) => {
                 </span>
               )}
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${lead.status === 'qualified' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                  lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                    lead.status === 'interested' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
-                      lead.status === 'won' || lead.status === 'closed' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                        lead.status === 'lost' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                          'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                lead.status === 'contacted' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                  lead.status === 'interested' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
+                    lead.status === 'won' || lead.status === 'closed' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                      lead.status === 'lost' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                        'bg-gray-500/10 text-gray-400 border-gray-500/20'
                 }`}>
                 {lead.status || 'New'}
               </span>
@@ -88,10 +88,10 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, index }) => {
         </div>
         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-[#0D1117] p-1 rounded-xl shadow-xl">
           <button onClick={() => onEdit(lead)} className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
-            <PencilIcon className="h-4 w-4" />
+            <Pencil className="h-4 w-4" />
           </button>
           <button onClick={() => onDelete(lead)} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
-            <TrashIcon className="h-4 w-4" />
+            <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -99,24 +99,24 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, index }) => {
       <div className="space-y-3 pt-4 border-t border-white/5">
         <div className="flex items-center text-sm font-medium text-gray-400 group/item cursor-pointer hover:text-white transition-colors">
           <div className="w-8 h-8 rounded-lg bg-gray-800/50 flex items-center justify-center mr-3 border border-white/5">
-            <PhoneIcon className="h-4 w-4" />
+            <Phone className="h-4 w-4" />
           </div>
           {lead.phone || 'No phone'}
         </div>
         <div className="flex items-center text-sm font-medium text-gray-400">
           <div className="w-8 h-8 rounded-lg bg-gray-800/50 flex items-center justify-center mr-3 border border-white/5">
-            <MapPinIcon className="h-4 w-4" />
+            <MapPin className="h-4 w-4" />
           </div>
           <span className="truncate">{lead.location || 'Location not set'}</span>
         </div>
 
         <div className="flex items-center justify-between mt-6 pt-4 border-t border-dashed border-white/5">
           <span className="text-[10px] text-gray-500 font-bold flex items-center gap-1.5 uppercase tracking-wider">
-            <CalendarDaysIcon className="h-3.5 w-3.5" />
+            <Calendar className="h-3.5 w-3.5" />
             {(lead.created_at || lead.createdAt) ? format(new Date(lead.created_at || lead.createdAt), 'MMM dd, yyyy') : 'N/A'}
           </span>
           <Button onClick={onView} variant="ghost" className="h-8 px-3 text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-full">
-            Details <EyeIcon className="h-3.5 w-3.5 ml-1.5" />
+            Details <Eye className="h-3.5 w-3.5 ml-1.5" />
           </Button>
         </div>
       </div>
@@ -242,7 +242,7 @@ export default function Leads() {
             </div>
             <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight flex items-center gap-4">
               Lead Center
-              <SparklesIcon className="w-10 h-10 text-yellow-400/80 animate-pulse hidden md:block" />
+              <Sparkles className="w-10 h-10 text-yellow-400/80 animate-pulse hidden md:block" />
             </h1>
             <p className="text-gray-500 text-lg max-w-xl font-medium leading-relaxed">
               Real-time monitoring and lifecycle management for your cross-channel leads.
@@ -258,7 +258,7 @@ export default function Leads() {
               onClick={() => router.push('/lms/leads/new')}
               className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xl shadow-indigo-900/30 h-14 px-8 font-black uppercase tracking-widest rounded-2xl active:scale-95 transition-all text-sm border-0"
             >
-              <PlusIcon className="w-5 h-5 mr-3" /> Create Lead
+              <Plus className="w-5 h-5 mr-3" /> Create Lead
             </Button>
           </motion.div>
         </div>
@@ -266,10 +266,10 @@ export default function Leads() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           <StatsCard title="Pipeline Total" value={stats.total} icon={Zap} colorClass="text-indigo-400" bgClass="bg-indigo-400" delay={0.1} />
-          <StatsCard title="Fresh Leads" value={stats.new} icon={UsersIcon} colorClass="text-blue-400" bgClass="bg-blue-400" delay={0.2} />
-          <StatsCard title="In Discussion" value={stats.contacted} icon={PhoneIcon} colorClass="text-yellow-400" bgClass="bg-yellow-400" delay={0.3} />
-          <StatsCard title="High Quality" value={stats.qualified} icon={StarIcon} colorClass="text-emerald-400" bgClass="bg-emerald-400" delay={0.4} />
-          <StatsCard title="Converted" value={stats.won} icon={CheckCircleIcon} colorClass="text-purple-400" bgClass="bg-purple-400" delay={0.5} />
+          <StatsCard title="Fresh Leads" value={stats.new} icon={Users} colorClass="text-blue-400" bgClass="bg-blue-400" delay={0.2} />
+          <StatsCard title="In Discussion" value={stats.contacted} icon={Phone} colorClass="text-yellow-400" bgClass="bg-yellow-400" delay={0.3} />
+          <StatsCard title="High Quality" value={stats.qualified} icon={Star} colorClass="text-emerald-400" bgClass="bg-emerald-400" delay={0.4} />
+          <StatsCard title="Converted" value={stats.won} icon={CheckCircle2} colorClass="text-purple-400" bgClass="bg-purple-400" delay={0.5} />
         </div>
 
         {/* Management Toolbar */}
@@ -281,8 +281,8 @@ export default function Leads() {
                 key={tab.id}
                 onClick={() => { setStatusFilter(tab.id); setCurrentPage(1); }}
                 className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${statusFilter === tab.id
-                    ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-900/40'
-                    : 'text-gray-500 hover:text-white hover:bg-white/5'
+                  ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-900/40'
+                  : 'text-gray-500 hover:text-white hover:bg-white/5'
                   }`}
               >
                 {tab.label}
@@ -292,7 +292,7 @@ export default function Leads() {
 
           <div className="flex w-full xl:w-auto gap-4 px-2">
             <div className="relative flex-1 xl:w-80">
-              <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600" />
               <input
                 type="text"
                 placeholder="Search leads..."
@@ -302,7 +302,7 @@ export default function Leads() {
               />
             </div>
             <Button variant="outline" className="h-14 w-14 p-0 rounded-2xl border-white/5 bg-[#0E1117]/80 hover:bg-white/5">
-              <FunnelIcon className="h-5 w-5 text-gray-500" />
+              <Filter className="h-5 w-5 text-gray-500" />
             </Button>
           </div>
         </div>
@@ -342,7 +342,7 @@ export default function Leads() {
                 ) : (
                   <div className="col-span-full py-32 text-center bg-[#161B22]/20 rounded-[3rem] border-2 border-dashed border-white/5">
                     <div className="h-24 w-24 bg-indigo-500/5 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border border-indigo-500/10">
-                      <UsersIcon className="h-10 w-10 text-indigo-500/40" />
+                      <Users className="h-10 w-10 text-indigo-500/40" />
                     </div>
                     <h3 className="text-2xl font-black text-white uppercase tracking-tight">No Leads Captured</h3>
                     <p className="text-gray-600 mt-2 max-w-xs mx-auto font-medium">Verify your Facebook Ads integration or manually add leads to see them here.</p>

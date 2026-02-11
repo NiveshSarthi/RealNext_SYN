@@ -70,9 +70,16 @@ export default function NewCampaign() {
 
     const fetchLeads = async () => {
         try {
+            console.log('Fetching leads for campaign...');
             const response = await leadsAPI.getLeads({ limit: 100 });
-            // API returns { success: true, data: [...] }
-            setLeads(response.data.data || []);
+            console.log('Leads API Response:', response);
+            console.log('Leads Data:', response.data);
+
+            // Correct data extraction based on backend response structure
+            const leadsData = response.data?.data || [];
+            console.log('Extracted Leads:', leadsData);
+
+            setLeads(leadsData);
         } catch (error) {
             console.error('Failed to fetch leads:', error);
         }
