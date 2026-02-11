@@ -46,6 +46,14 @@ facebookLeadFormSchema.virtual('id').get(function () {
     return this._id.toHexString();
 });
 
+// Virtual for Page Connection
+facebookLeadFormSchema.virtual('pageConnection', {
+    ref: 'FacebookPageConnection',
+    localField: 'page_connection_id',
+    foreignField: '_id',
+    justOne: true
+});
+
 facebookLeadFormSchema.set('toJSON', { virtuals: true });
 facebookLeadFormSchema.set('toObject', { virtuals: true });
 

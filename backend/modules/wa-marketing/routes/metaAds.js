@@ -90,7 +90,7 @@ router.get('/pages', requireFeature('meta_ads'), async (req, res, next) => {
         const pages = await FacebookPageConnection.find({
             client_id: req.client.id
         })
-            .populate({ path: 'leadForms', as: 'leadForms' })
+            .populate('leadForms')
             .sort({ created_at: -1 });
         res.json({ success: true, data: pages });
     } catch (error) {
@@ -164,7 +164,7 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
         const forms = await FacebookLeadForm.find({
             client_id: req.client.id,
             status: 'active'
-        }).populate({ path: 'pageConnection', as: 'pageConnection' });
+        }).populate('pageConnection');
 
         let newLeadsCount = 0;
         let skippedCount = 0;
@@ -255,7 +255,7 @@ router.patch('/pages/:pageId/toggle-sync', requireFeature('meta_ads'), async (re
         const { is_enabled } = req.body;
 
         if (typeof is_enabled !== 'boolean') {
-            throw ApiError.badRequest('is_enabled must be a boolean');
+            throw new ApiError(400, 'is_enabled must be a boolean');
         }
 
         const page = await FacebookPageConnection.findOne({
@@ -264,7 +264,7 @@ router.patch('/pages/:pageId/toggle-sync', requireFeature('meta_ads'), async (re
         });
 
         if (!page) {
-            throw ApiError.notFound('Page connection not found');
+            throw new ApiError(404, 'Page connection not found');
         }
 
         page.is_lead_sync_enabled = is_enabled;

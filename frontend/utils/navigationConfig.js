@@ -35,10 +35,10 @@ export const USER_NAVIGATION = [
         icon: ChatBubbleLeftRightIcon,
         children: [
             { id: 'wa_marketing.campaigns', label: 'Campaigns', href: '/wa-marketing/campaigns', icon: ChatBubbleLeftRightIcon },
-            { id: 'wa_marketing.flows', label: 'Flows', href: '/wa-marketing/flows', icon: BoltIcon },
+            // { id: 'wa_marketing.flows', label: 'Flows', href: '/wa-marketing/flows', icon: BoltIcon },
             { id: 'wa_marketing.templates', label: 'Templates', href: '/wa-marketing/templates', icon: DocumentTextIcon },
-            { id: 'wa_marketing.quick_replies', label: 'Quick Replies', href: '/wa-marketing/quick-replies', icon: ChatBubbleBottomCenterTextIcon },
-            { id: 'wa_marketing.meta_ads', label: 'Meta Ads', href: '/wa-marketing/meta-ads', icon: MegaphoneIcon },
+            // { id: 'wa_marketing.quick_replies', label: 'Quick Replies', href: '/wa-marketing/quick-replies', icon: ChatBubbleBottomCenterTextIcon },
+            // { id: 'wa_marketing.meta_ads', label: 'Meta Ads', href: '/wa-marketing/meta-ads', icon: MegaphoneIcon },
         ]
     },
     {
@@ -86,10 +86,10 @@ export const ADMIN_NAVIGATION = [
         icon: ChatBubbleLeftRightIcon,
         children: [
             { id: 'wa_marketing.campaigns', label: 'Campaigns', href: '/wa-marketing/campaigns', icon: ChatBubbleLeftRightIcon },
-            { id: 'wa_marketing.flows', label: 'Flows', href: '/wa-marketing/flows', icon: BoltIcon },
+            // { id: 'wa_marketing.flows', label: 'Flows', href: '/wa-marketing/flows', icon: BoltIcon },
             { id: 'wa_marketing.templates', label: 'Templates', href: '/wa-marketing/templates', icon: DocumentTextIcon },
-            { id: 'wa_marketing.quick_replies', label: 'Quick Replies', href: '/wa-marketing/quick-replies', icon: ChatBubbleBottomCenterTextIcon },
-            { id: 'wa_marketing.meta_ads', label: 'Meta Ads', href: '/wa-marketing/meta-ads', icon: MegaphoneIcon },
+            // { id: 'wa_marketing.quick_replies', label: 'Quick Replies', href: '/wa-marketing/quick-replies', icon: ChatBubbleBottomCenterTextIcon },
+            // { id: 'wa_marketing.meta_ads', label: 'Meta Ads', href: '/wa-marketing/meta-ads', icon: MegaphoneIcon },
         ]
     },
     {
