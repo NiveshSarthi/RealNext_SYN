@@ -177,11 +177,10 @@ export default function Leads() {
   const [leads, setLeads] = useState([]);
   const [stats, setStats] = useState({
     total: 0,
-    new: 0,
-    contacted: 0,
-    qualified: 0,
-    won: 0,
-    lost: 0
+    screening: 0,
+    sourcing: 0,
+    walkin: 0,
+    closure: 0
   });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -207,20 +206,20 @@ export default function Leads() {
       const response = await leadsAPI.getStats();
       if (response.data?.success) {
         const data = response.data.data;
-        const statusCounts = {};
-        data.by_status.forEach(item => {
-          statusCounts[item.status] = parseInt(item.count);
+
+        const stageCounts = {};
+        data.by_stage.forEach(item => {
+          stageCounts[item.stage] = parseInt(item.count);
         });
 
-        const total = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+        const total = data.by_stage.reduce((acc, item) => acc + parseInt(item.count), 0);
 
         setStats({
           total: total,
-          new: statusCounts['new'] || 0,
-          contacted: statusCounts['contacted'] || 0,
-          qualified: statusCounts['qualified'] || 0,
-          won: statusCounts['closed'] || statusCounts['won'] || 0,
-          lost: statusCounts['lost'] || 0
+          screening: stageCounts['Screening'] || 0,
+          sourcing: stageCounts['Sourcing'] || 0,
+          walkin: stageCounts['Walk-in'] || 0,
+          closure: stageCounts['Closure'] || 0
         });
       }
     } catch (error) {
@@ -363,10 +362,10 @@ export default function Leads() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           <StatsCard title="Pipeline Total" value={stats.total} icon={Zap} colorClass="text-indigo-400" bgClass="bg-indigo-400" delay={0.1} />
-          <StatsCard title="Fresh Leads" value={stats.new} icon={Users} colorClass="text-blue-400" bgClass="bg-blue-400" delay={0.2} />
-          <StatsCard title="In Discussion" value={stats.contacted} icon={Phone} colorClass="text-yellow-400" bgClass="bg-yellow-400" delay={0.3} />
-          <StatsCard title="High Quality" value={stats.qualified} icon={Star} colorClass="text-emerald-400" bgClass="bg-emerald-400" delay={0.4} />
-          <StatsCard title="Converted" value={stats.won} icon={CheckCircle2} colorClass="text-purple-400" bgClass="bg-purple-400" delay={0.5} />
+          <StatsCard title="Screening" value={stats.screening} icon={Users} colorClass="text-blue-400" bgClass="bg-blue-400" delay={0.2} />
+          <StatsCard title="Sourcing" value={stats.sourcing} icon={Search} colorClass="text-yellow-400" bgClass="bg-yellow-400" delay={0.3} />
+          <StatsCard title="Walk-in" value={stats.walkin} icon={MapPin} colorClass="text-pink-400" bgClass="bg-pink-400" delay={0.4} />
+          <StatsCard title="Closure" value={stats.closure} icon={CheckCircle2} colorClass="text-emerald-400" bgClass="bg-emerald-400" delay={0.5} />
         </div>
 
         {/* Management Toolbar */}
