@@ -239,13 +239,15 @@ export const leadsAPI = {
 };
 
 
-// Campaigns API (External WhatsApp API)
+// Campaigns API (Internal Backend)
 export const campaignsAPI = {
-  getCampaigns: (params) => waApi.get('/api/v1/campaigns', { params }),
-  getCampaign: (id) => waApi.get(`/api/v1/campaigns/${id}`),
-  getLogs: (id, params) => waApi.get(`/api/v1/campaigns/${id}/logs`, { params }),
-  createCampaign: (data) => waApi.post('/api/v1/campaigns', data),
-  deleteCampaign: (id) => waApi.delete(`/api/v1/campaigns/${id}`),
+  getCampaigns: (params) => api.get('/api/campaigns', { params }),
+  getCampaign: (id) => api.get(`/api/campaigns/${id}`),
+  getLogs: (id, params) => api.get(`/api/campaigns/${id}/logs`, { params }),
+  createCampaign: (data) => api.post('/api/campaigns', data),
+  deleteCampaign: (id) => api.delete(`/api/campaigns/${id}`),
+  updateCampaign: (id, data) => api.put(`/api/campaigns/${id}`, data),
+  updateStatus: (id, status) => api.put(`/api/campaigns/${id}/status`, { status }),
 };
 
 // Templates API (External WhatsApp API)

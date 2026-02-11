@@ -142,13 +142,20 @@ export default function NewCampaign() {
             }
 
             const payload = {
+                name: formData.name,
+                type: 'broadcast',
                 template_name: selectedTemplate?.name,
-                language_code: 'en_US', // Required by API
-                contact_ids: contactIds,
-                variable_mapping: { "1": "Valued Customer" }, // Default mapping for now
-                // status: formData.isImmediate ? 'scheduled' : 'draft', // API might not take status in create
-                // scheduled_at: formData.isImmediate ? null : formData.scheduledAt // API uses schedule_time
-                schedule_time: formData.isImmediate ? null : formData.scheduledAt
+                template_data: {
+                    language_code: 'en_US',
+                    variable_mapping: { "1": "Valued Customer" }
+                },
+                target_audience: {
+                    include: contactIds
+                },
+                scheduled_at: formData.isImmediate ? null : formData.scheduledAt,
+                metadata: {
+                    audience_type: formData.audienceType
+                }
             };
 
             await campaignsAPI.createCampaign(payload);
@@ -156,9 +163,8 @@ export default function NewCampaign() {
             router.push('/campaigns');
         } catch (error) {
             console.error('Failed to create campaign:', error);
-            // toast.error('Failed to create campaign');
-            toast.success('Campaign created (Demo Mode)!');
-            router.push('/campaigns');
+            toast.error('Failed to create campaign');
+            // router.push('/campaigns'); // Don't redirect on error
         } finally {
             setLoading(false);
         }

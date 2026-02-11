@@ -9,6 +9,7 @@ const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
 const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = require('../../../utils/helpers');
 const { createCampaign, validate, validators } = require('../../../utils/validators');
+const waService = require('../../../services/waService');
 
 // Middleware
 router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
@@ -74,11 +75,12 @@ router.post('/',
                 target_audience, scheduled_at, metadata
             } = req.body;
 
+            // 1. Create Local Campaign
             const campaign = await Campaign.create({
                 client_id: req.client.id,
                 name,
                 type: type || 'broadcast',
-                status: 'draft',
+                status: 'draft', // Start as draft
                 template_name,
                 template_data: template_data || {},
                 target_audience: target_audience || {},
@@ -86,6 +88,58 @@ router.post('/',
                 created_by: req.user.id,
                 metadata: metadata || {}
             });
+
+            // 2. Trigger External API if launching
+            // Check if user intends to launch (immediate or scheduled)
+            // Ideally we check a flag or status in body, but based on new.js payload:
+            // if scheduled_at is null -> immediate -> running
+            // if scheduled_at is set -> scheduled
+
+            let targetStatus = 'draft';
+            if (scheduled_at) {
+                targetStatus = 'scheduled';
+            } else if (!scheduled_at) {
+                // If no schedule and user clicked "Launch", it implies immediate
+                // But new.js sets immediate by setting scheduled_at = null
+                // We should probably rely on an explicit status or assume "Launch" button means go.
+                // let's assume 'running' for immediate.
+                targetStatus = 'running';
+            }
+
+            // Only trigger if we are "launching" (not just saving draft, though front-end only keeps launch button)
+            if (targetStatus !== 'draft') {
+                try {
+                    const contactIds = target_audience?.include || [];
+                    if (contactIds.length > 0) {
+                        const externalPayload = {
+                            template_name,
+                            language_code: template_data?.language_code || 'en_US',
+                            contact_ids: contactIds,
+                            variable_mapping: template_data?.variable_mapping || {},
+                            schedule_time: scheduled_at ? new Date(scheduled_at).toISOString() : null
+                        };
+
+                        logger.info(`Triggering external campaign for ${campaign._id}`);
+                        const externalResponse = await waService.createCampaign(externalPayload);
+
+                        // Update local campaign with external ID if available
+                        if (externalResponse && externalResponse.id) {
+                            campaign.metadata = { ...campaign.metadata, external_id: externalResponse.id };
+                        }
+
+                        campaign.status = targetStatus;
+                        if (targetStatus === 'running') campaign.started_at = new Date();
+                        await campaign.save();
+                    }
+                } catch (extError) {
+                    logger.error(`External API trigger failed for campaign ${campaign._id}:`, extError);
+                    // Fallback status
+                    campaign.status = 'failed';
+                    campaign.metadata = { ...campaign.metadata, error: extError.message };
+                    await campaign.save();
+                    // We catch but don't fail the request completely so user sees "Failed" status in UI
+                }
+            }
 
             await incrementUsage(req, 'campaigns');
 
@@ -97,7 +151,6 @@ router.post('/',
             next(error);
         }
     }
-);
 
 /**
  * @route GET /api/campaigns/:id
@@ -105,25 +158,25 @@ router.post('/',
  * @access Tenant User
  */
 router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
-    try {
-        ensureClient(req);
-        const campaign = await Campaign.findOne({
-            _id: req.params.id,
-            client_id: req.client.id
-        });
+        try {
+            ensureClient(req);
+            const campaign = await Campaign.findOne({
+                _id: req.params.id,
+                client_id: req.client.id
+            });
 
-        if (!campaign) {
-            throw ApiError.notFound('Campaign not found');
+            if (!campaign) {
+                throw ApiError.notFound('Campaign not found');
+            }
+
+            res.json({
+                success: true,
+                data: campaign
+            });
+        } catch (error) {
+            next(error);
         }
-
-        res.json({
-            success: true,
-            data: campaign
-        });
-    } catch (error) {
-        next(error);
-    }
-});
+    });
 
 /**
  * @route PUT /api/campaigns/:id
