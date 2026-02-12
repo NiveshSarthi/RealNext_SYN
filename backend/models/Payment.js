@@ -1,87 +1,81 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Payment = sequelize.define('payments', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const paymentSchema = new Schema({
     invoice_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'invoices',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'Invoice',
+        required: false
     },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: false
+        type: Number,
+        required: true
     },
     currency: {
-        type: DataTypes.STRING(3),
-        defaultValue: 'INR'
+        type: String,
+        default: 'INR'
     },
     status: {
-        type: DataTypes.STRING(20),
-        defaultValue: 'pending',
-        validate: {
-            isIn: [['pending', 'completed', 'failed', 'refunded']]
-        }
+        type: String,
+        default: 'pending',
+        enum: ['pending', 'completed', 'failed', 'refunded']
     },
     payment_method: {
-        type: DataTypes.STRING(50),
-        allowNull: true
-        // razorpay, stripe, bank_transfer, manual
+        type: String,
+        required: false
     },
     gateway_payment_id: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     gateway_order_id: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     gateway_signature: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     failure_reason: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     refund_amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        allowNull: true
+        type: Number,
+        required: false
     },
     refunded_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'payments',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['invoice_id'] },
-        { fields: ['tenant_id'] },
-        { fields: ['status'] },
-        { fields: ['gateway_payment_id'] },
-        { fields: ['gateway_order_id'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'payments'
 });
 
+// Indexes
+paymentSchema.index({ invoice_id: 1 });
+paymentSchema.index({ client_id: 1 });
+paymentSchema.index({ status: 1 });
+
+// Virtual for ID
+paymentSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+paymentSchema.set('toJSON', { virtuals: true });
+paymentSchema.set('toObject', { virtuals: true });
+
+const Payment = mongoose.model('Payment', paymentSchema);
+
 module.exports = Payment;
+

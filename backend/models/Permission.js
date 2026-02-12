@@ -1,46 +1,45 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Permission = sequelize.define('permissions', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const permissionSchema = new Schema({
     code: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-        unique: true,
-        comment: 'Unique permission code, e.g., leads.create'
+        type: String,
+        required: true,
+        unique: true
     },
     name: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-        comment: 'Human-readable permission name'
+        type: String,
+        required: true
     },
     description: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     category: {
-        type: DataTypes.STRING(50),
-        allowNull: false,
-        defaultValue: 'general',
-        comment: 'Permission category for grouping (leads, campaigns, team, etc.)'
+        type: String,
+        default: 'general'
     },
     is_system: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
-        comment: 'System permissions cannot be deleted'
+        type: Boolean,
+        default: false
     }
 }, {
-    tableName: 'permissions',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { unique: true, fields: ['code'] },
-        { fields: ['category'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'permissions'
 });
 
+// Indexes
+permissionSchema.index({ code: 1 }, { unique: true });
+
+// Virtual for ID
+permissionSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+permissionSchema.set('toJSON', { virtuals: true });
+permissionSchema.set('toObject', { virtuals: true });
+
+const Permission = mongoose.model('Permission', permissionSchema);
+
 module.exports = Permission;
+

@@ -1,53 +1,50 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const EnvironmentFlag = sequelize.define('environment_flags', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const environmentFlagSchema = new Schema({
     key: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
+        type: String,
+        required: true,
         unique: true
     },
     value: {
-        type: DataTypes.JSONB,
-        allowNull: false
+        type: Schema.Types.Mixed,
+        required: true
     },
     environment: {
-        type: DataTypes.STRING(20),
-        defaultValue: 'all',
-        validate: {
-            isIn: [['all', 'production', 'demo', 'staging']]
-        }
+        type: String,
+        default: 'all',
+        enum: ['all', 'production', 'demo', 'staging']
     },
     description: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     is_enabled: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true
+        type: Boolean,
+        default: true
     },
     updated_by: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
     }
 }, {
-    tableName: 'environment_flags',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['key'] },
-        { fields: ['environment'] },
-        { fields: ['is_enabled'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'environment_flags'
 });
+
+// Indexes
+environmentFlagSchema.index({ key: 1 });
+
+// Virtual for ID
+environmentFlagSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+environmentFlagSchema.set('toJSON', { virtuals: true });
+environmentFlagSchema.set('toObject', { virtuals: true });
+
+const EnvironmentFlag = mongoose.model('EnvironmentFlag', environmentFlagSchema);
 
 module.exports = EnvironmentFlag;

@@ -1,110 +1,89 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Subscription = sequelize.define('subscriptions', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+const subscriptionSchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     plan_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'plans',
-            key: 'id'
-        }
-    },
-    partner_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'partners',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'Plan',
+        required: true
     },
     status: {
-        type: DataTypes.STRING(30),
-        defaultValue: 'trial',
-        validate: {
-            isIn: [['trial', 'active', 'past_due', 'suspended', 'cancelled', 'expired']]
-        }
+        type: String,
+        default: 'trial',
+        enum: ['trial', 'active', 'past_due', 'suspended', 'cancelled', 'expired']
     },
     billing_cycle: {
-        type: DataTypes.STRING(20),
-        defaultValue: 'monthly',
-        validate: {
-            isIn: [['monthly', 'yearly']]
-        }
+        type: String,
+        default: 'monthly',
+        enum: ['monthly', 'yearly']
     },
     current_period_start: {
-        type: DataTypes.DATE,
-        allowNull: false
+        type: Date,
+        required: true
     },
     current_period_end: {
-        type: DataTypes.DATE,
-        allowNull: false
+        type: Date,
+        required: true
     },
     trial_ends_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     cancelled_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     cancel_reason: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     proration_date: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     payment_method: {
-        type: DataTypes.STRING(50),
-        allowNull: true
+        type: String,
+        required: false
     },
     external_subscription_id: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'subscriptions',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['tenant_id'] },
-        { fields: ['plan_id'] },
-        { fields: ['partner_id'] },
-        { fields: ['status'] },
-        { fields: ['current_period_end'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'subscriptions'
 });
 
-// Helper to check if subscription is active
-Subscription.prototype.isActive = function () {
+// Instance methods
+subscriptionSchema.methods.isActive = function () {
     return ['trial', 'active'].includes(this.status) &&
         new Date() <= new Date(this.current_period_end);
 };
 
-// Helper to check if in trial
-Subscription.prototype.isInTrial = function () {
+subscriptionSchema.methods.isInTrial = function () {
     return this.status === 'trial' &&
         this.trial_ends_at &&
         new Date() <= new Date(this.trial_ends_at);
 };
 
+// Virtual for ID
+subscriptionSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+subscriptionSchema.set('toJSON', { virtuals: true });
+subscriptionSchema.set('toObject', { virtuals: true });
+
+const Subscription = mongoose.model('Subscription', subscriptionSchema);
+
 module.exports = Subscription;
+

@@ -1,4 +1,4 @@
-const { TenantUser, Role } = require('../models');
+const { ClientUser, Role } = require('../models');
 const { ApiError } = require('./errorHandler');
 
 /**
@@ -13,39 +13,31 @@ const requirePermission = (permissionCode) => {
                 return next();
             }
 
-            // Get the user's tenant membership
-            const tenantUser = await TenantUser.findOne({
-                where: {
-                    user_id: req.user.id,
-                    tenant_id: req.tenant?.id
-                },
-                include: [{
-                    model: Role,
-                    as: 'customRole'
-                }]
-            });
+            // Get the user's client membership
+            const clientUser = await ClientUser.findOne({
+                user_id: req.user.id,
+                client_id: req.client?.id
+            }).populate('role_id');
 
-            if (!tenantUser) {
-                throw ApiError.forbidden('You are not a member of this tenant');
+            if (!clientUser) {
+                throw ApiError.forbidden('You are not a member of this client');
             }
 
-            // Check if user is tenant owner (full access)
-            if (tenantUser.is_owner) {
+            // Check if user is client owner (full access)
+            if (clientUser.is_owner) {
                 return next();
             }
 
-            // Get permissions from custom role or fallback to legacy role
+            // Get permissions from role or fallback to legacy role
             let userPermissions = [];
 
-            if (tenantUser.customRole) {
-                userPermissions = tenantUser.customRole.permissions || [];
+            if (clientUser.role_id) {
+                userPermissions = clientUser.role_id.permissions || [];
             } else {
                 // Fallback: Get permissions from system role based on legacy role field
                 const systemRole = await Role.findOne({
-                    where: {
-                        tenant_id: null,
-                        name: tenantUser.role.charAt(0).toUpperCase() + tenantUser.role.slice(1)
-                    }
+                    client_id: null,
+                    name: clientUser.role.charAt(0).toUpperCase() + clientUser.role.slice(1)
                 });
 
                 if (systemRole) {
@@ -76,35 +68,27 @@ const requireAnyPermission = (permissionCodes) => {
                 return next();
             }
 
-            const tenantUser = await TenantUser.findOne({
-                where: {
-                    user_id: req.user.id,
-                    tenant_id: req.tenant?.id
-                },
-                include: [{
-                    model: Role,
-                    as: 'customRole'
-                }]
-            });
+            const clientUser = await ClientUser.findOne({
+                user_id: req.user.id,
+                client_id: req.client?.id
+            }).populate('role_id');
 
-            if (!tenantUser) {
-                throw ApiError.forbidden('You are not a member of this tenant');
+            if (!clientUser) {
+                throw ApiError.forbidden('You are not a member of this client');
             }
 
-            if (tenantUser.is_owner) {
+            if (clientUser.is_owner) {
                 return next();
             }
 
             let userPermissions = [];
 
-            if (tenantUser.customRole) {
-                userPermissions = tenantUser.customRole.permissions || [];
+            if (clientUser.role_id) {
+                userPermissions = clientUser.role_id.permissions || [];
             } else {
                 const systemRole = await Role.findOne({
-                    where: {
-                        tenant_id: null,
-                        name: tenantUser.role.charAt(0).toUpperCase() + tenantUser.role.slice(1)
-                    }
+                    client_id: null,
+                    name: clientUser.role.charAt(0).toUpperCase() + clientUser.role.slice(1)
                 });
 
                 if (systemRole) {

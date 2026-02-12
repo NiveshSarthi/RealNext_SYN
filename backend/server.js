@@ -1,13 +1,23 @@
+console.log('--- SERVER STARTING ---');
 require('dotenv').config();
+
 const express = require('express');
+
 const cors = require('cors');
+
 const helmet = require('helmet');
+
 const morgan = require('morgan');
+
 const compression = require('compression');
 
-const { sequelize, testConnection } = require('./config/database');
+
+const { testConnection, mongoose } = require('./config/database');
+
 const logger = require('./config/logger');
+
 const errorHandler = require('./middleware/errorHandler');
+
 const rateLimiter = require('./middleware/rateLimiter');
 
 const app = express();
@@ -16,6 +26,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Security middleware
+
 app.use(helmet());
 
 // CORS configuration
@@ -25,6 +36,7 @@ const allowedOrigins = [
   'https://test.niveshsarthi.com',
   'https://realnext.syndicate.niveshsarthi.com'
 ].filter(Boolean);
+
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -37,25 +49,30 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID', 'X-Partner-ID']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-ID']
 }));
 
 // Enable pre-flight requests for all routes
 app.options('*', cors());
 
 // Compression
+
 app.use(compression());
 
 // Request logging
+
 app.use(morgan('combined', {
   stream: { write: (message) => logger.info(message.trim()) }
 }));
 
 // Body parsing
+
 app.use(express.json({ limit: '10mb' }));
+
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting
+
 app.use('/api/', rateLimiter);
 
 // Health check endpoint
@@ -80,6 +97,8 @@ const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
 
 // API Routes - using the centralized routes index
+
+
 app.use('/api', require('./routes'));
 
 // 404 handler
@@ -110,6 +129,8 @@ const startServer = async () => {
   // Start listening continuously
   try {
     app.listen(PORT, '0.0.0.0', () => {
+      console.log(`CRITICAL: Server listening on PORT ${PORT}`);
+      console.log(`CRITICAL: Connected to database: ${mongoose.connection.name}`);
       logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
     });
   } catch (error) {
@@ -123,19 +144,19 @@ const startServer = async () => {
     await testConnection();
     dbStatus = 'connected';
 
-    // NOTE: Database sync is disabled to avoid conflicts.
+    // NOTE: Seeding is handled if SYNC_DB is true
     if (process.env.SYNC_DB === 'true') {
-      await sequelize.sync({ force: false, alter: false });
-      logger.info('Database synchronized');
+      logger.info('Performing database seeding check...');
 
       // Seed Super Admin if defined
+      // Seed Super Admin if defined
       if (process.env.SUPER_ADMIN_EMAIL && process.env.SUPER_ADMIN_PASSWORD) {
-        const { User, Tenant, TenantUser, Partner, PartnerUser } = require('./models');
+        const { User, Client, ClientUser } = require('./models');
         const adminEmail = process.env.SUPER_ADMIN_EMAIL;
         const adminPass = process.env.SUPER_ADMIN_PASSWORD;
 
         // 1. Super Admin
-        const existingAdmin = await User.findOne({ where: { email: adminEmail } });
+        const existingAdmin = await User.findOne({ email: adminEmail });
         if (!existingAdmin) {
           logger.info('Seeding Super Admin...');
           const user = await User.create({
@@ -147,62 +168,32 @@ const startServer = async () => {
             email_verified: true
           });
 
-          const tenant = await Tenant.create({
+          const client = await Client.create({
             name: 'RealNext Admin',
             email: adminEmail,
             status: 'active',
             environment: 'production'
           });
 
-          await TenantUser.create({
-            tenant_id: tenant.id,
-            user_id: user.id,
+          await ClientUser.create({
+            client_id: client._id,
+            user_id: user._id,
             role: 'admin',
             is_owner: true
           });
           logger.info('Super Admin seeded successfully');
         }
 
-        // 2. Partner Admin
-        const partnerEmail = 'partner-admin@acme.com';
-        const partnerPass = 'Test123!';
-        const existingPartner = await User.findOne({ where: { email: partnerEmail } });
-        if (!existingPartner) {
-          logger.info('Seeding Partner Admin...');
-          const pUser = await User.create({
-            email: partnerEmail,
-            password_hash: partnerPass,
-            name: 'Partner Admin',
-            status: 'active',
-            email_verified: true
-          });
-
-          const partner = await Partner.create({
-            name: 'Acme Resellers',
-            email: partnerEmail,
-            status: 'active',
-            commission_rate: 15.00
-          });
-
-          await PartnerUser.create({
-            partner_id: partner.id,
-            user_id: pUser.id,
-            role: 'admin',
-            is_owner: true
-          });
-          logger.info('Partner Admin seeded');
-        }
-
-        // 3. Tenant Admin
-        const tenantRxEmail = 'tenant-admin@testcompany.com';
-        const tenantRxPass = 'Test123!';
-        const existingTenantRx = await User.findOne({ where: { email: tenantRxEmail } });
-        if (!existingTenantRx) {
-          logger.info('Seeding Tenant Admin...');
-          const tUser = await User.create({
-            email: tenantRxEmail,
-            password_hash: tenantRxPass, // Hook hashes this
-            name: 'Tenant Admin',
+        // 2. Default Test Client Admin
+        const clientEmail = 'client-admin@testcompany.com';
+        const clientPass = 'Test123!';
+        const existingClientAdmin = await User.findOne({ email: clientEmail });
+        if (!existingClientAdmin) {
+          logger.info('Seeding Test Client Admin...');
+          const cUser = await User.create({
+            email: clientEmail,
+            password_hash: clientPass,
+            name: 'Client Admin',
             status: 'active',
             email_verified: true
           });
@@ -211,27 +202,27 @@ const startServer = async () => {
           const trialEnd = new Date();
           trialEnd.setDate(trialEnd.getDate() + 14);
 
-          const tenantCompany = await Tenant.create({
+          const testClient = await Client.create({
             name: 'Test Company Ltd',
-            email: tenantRxEmail,
+            email: clientEmail,
             status: 'active',
             plan_type: 'trial',
             trial_ends_at: trialEnd
           });
 
-          await TenantUser.create({
-            tenant_id: tenantCompany.id,
-            user_id: tUser.id,
+          await ClientUser.create({
+            client_id: testClient._id,
+            user_id: cUser._id,
             role: 'admin',
             is_owner: true
           });
-          logger.info('Tenant Admin seeded');
+          logger.info('Test Client Admin seeded');
 
-          // 4. Tenant User (Regular) - belongs to same tenant
-          const regUserEmail = 'tenant-user@testcompany.com';
-          const existingRegUser = await User.findOne({ where: { email: regUserEmail } });
+          // 3. Regular Client User
+          const regUserEmail = 'client-user@testcompany.com';
+          const existingRegUser = await User.findOne({ email: regUserEmail });
           if (!existingRegUser) {
-            logger.info('Seeding Regular Tenant User...');
+            logger.info('Seeding Regular Client User...');
             const rUser = await User.create({
               email: regUserEmail,
               password_hash: 'Test123!',
@@ -240,13 +231,13 @@ const startServer = async () => {
               email_verified: true
             });
 
-            await TenantUser.create({
-              tenant_id: tenantCompany.id,
-              user_id: rUser.id,
-              role: 'user', // Not admin
+            await ClientUser.create({
+              client_id: testClient._id,
+              user_id: rUser._id,
+              role: 'user',
               is_owner: false
             });
-            logger.info('Regular Tenant User seeded');
+            logger.info('Regular Client User seeded');
           }
         }
       }

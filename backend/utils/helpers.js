@@ -1,5 +1,3 @@
-const { Op } = require('sequelize');
-
 /**
  * Helper utility functions
  */
@@ -39,20 +37,18 @@ const getPaginatedResponse = (data, count, pagination) => {
  * Build sorting options from query
  */
 const getSorting = (query, allowedFields = [], defaultSort = 'created_at', defaultOrder = 'DESC') => {
-    let sort = query.sort || defaultSort;
+    let sortField = query.sort || defaultSort;
     let order = (query.order || defaultOrder).toUpperCase();
 
     // Validate sort field
-    if (allowedFields.length && !allowedFields.includes(sort)) {
-        sort = defaultSort;
+    if (allowedFields.length && !allowedFields.includes(sortField)) {
+        sortField = defaultSort;
     }
 
     // Validate order
-    if (!['ASC', 'DESC'].includes(order)) {
-        order = defaultOrder;
-    }
+    const direction = order === 'DESC' ? -1 : 1;
 
-    return [[sort, order]];
+    return { [sortField]: direction };
 };
 
 /**
@@ -63,9 +59,10 @@ const buildSearchFilter = (searchQuery, fields) => {
         return null;
     }
 
+    const regex = new RegExp(searchQuery, 'i');
     return {
-        [Op.or]: fields.map(field => ({
-            [field]: { [Op.iLike]: `%${searchQuery}%` }
+        $or: fields.map(field => ({
+            [field]: regex
         }))
     };
 };
@@ -77,11 +74,11 @@ const buildDateRangeFilter = (field, startDate, endDate) => {
     const filter = {};
 
     if (startDate) {
-        filter[Op.gte] = new Date(startDate);
+        filter.$gte = new Date(startDate);
     }
 
     if (endDate) {
-        filter[Op.lte] = new Date(endDate);
+        filter.$lte = new Date(endDate);
     }
 
     return Object.keys(filter).length ? { [field]: filter } : null;
@@ -96,7 +93,7 @@ const mergeFilters = (...filters) => {
     if (validFilters.length === 0) return {};
     if (validFilters.length === 1) return validFilters[0];
 
-    return { [Op.and]: validFilters };
+    return { $and: validFilters };
 };
 
 /**

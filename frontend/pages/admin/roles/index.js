@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Layout from '../../../components/Layout';
 import Button from '../../../components/ui/Button';
 import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
-import axios from '../../../utils/axios';
+import axios from '../../../utils/api';
 import { toast } from 'react-hot-toast';
 
 const SYSTEM_PERMISSIONS = [

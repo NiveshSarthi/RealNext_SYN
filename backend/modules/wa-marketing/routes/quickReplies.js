@@ -1,17 +1,24 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const { QuickReply } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
-const { requireTenantAccess } = require('../../../middleware/roles');
-const { enforceTenantScope } = require('../../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../../middleware/roles');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
 const { validate, validators } = require('../../../utils/validators');
-const { Op } = require('sequelize');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 /**
  * @route GET /api/quick-replies
@@ -19,22 +26,22 @@ router.use(authenticate, requireTenantAccess, enforceTenantScope);
  */
 router.get('/', requireFeature('quick_replies'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const { category, search } = req.query;
-        const where = { tenant_id: req.tenant.id };
+        const query = { client_id: req.client.id };
 
-        if (category) where.category = category;
+        if (category) query.category = category;
         if (search) {
-            where[Op.or] = [
-                { title: { [Op.iLike]: `%${search}%` } },
-                { shortcut: { [Op.iLike]: `%${search}%` } },
-                { content: { [Op.iLike]: `%${search}%` } }
+            const searchRegex = new RegExp(search, 'i');
+            query.$or = [
+                { title: searchRegex },
+                { shortcut: searchRegex },
+                { content: searchRegex }
             ];
         }
 
-        const replies = await QuickReply.findAll({
-            where,
-            order: [['usage_count', 'DESC'], ['shortcut', 'ASC']]
-        });
+        const replies = await QuickReply.find(query)
+            .sort({ usage_count: -1, shortcut: 1 });
 
         res.json({
             success: true,
@@ -60,13 +67,14 @@ router.post('/',
     auditAction('create', 'quick_reply'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const { shortcut, title, content, category } = req.body;
 
             // Ensure shortcut starts with /
             const formattedShortcut = shortcut.startsWith('/') ? shortcut : `/${shortcut}`;
 
             const reply = await QuickReply.create({
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 shortcut: formattedShortcut,
                 title,
                 content,
@@ -93,13 +101,16 @@ router.put('/:id',
     auditAction('update', 'quick_reply'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const reply = await QuickReply.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!reply) throw ApiError.notFound('Quick reply not found');
 
-            await reply.update(req.body);
+            Object.assign(reply, req.body);
+            await reply.save();
 
             res.json({
                 success: true,
@@ -120,13 +131,15 @@ router.delete('/:id',
     auditAction('delete', 'quick_reply'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const reply = await QuickReply.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!reply) throw ApiError.notFound('Quick reply not found');
 
-            await reply.destroy();
+            await reply.deleteOne();
 
             res.json({
                 success: true,
@@ -144,6 +157,7 @@ router.delete('/:id',
  */
 router.post('/process', requireFeature('quick_replies'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const { message } = req.body;
         if (!message) return res.json({ success: true, data: '' });
 
@@ -154,12 +168,14 @@ router.post('/process', requireFeature('quick_replies'), async (req, res, next) 
         if (shortcutMatch) {
             const shortcut = shortcutMatch[1];
             const reply = await QuickReply.findOne({
-                where: { tenant_id: req.tenant.id, shortcut }
+                client_id: req.client.id,
+                shortcut
             });
 
             if (reply) {
                 // Increment usage
-                await reply.increment('usage_count');
+                reply.usage_count = (reply.usage_count || 0) + 1;
+                await reply.save();
 
                 // Replace shortcut with content
                 const processedMessage = message.replace(shortcut, reply.content);
@@ -181,24 +197,32 @@ router.post('/process', requireFeature('quick_replies'), async (req, res, next) 
 });
 
 /**
- * @route GET /api/quick-replies/stats
+ * @route GET /api/quick-replies/stats/overview
  * @desc Quick reply usage stats
  */
 router.get('/stats/overview', requireFeature('quick_replies'), async (req, res, next) => {
     try {
-        const total = await QuickReply.count({ where: { tenant_id: req.tenant.id } });
-        const usage = await QuickReply.sum('usage_count', { where: { tenant_id: req.tenant.id } }) || 0;
-        const topReplies = await QuickReply.findAll({
-            where: { tenant_id: req.tenant.id },
-            order: [['usage_count', 'DESC']],
-            limit: 5
-        });
+        ensureClient(req);
+        const stats = await QuickReply.aggregate([
+            { $match: { client_id: new mongoose.Types.ObjectId(req.client.id) } },
+            {
+                $group: {
+                    _id: null,
+                    total_replies: { $sum: 1 },
+                    total_usage: { $sum: '$usage_count' }
+                }
+            }
+        ]);
+
+        const topReplies = await QuickReply.find({ client_id: req.client.id })
+            .sort({ usage_count: -1 })
+            .limit(5);
 
         res.json({
             success: true,
             data: {
-                total_replies: total,
-                total_usage: usage,
+                total_replies: stats[0]?.total_replies || 0,
+                total_usage: stats[0]?.total_usage || 0,
                 top_replies: topReplies
             }
         });

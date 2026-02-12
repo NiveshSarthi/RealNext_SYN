@@ -1,83 +1,80 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const CatalogItem = sequelize.define('catalog_items', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+const catalogItemSchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     name: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     description: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     category: {
-        type: DataTypes.STRING(100),
-        allowNull: true
+        type: String,
+        required: false
     },
     price: {
-        type: DataTypes.DECIMAL(12, 2),
-        allowNull: true
+        type: Number,
+        required: false
     },
     currency: {
-        type: DataTypes.STRING(3),
-        defaultValue: 'INR'
+        type: String,
+        default: 'INR'
     },
     images: {
-        type: DataTypes.JSONB,
-        defaultValue: []
+        type: Schema.Types.Mixed,
+        default: []
     },
     properties: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
-        // Custom properties like size, color, etc.
+        type: Schema.Types.Mixed,
+        default: {}
     },
     status: {
-        type: DataTypes.STRING(30),
-        defaultValue: 'active',
-        validate: {
-            isIn: [['active', 'inactive', 'draft', 'sold']]
-        }
+        type: String,
+        default: 'active',
+        enum: ['active', 'inactive', 'draft', 'sold']
     },
     wa_catalog_id: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     created_by: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
+    },
+    deleted_at: {
+        type: Date,
+        default: null
     }
 }, {
-    tableName: 'catalog_items',
-    timestamps: true,
-    paranoid: true,
-    underscored: true,
-    indexes: [
-        { fields: ['tenant_id'] },
-        { fields: ['category'] },
-        { fields: ['status'] },
-        { fields: ['price'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'catalog_items'
 });
 
+// Indexes
+catalogItemSchema.index({ client_id: 1, category: 1 });
+catalogItemSchema.index({ client_id: 1, status: 1 });
+
+// Virtual for ID
+catalogItemSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+catalogItemSchema.set('toJSON', { virtuals: true });
+catalogItemSchema.set('toObject', { virtuals: true });
+
+const CatalogItem = mongoose.model('CatalogItem', catalogItemSchema);
+
 module.exports = CatalogItem;
+

@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { Workflow } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
-const { requireTenantAccess } = require('../../../middleware/roles');
-const { enforceTenantScope } = require('../../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../../middleware/roles');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
@@ -12,7 +12,14 @@ const { validate, validators } = require('../../../utils/validators');
 const logger = require('../../../config/logger');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 /**
  * @route GET /api/workflows
@@ -21,10 +28,10 @@ router.use(authenticate, requireTenantAccess, enforceTenantScope);
  */
 router.get('/', requireFeature('workflows'), async (req, res, next) => {
     try {
-        const workflows = await Workflow.findAll({
-            where: { tenant_id: req.tenant.id },
-            order: [['created_at', 'DESC']]
-        });
+        ensureClient(req);
+        const workflows = await Workflow.find({
+            client_id: req.client.id
+        }).sort({ created_at: -1 });
 
         res.json({
             success: true,
@@ -50,10 +57,11 @@ router.post('/',
     auditAction('create', 'workflow'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const { name, description, active, nodes, settings } = req.body;
 
             const workflow = await Workflow.create({
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 name,
                 description: description || settings?.description,
                 status: active ? 'active' : 'inactive',
@@ -79,9 +87,20 @@ router.post('/',
  */
 router.get('/stats', requireFeature('workflows'), async (req, res, next) => {
     try {
-        const total = await Workflow.count({ where: { tenant_id: req.tenant.id } });
-        const active = await Workflow.count({ where: { tenant_id: req.tenant.id, status: 'active' } });
-        const executions = await Workflow.sum('execution_count', { where: { tenant_id: req.tenant.id } }) || 0;
+        ensureClient(req);
+        const total = await Workflow.countDocuments({ client_id: req.client.id });
+        const active = await Workflow.countDocuments({ client_id: req.client.id, status: 'active' });
+        // Assuming 'execution_count' is a field that can be summed in MongoDB,
+        // this would typically require an aggregation pipeline.
+        // For a direct replacement, we'll mock it or assume a simple sum if possible.
+        // If Workflow.sum is a custom method, it needs to be adapted.
+        // For now, let's assume a simple sum is not directly available and might need aggregation.
+        // For the purpose of this edit, we'll keep it as is, assuming it's a custom method or will be adapted.
+        const executions = await Workflow.aggregate([
+            { $match: { client_id: req.client.id } },
+            { $group: { _id: null, totalExecutions: { $sum: '$execution_count' } } }
+        ]).then(result => result.length > 0 ? result[0].totalExecutions : 0);
+
 
         res.json({
             success: true,
@@ -120,8 +139,9 @@ router.get('/history', requireFeature('workflows'), async (req, res, next) => {
  */
 router.get('/:id', requireFeature('workflows'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const workflow = await Workflow.findOne({
-            where: { id: req.params.id, tenant_id: req.tenant.id }
+            _id: req.params.id, client_id: req.client.id
         });
 
         if (!workflow) {
@@ -147,15 +167,18 @@ router.put('/:id',
     auditAction('update', 'workflow'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const workflow = await Workflow.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id, client_id: req.client.id
             });
 
             if (!workflow) {
                 throw ApiError.notFound('Workflow not found');
             }
 
-            await workflow.update(req.body);
+            // For Mongoose, update is usually done with findByIdAndUpdate or by modifying and saving
+            Object.assign(workflow, req.body);
+            await workflow.save();
 
             res.json({
                 success: true,
@@ -177,13 +200,15 @@ router.post('/:id/activate',
     auditAction('activate', 'workflow'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const workflow = await Workflow.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id, client_id: req.client.id
             });
 
             if (!workflow) throw ApiError.notFound('Workflow not found');
 
-            await workflow.update({ status: 'active' });
+            workflow.status = 'active';
+            await workflow.save();
 
             res.json({
                 success: true,
@@ -206,13 +231,15 @@ router.post('/:id/deactivate',
     auditAction('deactivate', 'workflow'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const workflow = await Workflow.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id, client_id: req.client.id
             });
 
             if (!workflow) throw ApiError.notFound('Workflow not found');
 
-            await workflow.update({ status: 'inactive' });
+            workflow.status = 'inactive';
+            await workflow.save();
 
             res.json({
                 success: true,
@@ -232,21 +259,24 @@ router.post('/:id/deactivate',
  */
 router.post('/trigger/:type', requireFeature('workflows'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const { type } = req.params;
-        logger.info(`Workflow triggered for tenant ${req.tenant.id}: ${type}`, req.body);
+        logger.info(`Workflow triggered for client ${req.client.id}: ${type}`, req.body);
 
-        // Find active workflow for this trigger (mock logic)
-        const workflows = await Workflow.findAll({
-            where: {
-                tenant_id: req.tenant.id,
-                status: 'active'
-            }
+        // Find relevant workflows
+        const workflows = await Workflow.find({
+            client_id: req.client.id,
+            status: 'active',
+            'trigger_config.type': type
         });
 
         // Increment execution count for first found workflow (mock)
         if (workflows.length > 0) {
-            await workflows[0].increment('execution_count');
-            await workflows[0].update({ last_executed_at: new Date() });
+            // Assuming 'increment' is a custom method or needs to be adapted for Mongoose
+            // For Mongoose, you'd typically do:
+            workflows[0].execution_count = (workflows[0].execution_count || 0) + 1;
+            workflows[0].last_executed_at = new Date();
+            await workflows[0].save();
         }
 
         res.json({
@@ -284,14 +314,16 @@ router.delete('/:id',
     auditAction('delete', 'workflow'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const workflow = await Workflow.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!workflow) throw ApiError.notFound('Workflow not found');
             if (workflow.status === 'active') throw ApiError.badRequest('Cannot delete active workflow');
 
-            await workflow.destroy();
+            await workflow.deleteOne();
 
             res.json({
                 success: true,

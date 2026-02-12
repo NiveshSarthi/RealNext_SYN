@@ -1,70 +1,73 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const BrandingSetting = sequelize.define('branding_settings', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const brandingSettingSchema = new Schema({
     owner_type: {
-        type: DataTypes.STRING(20),
-        allowNull: false,
-        validate: {
-            isIn: [['partner', 'tenant']]
-        }
+        type: String,
+        required: true,
+        enum: ['partner', 'tenant']
     },
     owner_id: {
-        type: DataTypes.UUID,
-        allowNull: false
+        type: Schema.Types.ObjectId,
+        required: true
     },
     logo_url: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     favicon_url: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     primary_color: {
-        type: DataTypes.STRING(7),
-        allowNull: true
+        type: String,
+        required: false
     },
     secondary_color: {
-        type: DataTypes.STRING(7),
-        allowNull: true
+        type: String,
+        required: false
     },
     accent_color: {
-        type: DataTypes.STRING(7),
-        allowNull: true
+        type: String,
+        required: false
     },
     font_family: {
-        type: DataTypes.STRING(100),
-        allowNull: true
+        type: String,
+        required: false
     },
     custom_css: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     email_header_html: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     email_footer_html: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'branding_settings',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { unique: true, fields: ['owner_type', 'owner_id'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'branding_settings'
 });
 
+// Indexes
+brandingSettingSchema.index({ owner_type: 1, owner_id: 1 }, { unique: true });
+
+// Virtual for ID
+brandingSettingSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+brandingSettingSchema.set('toJSON', { virtuals: true });
+brandingSettingSchema.set('toObject', { virtuals: true });
+
+const BrandingSetting = mongoose.model('BrandingSetting', brandingSettingSchema);
+
 module.exports = BrandingSetting;
+

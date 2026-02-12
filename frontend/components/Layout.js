@@ -37,48 +37,25 @@ export default function Layout({ children }) {
   let navigation = [];
 
   if (user?.is_super_admin) {
-    // Super Admin: Use Admin Navigation
-    // Filter based on system_permissions if not root admin (TODO: Implement granular admin permissions)
+    // Super Admin: Always sees everything in ADMIN_NAVIGATION
+    navigation = ADMIN_NAVIGATION;
+  } else if (user?.client_role === 'admin' || user?.context?.clientRole === 'admin') {
+    // Client Admin: Use Admin Navigation (backend handles data isolation)
     navigation = ADMIN_NAVIGATION;
   } else if (user?.context?.partner) {
     // Partner: Hide or separate logic (Legacy)
     navigation = [];
   } else {
-    // Tenant User: Filter based on Role, Features, and Menu Access
-    const userRole = user?.context?.tenantRole || 'user';
-    const menuAccess = user?.context?.menu_access || {};
-    const features = user?.context?.features || [];
-
-    // Recursive helper to filter navigation items
-    const filterNavItems = (items) => {
-      return items.filter(item => {
-        // 1. Check Granular Menu Access (Explicit Disable)
-        if (menuAccess[item.id] === false) return false;
-
-        // 2. Check Feature Dependencies (Legacy Feature Flags)
-        if (item.id === 'lms' && !features.includes('lms')) return false;
-        if (item.id === 'inventory' && (!features.includes('inventory') && !features.includes('catalog'))) return false;
-        if (item.id === 'wa_marketing' && (!features.includes('wa_marketing') && !features.includes('campaigns'))) return false;
-
-        // 3. Check Role (Hide Team for non-admins)
-        if (item.id === 'team' && (userRole !== 'admin' && userRole !== 'manager')) return false;
-
-        // 4. Process Children recursively
-        if (item.children) {
-          const filteredChildren = filterNavItems(item.children);
-          if (filteredChildren.length === 0) return false; // Hide parent if all children are hidden
-          item.children = filteredChildren; // Update children with filtered list (Clone to avoid mutation issues if strict)
-          // Note: In React we should not mutate constants. ideally we map.
-          // Let's do a map-filter approach below for safety.
-          return true;
-        }
-
-        return true;
-      });
-    };
+    // Client User: Filter based on Role, Features, and Menu Access
+    const userRole = user?.client_role || user?.context?.clientRole || 'user';
+    const menuAccess = user?.client?.settings?.menu_access || {};
+    const features = user?.subscription?.features || [];
 
     // Safe Map-Filter implementation to avoid mutating the constant
     const processNavigation = (items) => {
+      // Super Admin bypass for internal filtering just in case
+      if (user?.is_super_admin) return items;
+
       return items.reduce((acc, item) => {
         // 1. Check Granular Menu Access (Explicit Disable)
         if (menuAccess[item.id] === false) return acc;
@@ -118,8 +95,8 @@ export default function Layout({ children }) {
     let changed = false;
     navigation.forEach(item => {
       if (item.children?.some(child => router.pathname === child.href)) {
-        if (!newExpanded[item.name]) {
-          newExpanded[item.name] = true;
+        if (!newExpanded[item.id]) {
+          newExpanded[item.id] = true;
           changed = true;
         }
       }
@@ -146,23 +123,23 @@ export default function Layout({ children }) {
     router.push('/');
   };
 
-  const toggleMenu = (name) => {
+  const toggleMenu = (id) => {
     setExpandedMenus(prev => ({
       ...prev,
-      [name]: !prev[name]
+      [id]: !prev[id]
     }));
   };
 
   const NavItem = ({ item, isCollapsed, isSubItem = false }) => {
     const isActive = router?.pathname === item.href;
     const isChildActive = item.children?.some(child => router?.pathname === child.href);
-    const isExpanded = expandedMenus[item.name];
+    const isExpanded = expandedMenus[item.id];
 
     if (item.children && !isCollapsed) {
       return (
         <div className="space-y-1">
           <button
-            onClick={() => toggleMenu(item.name)}
+            onClick={() => toggleMenu(item.id)}
             className={`
               w-full group flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ease-in-out
               ${isChildActive
@@ -178,7 +155,7 @@ export default function Layout({ children }) {
                   ${isChildActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}
                 `}
               />
-              <span className="truncate">{item.name}</span>
+              <span className="truncate">{item.label}</span>
             </div>
             {isExpanded ? (
               <ChevronUpIcon className="h-4 w-4" />
@@ -190,7 +167,7 @@ export default function Layout({ children }) {
           {isExpanded && (
             <div className="pl-10 space-y-1">
               {item.children.map((child) => (
-                <NavItem key={child.name} item={child} isCollapsed={false} isSubItem={true} />
+                <NavItem key={child.id} item={child} isCollapsed={false} isSubItem={true} />
               ))}
             </div>
           )}
@@ -210,7 +187,7 @@ export default function Layout({ children }) {
           ${isCollapsed ? 'justify-center' : ''}
           ${isSubItem ? 'py-2 opacity-80 hover:opacity-100' : ''}
         `}
-        title={isCollapsed ? item.name : ''}
+        title={isCollapsed ? item.label : ''}
       >
         <item.icon
           className={`
@@ -220,7 +197,7 @@ export default function Layout({ children }) {
           `}
         />
         {!isCollapsed && (
-          <span className="truncate">{item.name}</span>
+          <span className="truncate">{item.label}</span>
         )}
       </Link>
     );
@@ -252,7 +229,7 @@ export default function Layout({ children }) {
           <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
             <nav className="mt-5 px-2 space-y-1">
               {navigation.map((item) => (
-                <NavItem key={item.name} item={item} isCollapsed={false} />
+                <NavItem key={item.id} item={item} isCollapsed={false} />
               ))}
             </nav>
           </div>
@@ -284,7 +261,7 @@ export default function Layout({ children }) {
         <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide py-4">
           <nav className="flex-1 px-3 space-y-1">
             {navigation.map((item) => (
-              <NavItem key={item.name} item={item} isCollapsed={isCollapsed} />
+              <NavItem key={item.id} item={item} isCollapsed={isCollapsed} />
             ))}
           </nav>
         </div>

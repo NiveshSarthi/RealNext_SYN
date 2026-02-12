@@ -4,16 +4,23 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { authenticate } = require('../../../middleware/auth');
-const { requireTenantAccess } = require('../../../middleware/roles');
-const { enforceTenantScope } = require('../../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../../middleware/roles');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
 const logger = require('../../../config/logger');
-const { FacebookPageConnection, FacebookLeadForm, Lead, sequelize } = require('../../../models');
+const { FacebookPageConnection, FacebookLeadForm, Lead } = require('../../../models');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 const GRAPH_API_VERSION = 'v19.0';
 const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -23,8 +30,8 @@ const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
  * @desc Connect Facebook Account & Fetch Pages
  */
 router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
-    const t = await sequelize.transaction();
     try {
+        ensureClient(req);
         const { user_token } = req.body;
         if (!user_token) throw new ApiError(400, 'User Access Token is required');
 
@@ -37,23 +44,23 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
             }
         });
 
-        const pages = response.data.data;
+        const pages = response.data.data || [];
         const connectedPages = [];
 
         for (const page of pages) {
-            // Upsert Page Connection
-            const [connection] = await FacebookPageConnection.upsert({
-                tenant_id: req.tenant.id,
-                page_id: page.id,
-                page_name: page.name,
-                access_token: page.access_token, // Page Access Token
-                status: 'active',
-                last_sync_at: new Date()
-            }, { transaction: t });
+            // Upsert Page Connection using Mongoose findOneAndUpdate
+            const connection = await FacebookPageConnection.findOneAndUpdate(
+                { client_id: req.client.id, page_id: page.id },
+                {
+                    page_name: page.name,
+                    access_token: page.access_token, // Page Access Token
+                    status: 'active',
+                    last_sync_at: new Date()
+                },
+                { upsert: true, new: true }
+            );
             connectedPages.push(connection);
         }
-
-        await t.commit();
 
         res.json({
             success: true,
@@ -61,7 +68,6 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
             data: connectedPages
         });
     } catch (error) {
-        await t.rollback();
         // Handle Graph API errors
         if (error.response?.data?.error) {
             return next(new ApiError(400, `Facebook API Error: ${error.response.data.error.message}`));
@@ -76,11 +82,12 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
  */
 router.get('/pages', requireFeature('meta_ads'), async (req, res, next) => {
     try {
-        const pages = await FacebookPageConnection.findAll({
-            where: { tenant_id: req.tenant.id },
-            include: [{ model: FacebookLeadForm, as: 'leadForms' }],
-            order: [['createdAt', 'DESC']]
-        });
+        ensureClient(req);
+        const pages = await FacebookPageConnection.find({
+            client_id: req.client.id
+        })
+            .populate('leadForms')
+            .sort({ created_at: -1 });
         res.json({ success: true, data: pages });
     } catch (error) {
         next(error);
@@ -93,42 +100,50 @@ router.get('/pages', requireFeature('meta_ads'), async (req, res, next) => {
  */
 router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) => {
     try {
-        const pages = await FacebookPageConnection.findAll({
-            where: { tenant_id: req.tenant.id, status: 'active' }
+        ensureClient(req);
+        const pages = await FacebookPageConnection.find({
+            client_id: req.client.id,
+            status: 'active'
         });
 
         let newFormsCount = 0;
 
         for (const page of pages) {
             try {
-                const response = await axios.get(`${GRAPH_API_URL}/${page.page_id}/leadgen_forms`, {
-                    params: {
-                        access_token: page.access_token,
-                        fields: 'id,name,status,leads_count',
-                        limit: 100
-                    }
-                });
+                let formsUrl = `${GRAPH_API_URL}/${page.page_id}/leadgen_forms?access_token=${page.access_token}&fields=id,name,status,leads_count&limit=100`;
 
-                const forms = response.data.data || [];
-                for (const form of forms) {
-                    if (form.status === 'ACTIVE') {
-                        const [savedForm, created] = await FacebookLeadForm.findOrCreate({
-                            where: {
-                                tenant_id: req.tenant.id,
+                while (formsUrl) {
+                    const response = await axios.get(formsUrl);
+                    const forms = response.data.data || [];
+                    formsUrl = response.data.paging?.next;
+
+                    for (const form of forms) {
+                        if (form.status === 'ACTIVE') {
+                            let savedForm = await FacebookLeadForm.findOne({
+                                client_id: req.client.id,
                                 form_id: form.id
-                            },
-                            defaults: {
-                                page_connection_id: page.id,
-                                name: form.name,
-                                status: 'active'
+                            });
+
+                            if (!savedForm) {
+                                savedForm = await FacebookLeadForm.create({
+                                    client_id: req.client.id,
+                                    form_id: form.id,
+                                    page_connection_id: page.id,
+                                    name: form.name,
+                                    status: 'active',
+                                    lead_count: form.leads_count
+                                });
+                                newFormsCount++;
+                            } else {
+                                // Update lead count for existing forms
+                                savedForm.lead_count = form.leads_count;
+                                await savedForm.save();
                             }
-                        });
-                        if (created) newFormsCount++;
+                        }
                     }
                 }
             } catch (pageError) {
                 logger.error(`Failed to sync forms for page ${page.page_name}: ${pageError.message}`);
-                // Continue to next page even if one fails
             }
         }
 
@@ -144,10 +159,11 @@ router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) =>
  */
 router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) => {
     try {
-        const forms = await FacebookLeadForm.findAll({
-            where: { tenant_id: req.tenant.id, status: 'active' },
-            include: [{ model: FacebookPageConnection, as: 'pageConnection' }]
-        });
+        ensureClient(req);
+        const forms = await FacebookLeadForm.find({
+            client_id: req.client.id,
+            status: 'active'
+        }).populate('pageConnection');
 
         let newLeadsCount = 0;
         let skippedCount = 0;
@@ -163,19 +179,16 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
                 }
 
                 let nextUrl = `${GRAPH_API_URL}/${form.form_id}/leads?access_token=${form.pageConnection.access_token}&fields=id,created_time,field_data&limit=100`;
-                let pageCount = 0;
-                const MAX_PAGES = 20; // Fetch up to 2000 leads max per sync to avoid timeout
 
-                while (nextUrl && pageCount < MAX_PAGES) {
+                while (nextUrl) {
                     const response = await axios.get(nextUrl);
                     const leads = response.data.data || [];
 
                     // Update nextUrl for pagination
                     nextUrl = response.data.paging?.next;
-                    pageCount++;
+
                     for (const leadData of leads) {
                         // Normalize Field Data
-                        // field_data is [{ name: 'email', values: ['...'] }, ...]
                         const emailField = leadData.field_data.find(f => f.name.includes('email'))?.values[0];
                         const phoneField = leadData.field_data.find(f => f.name.includes('phone') || f.name.includes('number'))?.values[0];
                         const nameField = leadData.field_data.find(f => f.name.includes('name') || f.name.includes('full_name'))?.values[0];
@@ -184,28 +197,29 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
 
                         // Check if lead exists (deduplication)
                         const existingLead = await Lead.findOne({
-                            where: {
-                                tenant_id: req.tenant.id,
-                                [require('sequelize').Op.or]: [
-                                    { phone: phoneField || 'N/A' },
-                                    { email: emailField || 'N/A' }
-                                ]
-                            }
+                            client_id: req.client.id,
+                            $or: [
+                                { phone: phoneField || 'N/A' },
+                                { email: emailField || 'N/A' }
+                            ]
                         });
 
                         if (!existingLead) {
                             await Lead.create({
-                                tenant_id: req.tenant.id,
+                                client_id: req.client.id,
                                 name: nameField || 'Facebook Lead',
                                 email: emailField,
                                 phone: phoneField,
                                 source: 'Facebook Ads',
                                 status: 'new',
+                                stage: 'Screening',
                                 metadata: {
                                     facebook_lead_id: leadData.id,
                                     form_id: form.form_id,
-                                    page_id: form.pageConnection.page_id
-                                }
+                                    page_id: form.pageConnection.page_id,
+                                    fetched_at: new Date()
+                                },
+                                created_at: new Date(leadData.created_time)
                             });
                             newLeadsCount++;
                         } else {
@@ -235,28 +249,27 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
  */
 router.patch('/pages/:pageId/toggle-sync', requireFeature('meta_ads'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const { pageId } = req.params;
         const { is_enabled } = req.body;
 
         if (typeof is_enabled !== 'boolean') {
-            throw ApiError.badRequest('is_enabled must be a boolean');
+            throw new ApiError(400, 'is_enabled must be a boolean');
         }
 
         const page = await FacebookPageConnection.findOne({
-            where: {
-                id: pageId,
-                tenant_id: req.tenant.id
-            }
+            _id: pageId,
+            client_id: req.client.id
         });
 
         if (!page) {
-            throw ApiError.notFound('Page connection not found');
+            throw new ApiError(404, 'Page connection not found');
         }
 
         page.is_lead_sync_enabled = is_enabled;
         await page.save();
 
-        logger.info(`Lead sync ${is_enabled ? 'enabled' : 'disabled'} for page ${page.page_name} (tenant: ${req.tenant.id})`);
+        logger.info(`Lead sync ${is_enabled ? 'enabled' : 'disabled'} for page ${page.page_name} (client: ${req.client.id})`);
 
         res.json({
             success: true,
@@ -315,7 +328,7 @@ router.post('/webhook', async (req, res) => {
 
                         // Find the page connection
                         const pageConnection = await FacebookPageConnection.findOne({
-                            where: { page_id: pageId }
+                            page_id: pageId
                         });
 
                         if (!pageConnection) {
@@ -331,7 +344,7 @@ router.post('/webhook', async (req, res) => {
 
                         // Find the form
                         const leadForm = await FacebookLeadForm.findOne({
-                            where: { form_id: formId }
+                            form_id: formId
                         });
 
                         if (!leadForm) {
@@ -363,13 +376,11 @@ router.post('/webhook', async (req, res) => {
 
                             // Check for duplicates
                             const existingLead = await Lead.findOne({
-                                where: {
-                                    tenant_id: pageConnection.tenant_id,
-                                    [require('sequelize').Op.or]: [
-                                        { phone: phoneField || 'N/A' },
-                                        { email: emailField || 'N/A' }
-                                    ]
-                                }
+                                client_id: pageConnection.client_id,
+                                $or: [
+                                    { phone: phoneField || 'N/A' },
+                                    { email: emailField || 'N/A' }
+                                ]
                             });
 
                             if (existingLead) {
@@ -379,7 +390,7 @@ router.post('/webhook', async (req, res) => {
 
                             // Create the lead
                             const newLead = await Lead.create({
-                                tenant_id: pageConnection.tenant_id,
+                                client_id: pageConnection.client_id,
                                 name: nameField || 'Facebook Lead',
                                 email: emailField,
                                 phone: phoneField,
@@ -396,8 +407,13 @@ router.post('/webhook', async (req, res) => {
                             logger.info(`✅ Created lead: ${newLead.name} (ID: ${newLead.id})`);
 
                             // Update form lead count
-                            await leadForm.increment('lead_count');
-                            await leadForm.update({ last_lead_fetched_at: new Date() });
+                            await FacebookLeadForm.updateOne(
+                                { _id: leadForm._id },
+                                {
+                                    $inc: { lead_count: 1 },
+                                    $set: { last_lead_fetched_at: new Date() }
+                                }
+                            );
 
                         } catch (fetchError) {
                             logger.error(`Failed to fetch lead ${leadgenId}: ${fetchError.message}`);

@@ -20,22 +20,23 @@ router.get('/', async (req, res, next) => {
     try {
         const sorting = getSorting(req.query, ['name', 'price_monthly', 'sort_order', 'created_at'], 'sort_order');
 
-        const plans = await Plan.findAll({
-            include: [{
-                model: PlanFeature,
-                as: 'planFeatures',
-                include: [{ model: Feature, attributes: ['id', 'code', 'name', 'category'] }]
-            }],
-            order: sorting
-        });
+        const plans = await Plan.find()
+            .populate({
+                path: 'planFeatures',
+                populate: { path: 'feature_id', select: 'id code name category' }
+            })
+            .sort(sorting);
 
-        // Add subscription counts
+        // Add subscription counts and format data
         const plansWithCounts = await Promise.all(plans.map(async (plan) => {
-            const subCount = await Subscription.count({
-                where: { plan_id: plan.id, status: ['trial', 'active'] }
+            const subCount = await Subscription.countDocuments({
+                plan_id: plan._id,
+                status: { $in: ['trial', 'active'] }
             });
+
+            const planObj = plan.toObject({ virtuals: true });
             return {
-                ...plan.get({ plain: true }),
+                ...planObj,
                 active_subscriptions: subCount
             };
         }));
@@ -62,7 +63,7 @@ router.post('/', createPlan, auditAction('create', 'plan'), async (req, res, nex
         } = req.body;
 
         // Check for existing plan
-        const existing = await Plan.findOne({ where: { code } });
+        const existing = await Plan.findOne({ code });
         if (existing) {
             throw ApiError.conflict('Plan with this code already exists');
         }
@@ -98,26 +99,24 @@ router.post('/', createPlan, auditAction('create', 'plan'), async (req, res, nex
  */
 router.get('/:id', async (req, res, next) => {
     try {
-        const plan = await Plan.findByPk(req.params.id, {
-            include: [{
-                model: PlanFeature,
-                as: 'planFeatures',
-                include: [{ model: Feature }]
-            }]
-        });
+        const plan = await Plan.findById(req.params.id)
+            .populate({
+                path: 'planFeatures',
+                populate: { path: 'feature_id' }
+            });
 
         if (!plan) {
             throw ApiError.notFound('Plan not found');
         }
 
-        const subscriptionCount = await Subscription.count({
-            where: { plan_id: plan.id }
+        const subscriptionCount = await Subscription.countDocuments({
+            plan_id: plan._id
         });
 
         res.json({
             success: true,
             data: {
-                ...plan.get({ plain: true }),
+                ...plan.toObject({ virtuals: true }),
                 total_subscriptions: subscriptionCount
             }
         });
@@ -140,7 +139,7 @@ router.put('/:id',
     auditAction('update', 'plan'),
     async (req, res, next) => {
         try {
-            const plan = await Plan.findByPk(req.params.id);
+            const plan = await Plan.findById(req.params.id);
 
             if (!plan) {
                 throw ApiError.notFound('Plan not found');
@@ -151,19 +150,19 @@ router.put('/:id',
                 currency, billing_period, trial_days, is_public, is_active, sort_order, limits
             } = req.body;
 
-            await plan.update({
-                name: name || plan.name,
-                description: description !== undefined ? description : plan.description,
-                price_monthly: price_monthly !== undefined ? price_monthly : plan.price_monthly,
-                price_yearly: price_yearly !== undefined ? price_yearly : plan.price_yearly,
-                currency: currency || plan.currency,
-                billing_period: billing_period || plan.billing_period,
-                trial_days: trial_days !== undefined ? trial_days : plan.trial_days,
-                is_public: is_public !== undefined ? is_public : plan.is_public,
-                is_active: is_active !== undefined ? is_active : plan.is_active,
-                sort_order: sort_order !== undefined ? sort_order : plan.sort_order,
-                limits: limits ? { ...plan.limits, ...limits } : plan.limits
-            });
+            plan.name = name || plan.name;
+            plan.description = description !== undefined ? description : plan.description;
+            plan.price_monthly = price_monthly !== undefined ? price_monthly : plan.price_monthly;
+            plan.price_yearly = price_yearly !== undefined ? price_yearly : plan.price_yearly;
+            plan.currency = currency || plan.currency;
+            plan.billing_period = billing_period || plan.billing_period;
+            plan.trial_days = trial_days !== undefined ? trial_days : plan.trial_days;
+            plan.is_public = is_public !== undefined ? is_public : plan.is_public;
+            plan.is_active = is_active !== undefined ? is_active : plan.is_active;
+            plan.sort_order = sort_order !== undefined ? sort_order : plan.sort_order;
+            plan.limits = limits ? { ...plan.limits, ...limits } : plan.limits;
+
+            await plan.save();
 
             res.json({
                 success: true,
@@ -182,15 +181,16 @@ router.put('/:id',
  */
 router.delete('/:id', auditAction('delete', 'plan'), async (req, res, next) => {
     try {
-        const plan = await Plan.findByPk(req.params.id);
+        const plan = await Plan.findById(req.params.id);
 
         if (!plan) {
             throw ApiError.notFound('Plan not found');
         }
 
         // Check for active subscriptions
-        const activeCount = await Subscription.count({
-            where: { plan_id: plan.id, status: ['trial', 'active'] }
+        const activeCount = await Subscription.countDocuments({
+            plan_id: plan._id,
+            status: { $in: ['trial', 'active'] }
         });
 
         if (activeCount > 0) {
@@ -198,8 +198,8 @@ router.delete('/:id', auditAction('delete', 'plan'), async (req, res, next) => {
         }
 
         // Delete plan features first
-        await PlanFeature.destroy({ where: { plan_id: plan.id } });
-        await plan.destroy();
+        await PlanFeature.deleteMany({ plan_id: plan._id });
+        await Plan.deleteOne({ _id: plan._id });
 
         res.json({
             success: true,
@@ -220,7 +220,7 @@ router.put('/:id/features',
     auditAction('update_features', 'plan'),
     async (req, res, next) => {
         try {
-            const plan = await Plan.findByPk(req.params.id);
+            const plan = await Plan.findById(req.params.id);
 
             if (!plan) {
                 throw ApiError.notFound('Plan not found');
@@ -230,9 +230,9 @@ router.put('/:id/features',
             // features: [{ feature_id, is_enabled, limits }]
 
             // Remove existing and add new
-            await PlanFeature.destroy({ where: { plan_id: req.params.id } });
+            await PlanFeature.deleteMany({ plan_id: req.params.id });
 
-            const planFeatures = await PlanFeature.bulkCreate(
+            const planFeatures = await PlanFeature.insertMany(
                 features.map(f => ({
                     plan_id: req.params.id,
                     feature_id: f.feature_id,
@@ -242,13 +242,11 @@ router.put('/:id/features',
             );
 
             // Reload with features
-            const updatedPlan = await Plan.findByPk(req.params.id, {
-                include: [{
-                    model: PlanFeature,
-                    as: 'planFeatures',
-                    include: [{ model: Feature }]
-                }]
-            });
+            const updatedPlan = await Plan.findById(req.params.id)
+                .populate({
+                    path: 'planFeatures',
+                    populate: { path: 'feature_id' }
+                });
 
             res.json({
                 success: true,

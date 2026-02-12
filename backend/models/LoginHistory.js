@@ -1,55 +1,54 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const LoginHistory = sequelize.define('login_history', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const loginHistorySchema = new Schema({
     user_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     login_method: {
-        type: DataTypes.STRING(30),
-        allowNull: true
-        // password, google, token_refresh
+        type: String,
+        required: false
     },
     ip_address: {
-        type: DataTypes.INET,
-        allowNull: true
+        type: String,
+        required: false
     },
     user_agent: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     location: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     success: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true
+        type: Boolean,
+        default: true
     },
     failure_reason: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     }
 }, {
-    tableName: 'login_history',
-    timestamps: true,
-    updatedAt: false,
-    underscored: true,
-    indexes: [
-        { fields: ['user_id'] },
-        { fields: ['created_at'] },
-        { fields: ['success'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: false },
+    collection: 'login_history'
 });
 
+// Indexes
+loginHistorySchema.index({ user_id: 1 });
+loginHistorySchema.index({ created_at: -1 });
+
+// Virtual for ID
+loginHistorySchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+loginHistorySchema.set('toJSON', { virtuals: true });
+loginHistorySchema.set('toObject', { virtuals: true });
+
+const LoginHistory = mongoose.model('LoginHistory', loginHistorySchema);
+
 module.exports = LoginHistory;
+

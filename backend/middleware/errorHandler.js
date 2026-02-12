@@ -11,12 +11,12 @@ const errorHandler = (err, req, res, next) => {
         path: req.path,
         method: req.method,
         user_id: req.user?.id,
-        tenant_id: req.tenant?.id
+        client_id: req.client?.id
     });
 
-    // Sequelize validation errors
-    if (err.name === 'SequelizeValidationError') {
-        const errors = err.errors.map(e => ({
+    // Mongoose validation errors
+    if (err.name === 'ValidationError') {
+        const errors = Object.values(err.errors).map(e => ({
             field: e.path,
             message: e.message
         }));
@@ -27,20 +27,12 @@ const errorHandler = (err, req, res, next) => {
         });
     }
 
-    // Sequelize unique constraint errors
-    if (err.name === 'SequelizeUniqueConstraintError') {
-        const field = err.errors?.[0]?.path || 'field';
+    // Mongoose duplicate key error
+    if (err.code === 11000) {
+        const field = Object.keys(err.keyValue)[0];
         return res.status(409).json({
             success: false,
             error: `A record with this ${field} already exists`
-        });
-    }
-
-    // Sequelize foreign key errors
-    if (err.name === 'SequelizeForeignKeyConstraintError') {
-        return res.status(400).json({
-            success: false,
-            error: 'Referenced record does not exist'
         });
     }
 
@@ -64,7 +56,8 @@ const errorHandler = (err, req, res, next) => {
         return res.status(err.statusCode).json({
             success: false,
             error: err.message,
-            code: err.code
+            code: err.code,
+            details: err.details // Include validation details if present
         });
     }
 

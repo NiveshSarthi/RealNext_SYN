@@ -1,54 +1,53 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const SubscriptionUsage = sequelize.define('subscription_usage', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const subscriptionUsageSchema = new Schema({
     subscription_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'subscriptions',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'Subscription',
+        required: true
     },
     feature_code: {
-        type: DataTypes.STRING(100),
-        allowNull: false
+        type: String,
+        required: true
     },
     usage_count: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0
+        type: Number,
+        default: 0
     },
     usage_period_start: {
-        type: DataTypes.DATE,
-        allowNull: false
+        type: Date,
+        required: true
     },
     usage_period_end: {
-        type: DataTypes.DATE,
-        allowNull: false
+        type: Date,
+        required: true
     },
     reset_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'subscription_usage',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['subscription_id'] },
-        { fields: ['feature_code'] },
-        { fields: ['usage_period_start', 'usage_period_end'] },
-        { unique: true, fields: ['subscription_id', 'feature_code', 'usage_period_start'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'subscription_usage'
 });
 
+// Indexes
+subscriptionUsageSchema.index({ subscription_id: 1, feature_code: 1, usage_period_start: 1 }, { unique: true });
+
+// Virtual for ID
+subscriptionUsageSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+subscriptionUsageSchema.set('toJSON', { virtuals: true });
+subscriptionUsageSchema.set('toObject', { virtuals: true });
+
+const SubscriptionUsage = mongoose.model('SubscriptionUsage', subscriptionUsageSchema);
+
 module.exports = SubscriptionUsage;
+

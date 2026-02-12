@@ -1,61 +1,62 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 const crypto = require('crypto');
 
-const RefreshToken = sequelize.define('refresh_tokens', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const refreshTokenSchema = new Schema({
     user_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     token_hash: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     device_info: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     ip_address: {
-        type: DataTypes.INET,
-        allowNull: true
+        type: String,
+        required: false
     },
     expires_at: {
-        type: DataTypes.DATE,
-        allowNull: false
+        type: Date,
+        required: true
     },
     revoked_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        default: null
     }
 }, {
-    tableName: 'refresh_tokens',
-    timestamps: true,
-    updatedAt: false,
-    underscored: true,
-    indexes: [
-        { fields: ['user_id'] },
-        { fields: ['token_hash'] },
-        { fields: ['expires_at'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: false },
+    collection: 'refresh_tokens'
 });
 
 // Static method to hash a token
-RefreshToken.hashToken = function (token) {
+refreshTokenSchema.statics.hashToken = function (token) {
     return crypto.createHash('sha256').update(token).digest('hex');
 };
 
 // Instance method to check if token is valid
-RefreshToken.prototype.isValid = function () {
+refreshTokenSchema.methods.isValid = function () {
     return !this.revoked_at && new Date() < new Date(this.expires_at);
 };
 
+// Indexes
+refreshTokenSchema.index({ user_id: 1 });
+refreshTokenSchema.index({ token_hash: 1 });
+refreshTokenSchema.index({ expires_at: 1 });
+
+// Virtual for ID
+refreshTokenSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+refreshTokenSchema.set('toJSON', { virtuals: true });
+refreshTokenSchema.set('toObject', { virtuals: true });
+
+const RefreshToken = mongoose.model('RefreshToken', refreshTokenSchema);
+
 module.exports = RefreshToken;
+

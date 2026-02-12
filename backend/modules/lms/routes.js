@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middleware/auth');
-const { requireTenantAccess } = require('../../middleware/roles');
-const { enforceTenantScope } = require('../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../middleware/roles');
+const { enforceClientScope } = require('../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../middleware/featureGate');
 const { ApiError } = require('../../middleware/errorHandler');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 /**
  * @route GET /api/lms/modules

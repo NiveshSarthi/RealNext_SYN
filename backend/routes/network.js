@@ -1,37 +1,29 @@
 const express = require('express');
 const router = express.Router();
-const { NetworkConnection, User, Tenant } = require('../models');
+const { NetworkConnection, User, Client } = require('../models');
 const { authenticate } = require('../middleware/auth');
-const { requireTenantAccess } = require('../middleware/roles');
-const { enforceTenantScope } = require('../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../middleware/roles');
+const { enforceClientScope } = require('../middleware/scopeEnforcer');
 const { requireFeature } = require('../middleware/featureGate');
 const { auditAction } = require('../middleware/auditLogger');
 const { ApiError } = require('../middleware/errorHandler');
-const { Op } = require('sequelize');
 const { validate, validators } = require('../utils/validators');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
-/**
- * @route GET /api/network
- * @desc Get my network connections
- */
 router.get('/', requireFeature('network'), async (req, res, next) => {
     try {
-        const connections = await NetworkConnection.findAll({
-            where: {
-                [Op.or]: [
-                    { from_tenant_id: req.tenant.id },
-                    { to_tenant_id: req.tenant.id }
-                ],
-                status: 'accepted'
-            },
-            include: [
-                { model: Tenant, as: 'FromTenant', attributes: ['name', 'logo_url'] },
-                { model: Tenant, as: 'ToTenant', attributes: ['name', 'logo_url'] }
-            ]
-        });
+        const clientId = req.client.id;
+        const connections = await NetworkConnection.find({
+            $or: [
+                { from_client_id: clientId },
+                { to_client_id: clientId }
+            ],
+            status: 'accepted'
+        })
+            .populate({ path: 'from_client_id', select: 'name logo_url' })
+            .populate({ path: 'to_client_id', select: 'name logo_url' });
 
         res.json({
             success: true,
@@ -42,22 +34,14 @@ router.get('/', requireFeature('network'), async (req, res, next) => {
     }
 });
 
-/**
- * @route GET /api/network/requests
- * @desc Get pending network requests
- */
 router.get('/requests', requireFeature('network'), async (req, res, next) => {
     try {
-        const requests = await NetworkConnection.findAll({
-            where: {
-                to_tenant_id: req.tenant.id,
-                status: 'pending'
-            },
-            include: [
-                { model: Tenant, as: 'FromTenant', attributes: ['name', 'logo_url'] },
-                { model: User, as: 'FromUser', attributes: ['name'] }
-            ]
-        });
+        const requests = await NetworkConnection.find({
+            to_client_id: req.client.id,
+            status: 'pending'
+        })
+            .populate({ path: 'from_client_id', select: 'name logo_url' })
+            .populate({ path: 'from_user_id', select: 'name' });
 
         res.json({
             success: true,
@@ -68,28 +52,22 @@ router.get('/requests', requireFeature('network'), async (req, res, next) => {
     }
 });
 
-/**
- * @route POST /api/network/connect/:tenantId
- * @desc Send connection request
- */
-router.post('/connect/:tenantId',
+router.post('/connect/:clientId',
     requireFeature('network'),
     auditAction('create', 'network_request'),
     async (req, res, next) => {
         try {
-            const toTenantId = req.params.tenantId;
+            const toClientId = req.params.clientId;
 
-            if (toTenantId === req.tenant.id) {
+            if (toClientId === req.client.id) {
                 throw ApiError.badRequest('Cannot connect to self');
             }
 
             const existing = await NetworkConnection.findOne({
-                where: {
-                    [Op.or]: [
-                        { from_tenant_id: req.tenant.id, to_tenant_id: toTenantId },
-                        { from_tenant_id: toTenantId, to_tenant_id: req.tenant.id }
-                    ]
-                }
+                $or: [
+                    { from_client_id: req.client.id, to_client_id: toClientId },
+                    { from_client_id: toClientId, to_client_id: req.client.id }
+                ]
             });
 
             if (existing) {
@@ -97,10 +75,10 @@ router.post('/connect/:tenantId',
             }
 
             const connection = await NetworkConnection.create({
-                from_tenant_id: req.tenant.id,
+                from_client_id: req.client.id,
                 from_user_id: req.user.id,
-                to_tenant_id: toTenantId,
-                to_user_id: req.body.to_user_id, // Optional target user
+                to_client_id: toClientId,
+                to_user_id: req.body.to_user_id,
                 status: 'pending',
                 message: req.body.message
             });
@@ -116,25 +94,21 @@ router.post('/connect/:tenantId',
     }
 );
 
-/**
- * @route POST /api/network/accept/:id
- * @desc Accept connection request
- */
 router.post('/accept/:id',
     requireFeature('network'),
     auditAction('update', 'network_request_accept'),
     async (req, res, next) => {
         try {
             const connection = await NetworkConnection.findOne({
-                where: { id: req.params.id, to_tenant_id: req.tenant.id }
+                _id: req.params.id,
+                to_client_id: req.client.id
             });
 
             if (!connection) throw ApiError.notFound('Request not found');
 
-            await connection.update({
-                status: 'accepted',
-                accepted_at: new Date()
-            });
+            connection.status = 'accepted';
+            connection.accepted_at = new Date();
+            await connection.save();
 
             res.json({
                 success: true,
@@ -146,22 +120,20 @@ router.post('/accept/:id',
     }
 );
 
-/**
- * @route POST /api/network/reject/:id
- * @desc Reject connection request
- */
 router.post('/reject/:id',
     requireFeature('network'),
     auditAction('update', 'network_request_reject'),
     async (req, res, next) => {
         try {
             const connection = await NetworkConnection.findOne({
-                where: { id: req.params.id, to_tenant_id: req.tenant.id }
+                _id: req.params.id,
+                to_client_id: req.client.id
             });
 
             if (!connection) throw ApiError.notFound('Request not found');
 
-            await connection.update({ status: 'rejected' });
+            connection.status = 'rejected';
+            await connection.save();
 
             res.json({
                 success: true,
@@ -173,63 +145,50 @@ router.post('/reject/:id',
     }
 );
 
-/**
- * @route GET /api/network/search
- * @desc Search for agents/tenants
- */
 router.get('/search', requireFeature('network'), async (req, res, next) => {
     try {
         const { query } = req.query;
         if (!query) return res.json({ success: true, data: [] });
 
-        const tenants = await Tenant.findAll({
-            where: {
-                name: { [Op.iLike]: `%${query}%` },
-                id: { [Op.ne]: req.tenant.id }, // Exclude self
-                status: 'active'
-            },
-            attributes: ['id', 'name', 'logo_url', 'address'],
-            limit: 20
-        });
+        const clients = await Client.find({
+            name: { $regex: query, $options: 'i' },
+            _id: { $ne: req.client.id },
+            status: 'active'
+        })
+            .select('id name logo_url address')
+            .limit(20);
 
         res.json({
             success: true,
-            data: tenants
+            data: clients
         });
     } catch (error) {
         next(error);
     }
 });
 
-/**
- * @route GET /api/network/stats
- * @desc Network statistics
- */
 router.get('/stats', requireFeature('network'), async (req, res, next) => {
     try {
-        const connections = await NetworkConnection.count({
-            where: {
-                [Op.or]: [
-                    { from_tenant_id: req.tenant.id },
-                    { to_tenant_id: req.tenant.id }
-                ],
-                status: 'accepted'
-            }
+        const clientId = req.client.id;
+        const connectionsCount = await NetworkConnection.countDocuments({
+            $or: [
+                { from_client_id: clientId },
+                { to_client_id: clientId }
+            ],
+            status: 'accepted'
         });
 
-        const pending = await NetworkConnection.count({
-            where: {
-                to_tenant_id: req.tenant.id,
-                status: 'pending'
-            }
+        const pendingCount = await NetworkConnection.countDocuments({
+            to_client_id: clientId,
+            status: 'pending'
         });
 
         res.json({
             success: true,
             data: {
-                connections,
-                pending_requests: pending,
-                trust_score: 85 // Mock static score
+                connections: connectionsCount,
+                pending_requests: pendingCount,
+                trust_score: 85
             }
         });
     } catch (error) {

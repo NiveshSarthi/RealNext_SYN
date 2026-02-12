@@ -1,89 +1,84 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Template = sequelize.define('templates', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+const templateSchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     name: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     category: {
-        type: DataTypes.STRING(50),
-        allowNull: true
-        // marketing, utility, authentication
+        type: String,
+        required: false
     },
     language: {
-        type: DataTypes.STRING(10),
-        defaultValue: 'en'
+        type: String,
+        default: 'en'
     },
     status: {
-        type: DataTypes.STRING(30),
-        defaultValue: 'pending',
-        validate: {
-            isIn: [['pending', 'approved', 'rejected', 'disabled']]
-        }
+        type: String,
+        default: 'pending',
+        enum: ['pending', 'approved', 'rejected', 'disabled']
     },
     components: {
-        type: DataTypes.JSONB,
-        allowNull: false
-        // WhatsApp template components
+        type: Schema.Types.Mixed,
+        required: true
     },
     header_type: {
-        type: DataTypes.STRING(30),
-        allowNull: true
-        // text, image, video, document
+        type: String,
+        required: false
     },
     body_text: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     footer_text: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     buttons: {
-        type: DataTypes.JSONB,
-        defaultValue: []
+        type: Schema.Types.Mixed,
+        default: []
     },
     wa_template_id: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     created_by: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
+    },
+    deleted_at: {
+        type: Date,
+        default: null
     }
 }, {
-    tableName: 'templates',
-    timestamps: true,
-    paranoid: true,
-    underscored: true,
-    indexes: [
-        { fields: ['tenant_id'] },
-        { fields: ['status'] },
-        { fields: ['category'] },
-        { fields: ['name'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'templates'
 });
 
+// Indexes
+templateSchema.index({ client_id: 1, status: 1 });
+templateSchema.index({ client_id: 1, name: 1 });
+
+// Virtual for ID
+templateSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+templateSchema.set('toJSON', { virtuals: true });
+templateSchema.set('toObject', { virtuals: true });
+
+const Template = mongoose.model('Template', templateSchema);
+
 module.exports = Template;
+

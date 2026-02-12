@@ -1,64 +1,62 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const QuickReply = sequelize.define('quick_replies', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+const quickReplySchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     shortcut: {
-        type: DataTypes.STRING(50),
-        allowNull: false
-        // e.g., /greet, /intro
+        type: String,
+        required: true
     },
     title: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     content: {
-        type: DataTypes.TEXT,
-        allowNull: false
+        type: String,
+        required: true
     },
     category: {
-        type: DataTypes.STRING(100),
-        allowNull: true
+        type: String,
+        required: false
     },
     usage_count: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0
+        type: Number,
+        default: 0
     },
     created_by: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
+    },
+    deleted_at: {
+        type: Date,
+        default: null
     }
 }, {
-    tableName: 'quick_replies',
-    timestamps: true,
-    paranoid: true,
-    underscored: true,
-    indexes: [
-        { fields: ['tenant_id'] },
-        { fields: ['shortcut'] },
-        { fields: ['category'] },
-        { unique: true, fields: ['tenant_id', 'shortcut'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'quick_replies'
 });
 
+// Indexes
+quickReplySchema.index({ client_id: 1, shortcut: 1 }, { unique: true });
+
+// Virtual for ID
+quickReplySchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+quickReplySchema.set('toJSON', { virtuals: true });
+quickReplySchema.set('toObject', { virtuals: true });
+
+const QuickReply = mongoose.model('QuickReply', quickReplySchema);
+
 module.exports = QuickReply;
+

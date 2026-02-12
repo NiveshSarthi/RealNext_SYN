@@ -1,42 +1,42 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const PlanFeature = sequelize.define('plan_features', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const planFeatureSchema = new Schema({
     plan_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'plans',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'Plan',
+        required: true
     },
     feature_id: {
-        type: DataTypes.UUID,
-        allowNull: false
+        type: Schema.Types.ObjectId,
+        ref: 'Feature',
+        required: true
     },
     is_enabled: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true
+        type: Boolean,
+        default: true
     },
     limits: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
-        // Example: { max_leads: 1000, max_campaigns: 10, daily_messages: 500 }
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'plan_features',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['plan_id'] },
-        { fields: ['feature_id'] },
-        { unique: true, fields: ['plan_id', 'feature_id'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'plan_features'
 });
 
+// Indexes
+planFeatureSchema.index({ plan_id: 1, feature_id: 1 }, { unique: true });
+
+// Virtual for ID
+planFeatureSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+planFeatureSchema.set('toJSON', { virtuals: true });
+planFeatureSchema.set('toObject', { virtuals: true });
+
+const PlanFeature = mongoose.model('PlanFeature', planFeatureSchema);
+
 module.exports = PlanFeature;
+

@@ -1,90 +1,77 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const NetworkConnection = sequelize.define('network_connections', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    from_tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+const networkConnectionSchema = new Schema({
+    from_client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     from_user_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
-    to_tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+    to_client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     to_user_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     },
     status: {
-        type: DataTypes.STRING(30),
-        defaultValue: 'pending',
-        validate: {
-            isIn: [['pending', 'accepted', 'rejected', 'blocked']]
-        }
+        type: String,
+        default: 'pending',
+        enum: ['pending', 'accepted', 'rejected', 'blocked']
     },
     message: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     trust_score: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        validate: {
-            min: 0,
-            max: 100
-        }
+        type: Number,
+        min: 0,
+        max: 100,
+        required: false
     },
     collaboration_count: {
-        type: DataTypes.INTEGER,
-        defaultValue: 0
+        type: Number,
+        default: 0
     },
     requested_at: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW
+        type: Date,
+        default: Date.now
     },
     accepted_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'network_connections',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['from_tenant_id'] },
-        { fields: ['to_tenant_id'] },
-        { fields: ['from_user_id'] },
-        { fields: ['to_user_id'] },
-        { fields: ['status'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'network_connections'
 });
 
+// Indexes
+networkConnectionSchema.index({ from_client_id: 1 });
+networkConnectionSchema.index({ to_client_id: 1 });
+networkConnectionSchema.index({ status: 1 });
+
+// Virtual for ID
+networkConnectionSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+networkConnectionSchema.set('toJSON', { virtuals: true });
+networkConnectionSchema.set('toObject', { virtuals: true });
+
+const NetworkConnection = mongoose.model('NetworkConnection', networkConnectionSchema);
+
 module.exports = NetworkConnection;
+

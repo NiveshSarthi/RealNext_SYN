@@ -61,23 +61,21 @@ router.post('/webhook/razorpay', express.raw({ type: 'application/json' }), asyn
 async function handlePaymentCaptured(payload) {
     try {
         const payment = await Payment.findOne({
-            where: { gateway_payment_id: payload.id }
+            gateway_payment_id: payload.id
         });
 
         if (payment) {
-            await payment.update({
-                status: 'completed',
-                gateway_signature: payload.signature || ''
-            });
+            payment.status = 'completed';
+            payment.gateway_signature = payload.signature || '';
+            await payment.save();
 
             // Update related invoice
             if (payment.invoice_id) {
-                const invoice = await Invoice.findByPk(payment.invoice_id);
+                const invoice = await Invoice.findById(payment.invoice_id);
                 if (invoice) {
-                    await invoice.update({
-                        status: 'paid',
-                        paid_at: new Date()
-                    });
+                    invoice.status = 'paid';
+                    invoice.paid_at = new Date();
+                    await invoice.save();
                 }
             }
 
@@ -94,14 +92,13 @@ async function handlePaymentCaptured(payload) {
 async function handlePaymentFailed(payload) {
     try {
         const payment = await Payment.findOne({
-            where: { gateway_payment_id: payload.id }
+            gateway_payment_id: payload.id
         });
 
         if (payment) {
-            await payment.update({
-                status: 'failed',
-                failure_reason: payload.error_description || 'Payment failed'
-            });
+            payment.status = 'failed';
+            payment.failure_reason = payload.error_description || 'Payment failed';
+            await payment.save();
 
             logger.info('Payment marked as failed', { payment_id: payment.id });
         }
@@ -143,15 +140,14 @@ router.post('/verify', async (req, res, next) => {
 
         // Update payment record
         const payment = await Payment.findOne({
-            where: { gateway_order_id: razorpay_order_id }
+            gateway_order_id: razorpay_order_id
         });
 
         if (payment) {
-            await payment.update({
-                gateway_payment_id: razorpay_payment_id,
-                gateway_signature: razorpay_signature,
-                status: 'completed'
-            });
+            payment.gateway_payment_id = razorpay_payment_id;
+            payment.gateway_signature = razorpay_signature;
+            payment.status = 'completed';
+            await payment.save();
         }
 
         res.json({

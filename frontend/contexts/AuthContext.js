@@ -36,9 +36,10 @@ export function AuthProvider({ children, router }) {
           )
         ]);
         const userData = response.data.data?.user || response.data;
-        const contextData = response.data.data?.context || {};
+        const subscription = response.data.data?.subscription;
+        const client = response.data.data?.client;
 
-        const fullUser = { ...userData, context: contextData };
+        const fullUser = { ...userData, subscription, client };
         setUser(fullUser);
         localStorage.setItem('user', JSON.stringify(fullUser)); // Update local storage with fresh data
       }
@@ -156,6 +157,15 @@ export function AuthProvider({ children, router }) {
     }
   };
 
+  const refreshSubscription = async () => {
+    try {
+      // Force re-authentication to get fresh subscription data
+      await checkAuth();
+    } catch (error) {
+      console.error('Failed to refresh subscription:', error);
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -163,6 +173,7 @@ export function AuthProvider({ children, router }) {
     register,
     logout,
     updateProfile,
+    refreshSubscription,
     router,
     isAuthenticated: !!user
   };

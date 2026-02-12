@@ -15,28 +15,29 @@ router.use(authenticate, requireSuperAdmin);
  */
 router.get('/', async (req, res, next) => {
     try {
-        const teamMembers = await User.findAll({
-            where: {
-                // Should return users who have a system_role_id OR are strictly super_admin
-                [require('sequelize').Op.or]: [
-                    { is_super_admin: true },
-                    { system_role_id: { [require('sequelize').Op.ne]: null } }
-                ]
-            },
-            attributes: ['id', 'name', 'email', 'phone', 'is_super_admin', 'system_role_id', 'status', 'last_login_at', 'created_at'],
-            include: [
-                {
-                    model: Role,
-                    as: 'systemRole', // Ensure association exists in User model (User.belongsTo(Role, { as: 'systemRole', foreignKey: 'system_role_id' }))
-                    required: false
-                }
-            ],
-            order: [['created_at', 'DESC']]
+        const teamMembers = await User.find({
+            $or: [
+                { is_super_admin: true },
+                { system_role_id: { $ne: null } }
+            ]
+        })
+            .select('id name email phone is_super_admin system_role_id status last_login_at created_at')
+            .populate({
+                path: 'system_role_id',
+                model: 'Role'
+            })
+            .sort({ created_at: -1 });
+
+        // Map systemRole for compatibility
+        const teamMembersFormatted = teamMembers.map(m => {
+            const obj = m.toSafeJSON();
+            obj.systemRole = m.system_role_id;
+            return obj;
         });
 
         res.json({
             success: true,
-            data: teamMembers
+            data: teamMembersFormatted
         });
     } catch (error) {
         next(error);
@@ -56,26 +57,23 @@ router.post('/invite', auditAction('invite', 'admin_team'), async (req, res, nex
         }
 
         // Check user existence
-        let user = await User.findOne({ where: { email } });
+        let user = await User.findOne({ email });
         if (user) {
             // If user exists, just update their system role
             user.system_role_id = system_role_id || null;
-            // Ensure they are NOT marked as generic super admin unless explicitly requested?
-            // For now, let's assume this grants them access.
             await user.save();
         } else {
             // Create new user
             const bcrypt = require('bcryptjs');
             const tempPassword = Math.random().toString(36).slice(-10);
-            const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
             user = await User.create({
                 email,
                 name,
-                password_hash: hashedPassword,
+                password_hash: tempPassword, // User model pre-save hook will hash this
                 status: 'active',
                 system_role_id: system_role_id || null,
-                is_super_admin: false // Default to false, permissions handled via system_role
+                is_super_admin: false
             });
 
             // TODO: Send email
@@ -84,7 +82,7 @@ router.post('/invite', auditAction('invite', 'admin_team'), async (req, res, nex
 
         res.status(201).json({
             success: true,
-            data: user,
+            data: user.toSafeJSON(),
             message: 'Team member invited successfully'
         });
     } catch (error) {
@@ -98,7 +96,7 @@ router.post('/invite', auditAction('invite', 'admin_team'), async (req, res, nex
  */
 router.delete('/:id', auditAction('remove', 'admin_team'), async (req, res, next) => {
     try {
-        const user = await User.findByPk(req.params.id);
+        const user = await User.findById(req.params.id);
         if (!user) {
             throw ApiError.notFound('User not found');
         }

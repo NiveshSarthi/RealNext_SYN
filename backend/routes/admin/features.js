@@ -17,9 +17,7 @@ router.use(authenticate, requireSuperAdmin);
  */
 router.get('/', async (req, res, next) => {
     try {
-        const features = await Feature.findAll({
-            order: [['category', 'ASC'], ['name', 'ASC']]
-        });
+        const features = await Feature.find().sort({ category: 1, name: 1 });
 
         res.json({
             success: true,
@@ -48,7 +46,7 @@ router.post('/',
         try {
             const { code, name, description, category, is_core, is_enabled, metadata } = req.body;
 
-            const existing = await Feature.findOne({ where: { code } });
+            const existing = await Feature.findOne({ code });
             if (existing) {
                 throw ApiError.conflict('Feature with this code already exists');
             }
@@ -87,7 +85,7 @@ router.put('/:id',
     auditAction('update', 'feature'),
     async (req, res, next) => {
         try {
-            const feature = await Feature.findByPk(req.params.id);
+            const feature = await Feature.findById(req.params.id);
 
             if (!feature) {
                 throw ApiError.notFound('Feature not found');
@@ -95,13 +93,13 @@ router.put('/:id',
 
             const { name, description, category, is_core, metadata } = req.body;
 
-            await feature.update({
-                name: name || feature.name,
-                description: description !== undefined ? description : feature.description,
-                category: category || feature.category,
-                is_core: is_core !== undefined ? is_core : feature.is_core,
-                metadata: metadata ? { ...feature.metadata, ...metadata } : feature.metadata
-            });
+            feature.name = name || feature.name;
+            feature.description = description !== undefined ? description : feature.description;
+            feature.category = category || feature.category;
+            feature.is_core = is_core !== undefined ? is_core : feature.is_core;
+            feature.metadata = metadata ? { ...feature.metadata, ...metadata } : feature.metadata;
+
+            await feature.save();
 
             res.json({
                 success: true,
@@ -122,7 +120,7 @@ router.put('/:id/toggle',
     auditAction('toggle', 'feature'),
     async (req, res, next) => {
         try {
-            const feature = await Feature.findByPk(req.params.id);
+            const feature = await Feature.findById(req.params.id);
 
             if (!feature) {
                 throw ApiError.notFound('Feature not found');
@@ -130,9 +128,8 @@ router.put('/:id/toggle',
 
             const { is_enabled } = req.body;
 
-            await feature.update({
-                is_enabled: is_enabled !== undefined ? is_enabled : !feature.is_enabled
-            });
+            feature.is_enabled = is_enabled !== undefined ? is_enabled : !feature.is_enabled;
+            await feature.save();
 
             res.json({
                 success: true,
@@ -152,21 +149,21 @@ router.put('/:id/toggle',
  */
 router.delete('/:id', auditAction('delete', 'feature'), async (req, res, next) => {
     try {
-        const feature = await Feature.findByPk(req.params.id);
+        const feature = await Feature.findById(req.params.id);
 
         if (!feature) {
             throw ApiError.notFound('Feature not found');
         }
 
         // Check if feature is in use
-        const usageCount = await PlanFeature.count({ where: { feature_id: feature.id } });
+        const usageCount = await PlanFeature.countDocuments({ feature_id: feature.id });
         if (usageCount > 0 && !req.query.force) {
             throw ApiError.badRequest(`Feature is used in ${usageCount} plan(s). Use ?force=true to delete anyway.`);
         }
 
         // Remove from all plans
-        await PlanFeature.destroy({ where: { feature_id: feature.id } });
-        await feature.destroy();
+        await PlanFeature.deleteMany({ feature_id: feature.id });
+        await Feature.deleteOne({ _id: feature._id });
 
         res.json({
             success: true,
@@ -202,11 +199,11 @@ router.post('/seed', auditAction('seed', 'features'), async (req, res, next) => 
 
         const created = [];
         for (const f of defaultFeatures) {
-            const [feature, wasCreated] = await Feature.findOrCreate({
-                where: { code: f.code },
-                defaults: { ...f, is_enabled: true }
-            });
-            if (wasCreated) created.push(feature.code);
+            let feature = await Feature.findOne({ code: f.code });
+            if (!feature) {
+                feature = await Feature.create({ ...f, is_enabled: true });
+                created.push(feature.code);
+            }
         }
 
         res.json({

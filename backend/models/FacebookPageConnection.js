@@ -1,54 +1,65 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const FacebookPageConnection = sequelize.define('facebook_page_connections', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false
+const facebookPageConnectionSchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     page_id: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     },
     page_name: {
-        type: DataTypes.STRING,
-        allowNull: false
+        type: String,
+        required: true
     },
     access_token: {
-        type: DataTypes.TEXT,
-        allowNull: false
+        type: String,
+        required: true
     },
     status: {
-        type: DataTypes.ENUM('active', 'inactive', 'disconnected'),
-        defaultValue: 'active'
+        type: String,
+        default: 'active',
+        enum: ['active', 'inactive', 'disconnected']
     },
     is_lead_sync_enabled: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true,
-        allowNull: false,
-        comment: 'Controls whether leads from this page should be auto-imported'
+        type: Boolean,
+        default: true
     },
     last_sync_at: {
-        type: DataTypes.DATE
+        type: Date,
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'facebook_page_connections',
-    timestamps: true,
-    indexes: [
-        {
-            unique: true,
-            fields: ['tenant_id', 'page_id']
-        }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'facebook_page_connections'
 });
 
+// Indexes
+facebookPageConnectionSchema.index({ client_id: 1, page_id: 1 }, { unique: true });
+
+// Virtual for ID
+facebookPageConnectionSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+// Virtual for lead forms
+facebookPageConnectionSchema.virtual('leadForms', {
+    ref: 'FacebookLeadForm',
+    localField: '_id',
+    foreignField: 'page_connection_id'
+});
+
+facebookPageConnectionSchema.set('toJSON', { virtuals: true });
+facebookPageConnectionSchema.set('toObject', { virtuals: true });
+
+const FacebookPageConnection = mongoose.model('FacebookPageConnection', facebookPageConnectionSchema);
+
 module.exports = FacebookPageConnection;
+

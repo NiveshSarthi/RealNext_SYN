@@ -1,91 +1,85 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Campaign = sequelize.define('campaigns', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+const campaignSchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     name: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     type: {
-        type: DataTypes.STRING(50),
-        defaultValue: 'broadcast',
-        validate: {
-            isIn: [['broadcast', 'drip', 'triggered', 'scheduled']]
-        }
+        type: String,
+        default: 'broadcast',
+        enum: ['broadcast', 'drip', 'triggered', 'scheduled']
     },
     status: {
-        type: DataTypes.STRING(30),
-        defaultValue: 'draft',
-        validate: {
-            isIn: [['draft', 'scheduled', 'running', 'completed', 'failed', 'paused']]
-        }
+        type: String,
+        default: 'draft',
+        enum: ['draft', 'scheduled', 'running', 'completed', 'failed', 'paused']
     },
     template_name: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     template_data: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     },
     target_audience: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
-        // Example: { filters: { status: ["new", "contacted"] }, tag_ids: [], count: 100 }
+        type: Schema.Types.Mixed,
+        default: {}
     },
     scheduled_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     started_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     completed_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     stats: {
-        type: DataTypes.JSONB,
-        defaultValue: { sent: 0, delivered: 0, read: 0, failed: 0, replied: 0 }
+        type: Schema.Types.Mixed,
+        default: { sent: 0, delivered: 0, read: 0, failed: 0, replied: 0 }
     },
     created_by: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
+    },
+    deleted_at: {
+        type: Date,
+        default: null
     }
 }, {
-    tableName: 'campaigns',
-    timestamps: true,
-    paranoid: true,
-    underscored: true,
-    indexes: [
-        { fields: ['tenant_id'] },
-        { fields: ['status'] },
-        { fields: ['type'] },
-        { fields: ['scheduled_at'] },
-        { fields: ['created_by'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'campaigns'
 });
 
+// Indexes
+campaignSchema.index({ client_id: 1, status: 1 });
+campaignSchema.index({ client_id: 1, created_at: -1 });
+
+// Virtual for ID
+campaignSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+campaignSchema.set('toJSON', { virtuals: true });
+campaignSchema.set('toObject', { virtuals: true });
+
+const Campaign = mongoose.model('Campaign', campaignSchema);
+
 module.exports = Campaign;
+

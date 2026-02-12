@@ -2,17 +2,24 @@ const express = require('express');
 const router = express.Router();
 const { Campaign, Template, Lead } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
-const { requireTenantAccess } = require('../../../middleware/roles');
-const { enforceTenantScope } = require('../../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../../middleware/roles');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const { requireFeature, checkUsageLimit, incrementUsage } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
 const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = require('../../../utils/helpers');
 const { createCampaign, validate, validators } = require('../../../utils/validators');
-const { Op } = require('sequelize');
+const waService = require('../../../services/waService');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 /**
  * @route GET /api/campaigns
@@ -21,6 +28,7 @@ router.use(authenticate, requireTenantAccess, enforceTenantScope);
  */
 router.get('/', requireFeature('campaigns'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const pagination = getPagination(req.query);
         const sorting = getSorting(req.query, ['name', 'status', 'type', 'created_at', 'scheduled_at'], 'created_at');
 
@@ -28,21 +36,21 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
         const typeFilter = req.query.type ? { type: req.query.type } : null;
 
         const where = mergeFilters(
-            { tenant_id: req.tenant.id },
+            { client_id: req.client.id },
             statusFilter,
             typeFilter
         );
 
-        const { count, rows } = await Campaign.findAndCountAll({
-            where,
-            order: sorting,
-            limit: pagination.limit,
-            offset: pagination.offset
-        });
+        const campaigns = await Campaign.find(where)
+            .sort(sorting)
+            .limit(pagination.limit)
+            .skip(pagination.offset);
+
+        const count = await Campaign.countDocuments(where);
 
         res.json({
             success: true,
-            ...getPaginatedResponse(rows, count, pagination)
+            ...getPaginatedResponse(campaigns, count, pagination)
         });
     } catch (error) {
         next(error);
@@ -61,16 +69,18 @@ router.post('/',
     auditAction('create', 'campaign'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const {
                 name, type, template_name, template_data,
                 target_audience, scheduled_at, metadata
             } = req.body;
 
+            // 1. Create Local Campaign
             const campaign = await Campaign.create({
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 name,
                 type: type || 'broadcast',
-                status: 'draft',
+                status: 'draft', // Start as draft
                 template_name,
                 template_data: template_data || {},
                 target_audience: target_audience || {},
@@ -78,6 +88,64 @@ router.post('/',
                 created_by: req.user.id,
                 metadata: metadata || {}
             });
+
+            // 2. Trigger External API if launching
+            // Check if user intends to launch (immediate or scheduled)
+            // Ideally we check a flag or status in body, but based on new.js payload:
+            // if scheduled_at is null -> immediate -> running
+            // if scheduled_at is set -> scheduled
+
+            let targetStatus = 'draft';
+            if (scheduled_at) {
+                targetStatus = 'scheduled';
+            } else if (!scheduled_at) {
+                targetStatus = 'running';
+            }
+
+            console.log(`[DEBUG_CAMPAIGN] ID: ${campaign._id}, InitialStatus: draft, Target: ${targetStatus}, Sched: ${scheduled_at}`);
+
+            // Only trigger if we are "launching" (not just saving draft, though front-end only keeps launch button)
+            if (targetStatus !== 'draft') {
+                try {
+                    const contactIds = target_audience?.include || [];
+                    console.log(`[DEBUG_CAMPAIGN] Contacts: ${contactIds.length}`);
+
+                    if (contactIds.length > 0) {
+                        const externalPayload = {
+                            template_name,
+                            language_code: template_data?.language_code || 'en_US',
+                            contact_ids: contactIds,
+                            variable_mapping: template_data?.variable_mapping || {},
+                            schedule_time: scheduled_at ? new Date(scheduled_at).toISOString() : null
+                        };
+
+                        console.log(`[DEBUG_CAMPAIGN] Triggering External Service...`);
+                        logger.info(`Triggering external campaign for ${campaign._id}`);
+                        const externalResponse = await waService.createCampaign(externalPayload);
+                        console.log(`[DEBUG_CAMPAIGN] External Success: ${JSON.stringify(externalResponse)}`);
+
+                        // Update local campaign with external ID if available
+                        if (externalResponse && externalResponse.id) {
+                            campaign.metadata = { ...campaign.metadata, external_id: externalResponse.id };
+                        }
+
+                        campaign.status = targetStatus;
+                        if (targetStatus === 'running') campaign.started_at = new Date();
+                        await campaign.save();
+                        console.log(`[DEBUG_CAMPAIGN] Status updated to ${targetStatus}`);
+                    } else {
+                        console.log(`[DEBUG_CAMPAIGN] No contacts. Skipping.`);
+                    }
+                } catch (extError) {
+                    console.log(`[DEBUG_CAMPAIGN] External Error: ${extError.message}`);
+                    logger.error(`External API trigger failed for campaign ${campaign._id}:`, extError);
+                    // Fallback status
+                    campaign.status = 'failed';
+                    campaign.metadata = { ...campaign.metadata, error: extError.message };
+                    await campaign.save();
+                    // We catch but don't fail the request completely so user sees "Failed" status in UI
+                }
+            }
 
             await incrementUsage(req, 'campaigns');
 
@@ -88,8 +156,7 @@ router.post('/',
         } catch (error) {
             next(error);
         }
-    }
-);
+    });
 
 /**
  * @route GET /api/campaigns/:id
@@ -98,8 +165,10 @@ router.post('/',
  */
 router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const campaign = await Campaign.findOne({
-            where: { id: req.params.id, tenant_id: req.tenant.id }
+            _id: req.params.id,
+            client_id: req.client.id
         });
 
         if (!campaign) {
@@ -125,8 +194,10 @@ router.put('/:id',
     auditAction('update', 'campaign'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const campaign = await Campaign.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!campaign) {
@@ -138,11 +209,12 @@ router.put('/:id',
             }
 
             const updateData = { ...req.body };
-            delete updateData.tenant_id;
+            delete updateData.client_id;
             delete updateData.id;
             delete updateData.stats; // Don't allow direct stats modification
 
-            await campaign.update(updateData);
+            Object.assign(campaign, updateData);
+            await campaign.save();
 
             res.json({
                 success: true,
@@ -165,8 +237,10 @@ router.put('/:id/status',
     auditAction('update_status', 'campaign'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const campaign = await Campaign.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!campaign) {
@@ -198,7 +272,8 @@ router.put('/:id/status',
                 updateData.completed_at = now;
             }
 
-            await campaign.update(updateData);
+            Object.assign(campaign, updateData);
+            await campaign.save();
 
             res.json({
                 success: true,
@@ -220,8 +295,10 @@ router.delete('/:id',
     auditAction('delete', 'campaign'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const campaign = await Campaign.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!campaign) {
@@ -232,7 +309,7 @@ router.delete('/:id',
                 throw ApiError.badRequest('Cannot delete a running campaign');
             }
 
-            await campaign.destroy();
+            await campaign.deleteOne();
 
             res.json({
                 success: true,
@@ -251,8 +328,10 @@ router.delete('/:id',
  */
 router.get('/:id/stats', requireFeature('campaigns'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const campaign = await Campaign.findOne({
-            where: { id: req.params.id, tenant_id: req.tenant.id }
+            _id: req.params.id,
+            client_id: req.client.id
         });
 
         if (!campaign) {

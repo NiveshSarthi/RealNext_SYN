@@ -1,104 +1,105 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Lead = sequelize.define('leads', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: false,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
+const leadSchema = new Schema({
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: true
     },
     name: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     email: {
-        type: DataTypes.STRING(255),
-        allowNull: true,
-        validate: {
-            isEmail: true
-        }
+        type: String,
+        required: false,
+        lowercase: true,
+        trim: true
     },
     phone: {
-        type: DataTypes.STRING(20),
-        allowNull: true
+        type: String,
+        required: false
+    },
+    stage: {
+        type: String,
+        required: false,
+        enum: ['Screening', 'Sourcing', 'Walk-in', 'Closure'],
+        default: 'Screening'
     },
     status: {
-        type: DataTypes.STRING(50),
-        defaultValue: 'new',
-        validate: {
-            isIn: [['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost']]
-        }
+        type: String,
+        default: 'Uncontacted',
+        enum: [
+            'Uncontacted', 'Not Interested', 'Not Responding', 'Dead', // Screening
+            'Hot', 'Warm', 'Cold', 'Lost' // Sourcing, Walk-in, Closure
+        ]
     },
     source: {
-        type: DataTypes.STRING(100),
-        allowNull: true
-        // facebook, website, manual, import, whatsapp, meta_ads
+        type: String,
+        required: false
     },
     budget_min: {
-        type: DataTypes.DECIMAL(12, 2),
-        allowNull: true
+        type: Number,
+        required: false
     },
     budget_max: {
-        type: DataTypes.DECIMAL(12, 2),
-        allowNull: true
+        type: Number,
+        required: false
     },
     location: {
-        type: DataTypes.STRING(255),
-        allowNull: true
+        type: String,
+        required: false
     },
     ai_score: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-        validate: {
-            min: 0,
-            max: 100
-        }
+        type: Number,
+        min: 0,
+        max: 100,
+        required: false
     },
     tags: {
-        type: DataTypes.JSONB,
-        defaultValue: []
+        type: [String],
+        default: []
     },
     custom_fields: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     },
     assigned_to: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
     },
     last_contact_at: {
-        type: DataTypes.DATE,
-        allowNull: true
+        type: Date,
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
+    },
+    deleted_at: {
+        type: Date,
+        default: null
     }
 }, {
-    tableName: 'leads',
-    timestamps: true,
-    paranoid: true,
-    underscored: true,
-    indexes: [
-        { fields: ['tenant_id'] },
-        { fields: ['status'] },
-        { fields: ['source'] },
-        { fields: ['assigned_to'] },
-        { fields: ['ai_score'] },
-        { fields: ['created_at'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'leads'
 });
 
+// Indexes
+leadSchema.index({ client_id: 1, status: 1 });
+leadSchema.index({ client_id: 1, created_at: -1 });
+
+// Virtual for ID
+leadSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+leadSchema.set('toJSON', { virtuals: true });
+leadSchema.set('toObject', { virtuals: true });
+
+const Lead = mongoose.model('Lead', leadSchema);
+
 module.exports = Lead;
+

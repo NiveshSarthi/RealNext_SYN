@@ -70,10 +70,25 @@ export default function NewCampaign() {
 
     const fetchLeads = async () => {
         try {
+            console.log('Fetching leads for campaign...');
             const response = await leadsAPI.getLeads({ limit: 100 });
+            console.log('Leads API Response:', response);
+            console.log('Leads Data:', response.data);
 
-            // API returns { contacts: [...] }
-            setLeads(response.data.contacts || []);
+            // Robust data extraction
+            const rawData = response.data;
+            let leadsData = [];
+
+            if (Array.isArray(rawData)) {
+                leadsData = rawData;
+            } else if (Array.isArray(rawData?.data)) {
+                leadsData = rawData.data;
+            } else if (Array.isArray(rawData?.contacts)) {
+                leadsData = rawData.contacts;
+            }
+
+            console.log('Extracted Leads:', leadsData);
+            setLeads(leadsData);
         } catch (error) {
             console.error('Failed to fetch leads:', error);
         }
@@ -111,7 +126,7 @@ export default function NewCampaign() {
                 if (leads.length === 0) {
                     // Try to fetch if empty
                     const leadRes = await leadsAPI.getLeads({ limit: 1000 }); // Increase limit
-                    contactIds = (leadRes.data.contacts || []).map(l => l._id);
+                    contactIds = (leadRes.data.data || []).map(l => l._id);
                 } else {
                     contactIds = leads.map(l => l._id);
                 }
@@ -127,13 +142,20 @@ export default function NewCampaign() {
             }
 
             const payload = {
+                name: formData.name,
+                type: 'broadcast',
                 template_name: selectedTemplate?.name,
-                language_code: 'en_US', // Required by API
-                contact_ids: contactIds,
-                variable_mapping: { "1": "Valued Customer" }, // Default mapping for now
-                // status: formData.isImmediate ? 'scheduled' : 'draft', // API might not take status in create
-                // scheduled_at: formData.isImmediate ? null : formData.scheduledAt // API uses schedule_time
-                schedule_time: formData.isImmediate ? null : formData.scheduledAt
+                template_data: {
+                    language_code: 'en_US',
+                    variable_mapping: { "1": "Valued Customer" }
+                },
+                target_audience: {
+                    include: contactIds
+                },
+                scheduled_at: formData.isImmediate ? null : formData.scheduledAt,
+                metadata: {
+                    audience_type: formData.audienceType
+                }
             };
 
             await campaignsAPI.createCampaign(payload);
@@ -141,9 +163,8 @@ export default function NewCampaign() {
             router.push('/campaigns');
         } catch (error) {
             console.error('Failed to create campaign:', error);
-            // toast.error('Failed to create campaign');
-            toast.success('Campaign created (Demo Mode)!');
-            router.push('/campaigns');
+            toast.error('Failed to create campaign');
+            // router.push('/campaigns'); // Don't redirect on error
         } finally {
             setLoading(false);
         }

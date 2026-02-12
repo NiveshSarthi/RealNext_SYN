@@ -1,80 +1,64 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const AuditLog = sequelize.define('audit_logs', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const auditLogSchema = new Schema({
     user_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'users',
-            key: 'id'
-        }
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: false
     },
-    tenant_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'tenants',
-            key: 'id'
-        }
-    },
-    partner_id: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: {
-            model: 'partners',
-            key: 'id'
-        }
+    client_id: {
+        type: Schema.Types.ObjectId,
+        ref: 'Client',
+        required: false
     },
     action: {
-        type: DataTypes.STRING(100),
-        allowNull: false
-        // create, update, delete, login, logout, etc.
+        type: String,
+        required: true
     },
     resource_type: {
-        type: DataTypes.STRING(100),
-        allowNull: false
-        // lead, campaign, user, tenant, etc.
+        type: String,
+        required: true
     },
     resource_id: {
-        type: DataTypes.UUID,
-        allowNull: true
+        type: Schema.Types.ObjectId,
+        required: false
     },
     changes: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
-        // { before: {...}, after: {...} }
+        type: Schema.Types.Mixed,
+        default: {}
     },
     ip_address: {
-        type: DataTypes.INET,
-        allowNull: true
+        type: String,
+        required: false
     },
     user_agent: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'audit_logs',
-    timestamps: true,
-    updatedAt: false, // Audit logs are immutable
-    underscored: true,
-    indexes: [
-        { fields: ['user_id'] },
-        { fields: ['tenant_id'] },
-        { fields: ['partner_id'] },
-        { fields: ['action'] },
-        { fields: ['resource_type'] },
-        { fields: ['created_at'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: false },
+    collection: 'audit_logs'
 });
 
+// Indexes
+auditLogSchema.index({ user_id: 1 });
+auditLogSchema.index({ client_id: 1 });
+auditLogSchema.index({ created_at: -1 });
+
+// Virtual for ID
+auditLogSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+auditLogSchema.set('toJSON', { virtuals: true });
+auditLogSchema.set('toObject', { virtuals: true });
+
+const AuditLog = mongoose.model('AuditLog', auditLogSchema);
+
 module.exports = AuditLog;
+

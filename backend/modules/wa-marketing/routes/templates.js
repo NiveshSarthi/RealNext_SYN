@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { Template } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
-const { requireTenantAccess } = require('../../../middleware/roles');
-const { enforceTenantScope } = require('../../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../../middleware/roles');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
@@ -11,7 +11,14 @@ const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = requir
 const { validate, validators } = require('../../../utils/validators');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
 
 /**
  * @route GET /api/templates
@@ -20,6 +27,7 @@ router.use(authenticate, requireTenantAccess, enforceTenantScope);
  */
 router.get('/', requireFeature('templates'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const pagination = getPagination(req.query);
         const sorting = getSorting(req.query, ['name', 'status', 'category', 'created_at'], 'created_at');
 
@@ -27,21 +35,21 @@ router.get('/', requireFeature('templates'), async (req, res, next) => {
         const categoryFilter = req.query.category ? { category: req.query.category } : null;
 
         const where = mergeFilters(
-            { tenant_id: req.tenant.id },
+            { client_id: req.client.id },
             statusFilter,
             categoryFilter
         );
 
-        const { count, rows } = await Template.findAndCountAll({
-            where,
-            order: sorting,
-            limit: pagination.limit,
-            offset: pagination.offset
-        });
+        const templates = await Template.find(where)
+            .sort(sorting)
+            .limit(pagination.limit)
+            .skip(pagination.offset);
+
+        const count = await Template.countDocuments(where);
 
         res.json({
             success: true,
-            ...getPaginatedResponse(rows, count, pagination)
+            ...getPaginatedResponse(templates, count, pagination)
         });
     } catch (error) {
         next(error);
@@ -63,13 +71,14 @@ router.post('/',
     auditAction('create', 'template'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const {
                 name, category, language, components, header_type,
                 body_text, footer_text, buttons, metadata
             } = req.body;
 
             const template = await Template.create({
-                tenant_id: req.tenant.id,
+                client_id: req.client.id,
                 name,
                 category,
                 language: language || 'en',
@@ -100,8 +109,10 @@ router.post('/',
  */
 router.get('/:id', requireFeature('templates'), async (req, res, next) => {
     try {
+        ensureClient(req);
         const template = await Template.findOne({
-            where: { id: req.params.id, tenant_id: req.tenant.id }
+            _id: req.params.id,
+            client_id: req.client.id
         });
 
         if (!template) {
@@ -127,8 +138,10 @@ router.put('/:id',
     auditAction('update', 'template'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const template = await Template.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!template) {
@@ -136,7 +149,7 @@ router.put('/:id',
             }
 
             const updateData = { ...req.body };
-            delete updateData.tenant_id;
+            delete updateData.client_id;
             delete updateData.id;
 
             // If template is approved, changes require re-approval
@@ -145,7 +158,8 @@ router.put('/:id',
                 updateData.status = 'pending';
             }
 
-            await template.update(updateData);
+            Object.assign(template, updateData);
+            await template.save();
 
             res.json({
                 success: true,
@@ -167,15 +181,17 @@ router.delete('/:id',
     auditAction('delete', 'template'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const template = await Template.findOne({
-                where: { id: req.params.id, tenant_id: req.tenant.id }
+                _id: req.params.id,
+                client_id: req.client.id
             });
 
             if (!template) {
                 throw ApiError.notFound('Template not found');
             }
 
-            await template.destroy();
+            await template.deleteOne();
 
             res.json({
                 success: true,

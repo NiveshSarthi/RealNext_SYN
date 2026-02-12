@@ -1,50 +1,53 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const Feature = sequelize.define('Feature', {
-    id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true
-    },
+const featureSchema = new Schema({
     code: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
+        type: String,
+        required: true,
         unique: true
     },
     name: {
-        type: DataTypes.STRING(255),
-        allowNull: false
+        type: String,
+        required: true
     },
     description: {
-        type: DataTypes.TEXT,
-        allowNull: true
+        type: String,
+        required: false
     },
     category: {
-        type: DataTypes.STRING(100),
-        allowNull: true
+        type: String,
+        required: false
     },
     is_core: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false
+        type: Boolean,
+        default: false
     },
     is_enabled: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: true
+        type: Boolean,
+        default: true
     },
     metadata: {
-        type: DataTypes.JSONB,
-        defaultValue: {}
+        type: Schema.Types.Mixed,
+        default: {}
     }
 }, {
-    tableName: 'features',
-    timestamps: true,
-    underscored: true,
-    indexes: [
-        { fields: ['code'] },
-        { fields: ['category'] },
-        { fields: ['is_enabled'] }
-    ]
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    collection: 'features'
 });
 
+// Indexes
+featureSchema.index({ code: 1 });
+
+// Virtual for ID
+featureSchema.virtual('id').get(function () {
+    return this._id.toHexString();
+});
+
+featureSchema.set('toJSON', { virtuals: true });
+featureSchema.set('toObject', { virtuals: true });
+
+const Feature = mongoose.model('Feature', featureSchema);
+
 module.exports = Feature;
+

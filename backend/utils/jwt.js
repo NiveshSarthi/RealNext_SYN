@@ -53,16 +53,15 @@ const generateRefreshToken = async (userId, deviceInfo = null, ipAddress = null)
 const verifyAndRotateRefreshToken = async (token, deviceInfo = null, ipAddress = null) => {
     const tokenHash = RefreshToken.hashToken(token);
 
-    const storedToken = await RefreshToken.findOne({
-        where: { token_hash: tokenHash }
-    });
+    const storedToken = await RefreshToken.findOne({ token_hash: tokenHash });
 
     if (!storedToken || !storedToken.isValid()) {
         return null;
     }
 
     // Revoke old token
-    await storedToken.update({ revoked_at: new Date() });
+    storedToken.revoked_at = new Date();
+    await storedToken.save();
 
     // Generate new refresh token
     const newToken = await generateRefreshToken(
@@ -81,9 +80,9 @@ const verifyAndRotateRefreshToken = async (token, deviceInfo = null, ipAddress =
  * Revoke all refresh tokens for a user
  */
 const revokeAllUserTokens = async (userId) => {
-    await RefreshToken.update(
-        { revoked_at: new Date() },
-        { where: { user_id: userId, revoked_at: null } }
+    await RefreshToken.updateMany(
+        { user_id: userId, revoked_at: null },
+        { revoked_at: new Date() }
     );
 };
 
@@ -92,9 +91,9 @@ const revokeAllUserTokens = async (userId) => {
  */
 const revokeRefreshToken = async (token) => {
     const tokenHash = RefreshToken.hashToken(token);
-    await RefreshToken.update(
-        { revoked_at: new Date() },
-        { where: { token_hash: tokenHash } }
+    await RefreshToken.updateOne(
+        { token_hash: tokenHash },
+        { revoked_at: new Date() }
     );
 };
 
@@ -102,18 +101,16 @@ const revokeRefreshToken = async (token) => {
  * Clean up expired tokens (should be run periodically)
  */
 const cleanupExpiredTokens = async () => {
-    const { Op } = require('sequelize');
-    const result = await RefreshToken.destroy({
-        where: {
-            [Op.or]: [
-                { expires_at: { [Op.lt]: new Date() } },
-                { revoked_at: { [Op.not]: null } }
-            ],
-            created_at: { [Op.lt]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
-        }
+    const result = await RefreshToken.deleteMany({
+        $or: [
+            { expires_at: { $lt: new Date() } },
+            { revoked_at: { $ne: null } }
+        ],
+        created_at: { $lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
     });
-    logger.info(`Cleaned up ${result} expired/revoked refresh tokens`);
-    return result;
+    const count = result.deletedCount || 0;
+    logger.info(`Cleaned up ${count} expired/revoked refresh tokens`);
+    return count;
 };
 
 /**
@@ -121,24 +118,17 @@ const cleanupExpiredTokens = async () => {
  */
 const buildTokenPayload = (user, context = {}) => {
     const payload = {
-        sub: user.id,
+        sub: user._id || user.id,
         email: user.email,
         name: user.name,
         is_super_admin: user.is_super_admin || false
     };
 
-    // Add tenant context if available
-    if (context.tenant) {
-        payload.tenant_id = context.tenant.id;
-        payload.tenant_slug = context.tenant.slug;
-        payload.tenant_role = context.tenantRole;
-    }
-
-    // Add partner context if available
-    if (context.partner) {
-        payload.partner_id = context.partner.id;
-        payload.partner_slug = context.partner.slug;
-        payload.partner_role = context.partnerRole;
+    // Add client context if available
+    if (context.client) {
+        payload.client_id = context.client._id || context.client.id;
+        payload.client_slug = context.client.slug;
+        payload.client_role = context.clientRole;
     }
 
     // Add plan and features if subscription exists

@@ -15,7 +15,9 @@ const validate = (req, res, next) => {
             field: err.path,
             message: err.msg
         }));
-        throw ApiError.badRequest('Validation failed', 'VALIDATION_ERROR');
+        const err = ApiError.badRequest('Validation failed', 'VALIDATION_ERROR');
+        err.details = errorMessages;
+        throw err;
     }
     next();
 };
@@ -102,7 +104,11 @@ const validators = {
         let validator = body(field);
         if (!required) validator = validator.optional();
         return validator.isArray().withMessage(`${field} must be an array`);
-    }
+    },
+
+    // Optional date
+    optionalDate: (field) =>
+        body(field).optional().isISO8601().withMessage(`${field} must be a valid date`)
 };
 
 // Pre-built validation chains
@@ -147,7 +153,8 @@ const validationChains = {
         validators.requiredString('name', 1, 255),
         validators.email().optional(),
         validators.phone(),
-        validators.enum('status', ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'], false),
+        validators.enum('stage', ['Screening', 'Sourcing', 'Walk-in', 'Closure'], false),
+        validators.enum('status', ['Uncontacted', 'Not Interested', 'Not Responding', 'Dead', 'Hot', 'Warm', 'Cold', 'Lost'], false),
         validators.optionalString('source', 100),
         validators.optionalString('location', 255),
         validate

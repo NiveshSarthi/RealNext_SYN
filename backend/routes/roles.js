@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { Role, Permission, Tenant } = require('../models');
+const { Role, Permission, Client } = require('../models');
 const { authenticate } = require('../middleware/auth');
-const { requireTenantAccess } = require('../middleware/roles');
-const { enforceTenantScope } = require('../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../middleware/roles');
+const { enforceClientScope } = require('../middleware/scopeEnforcer');
 const { ApiError } = require('../middleware/errorHandler');
 
 // Middleware
-router.use(authenticate, requireTenantAccess, enforceTenantScope);
+router.use(authenticate, requireClientAccess, enforceClientScope);
 
 /**
  * @route GET /api/roles
@@ -15,24 +15,20 @@ router.use(authenticate, requireTenantAccess, enforceTenantScope);
  */
 router.get('/', async (req, res, next) => {
     try {
-        const tenantId = req.tenant.id;
+        const clientId = req.client.id;
 
-        // Get tenant-specific roles
-        const tenantRoles = await Role.findAll({
-            where: { tenant_id: tenantId },
-            order: [['is_system', 'DESC'], ['created_at', 'ASC']]
-        });
+        // Get client-specific roles
+        const clientRoles = await Role.find({ client_id: clientId })
+            .sort({ is_system: -1, created_at: 1 });
 
-        // Also include system-wide roles (tenant_id = null)
-        const systemRoles = await Role.findAll({
-            where: { tenant_id: null },
-            order: [['created_at', 'ASC']]
-        });
+        // Also include system-wide roles (client_id = null)
+        const systemRoles = await Role.find({ client_id: null })
+            .sort({ created_at: 1 });
 
         res.json({
             success: true,
             data: {
-                tenant_roles: tenantRoles,
+                client_roles: clientRoles,
                 system_roles: systemRoles
             }
         });
@@ -47,9 +43,8 @@ router.get('/', async (req, res, next) => {
  */
 router.get('/permissions', async (req, res, next) => {
     try {
-        const permissions = await Permission.findAll({
-            order: [['category', 'ASC'], ['code', 'ASC']]
-        });
+        const permissions = await Permission.find({})
+            .sort({ category: 1, code: 1 });
 
         // Group permissions by category
         const grouped = permissions.reduce((acc, perm) => {
@@ -83,7 +78,7 @@ router.get('/permissions', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
     try {
         const { name, description, permissions } = req.body;
-        const tenantId = req.tenant.id;
+        const clientId = req.client.id;
 
         if (!name) {
             throw ApiError.badRequest('Role name is required');
@@ -93,9 +88,10 @@ router.post('/', async (req, res, next) => {
             throw ApiError.badRequest('Permissions must be an array');
         }
 
-        // Check if role name already exists for this tenant
+        // Check if role name already exists for this client
         const existingRole = await Role.findOne({
-            where: { tenant_id: tenantId, name }
+            client_id: clientId,
+            name
         });
 
         if (existingRole) {
@@ -103,8 +99,8 @@ router.post('/', async (req, res, next) => {
         }
 
         // Validate that all permissions exist
-        const validPermissions = await Permission.findAll({
-            where: { code: permissions }
+        const validPermissions = await Permission.find({
+            code: { $in: permissions }
         });
 
         if (validPermissions.length !== permissions.length) {
@@ -113,7 +109,7 @@ router.post('/', async (req, res, next) => {
 
         // Create the role
         const role = await Role.create({
-            tenant_id: tenantId,
+            client_id: clientId,
             name,
             description: description || '',
             permissions,
@@ -139,10 +135,11 @@ router.patch('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
         const { name, description, permissions } = req.body;
-        const tenantId = req.tenant.id;
+        const clientId = req.client.id;
 
         const role = await Role.findOne({
-            where: { id, tenant_id: tenantId }
+            _id: id,
+            client_id: clientId
         });
 
         if (!role) {
@@ -158,7 +155,9 @@ router.patch('/:id', async (req, res, next) => {
         if (name !== undefined) {
             // Check for name conflicts
             const existingRole = await Role.findOne({
-                where: { tenant_id: tenantId, name, id: { [require('sequelize').Op.ne]: id } }
+                client_id: clientId,
+                name,
+                _id: { $ne: id }
             });
             if (existingRole) {
                 throw ApiError.conflict(`Role "${name}" already exists`);
@@ -176,8 +175,8 @@ router.patch('/:id', async (req, res, next) => {
             }
 
             // Validate permissions
-            const validPermissions = await Permission.findAll({
-                where: { code: permissions }
+            const validPermissions = await Permission.find({
+                code: { $in: permissions }
             });
 
             if (validPermissions.length !== permissions.length) {
@@ -206,10 +205,11 @@ router.patch('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
-        const tenantId = req.tenant.id;
+        const clientId = req.client.id;
 
         const role = await Role.findOne({
-            where: { id, tenant_id: tenantId }
+            _id: id,
+            client_id: clientId
         });
 
         if (!role) {
@@ -224,7 +224,7 @@ router.delete('/:id', async (req, res, next) => {
         // TODO: Check if any users are assigned to this role
         // If yes, either prevent deletion or reassign to default role
 
-        await role.destroy();
+        await Role.deleteOne({ _id: id });
 
         res.json({
             success: true,

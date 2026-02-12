@@ -188,10 +188,13 @@ export default function Campaigns() {
   const fetchCampaigns = async () => {
     try {
       const response = await campaignsAPI.getCampaigns({ limit: 50 });
-      // V1 returns array directly or wrapped based on implementation
-      // Assuming it's directly an array based on doc
+      console.log('Campaigns API Response:', response);
       const data = response.data;
-      setCampaigns(Array.isArray(data) ? data : (data.data || []));
+      console.log('Campaigns Data:', data);
+
+      const campaignsList = Array.isArray(data) ? data : (data.data || []);
+      console.log('Parsed Campaigns:', campaignsList);
+      setCampaigns(campaignsList);
     } catch (error) {
       console.error('Failed to fetch campaigns:', error);
       // Mock data for demo if API fails

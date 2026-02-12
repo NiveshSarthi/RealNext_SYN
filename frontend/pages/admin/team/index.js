@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Layout from '../../../components/Layout';
 import Button from '../../../components/ui/Button';
 import { PlusIcon, TrashIcon, UserIcon } from '@heroicons/react/24/outline';
-import axios from '../../../utils/axios';
+import axios from '../../../utils/api';
 import { toast } from 'react-hot-toast';
 
 export default function AdminTeam() {
@@ -94,8 +94,8 @@ export default function AdminTeam() {
                                 <div className="relative">
                                     {/* Badge */}
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${member.is_super_admin
-                                            ? 'bg-purple-900/50 text-purple-200 border border-purple-700'
-                                            : 'bg-blue-900/50 text-blue-200 border border-blue-700'
+                                        ? 'bg-purple-900/50 text-purple-200 border border-purple-700'
+                                        : 'bg-blue-900/50 text-blue-200 border border-blue-700'
                                         }`}>
                                         {member.is_super_admin ? 'Root Admin' : member.systemRole?.name || 'No Role'}
                                     </span>

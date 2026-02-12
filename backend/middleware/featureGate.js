@@ -1,6 +1,5 @@
 const { ApiError } = require('./errorHandler');
 const { SubscriptionUsage, Subscription, PlanFeature, Feature } = require('../models');
-const { Op } = require('sequelize');
 const logger = require('../config/logger');
 
 /**
@@ -20,7 +19,7 @@ const requireFeature = (featureCode) => {
             }
 
             // Check if feature is globally disabled
-            const feature = await Feature.findOne({ where: { code: featureCode } });
+            const feature = await Feature.findOne({ code: featureCode });
             if (!feature || !feature.is_enabled) {
                 throw ApiError.forbidden(`Feature '${featureCode}' is currently unavailable`);
             }
@@ -72,12 +71,10 @@ const checkUsageLimit = (featureCode, limitKey) => {
             const periodEnd = new Date(req.subscription.current_period_end);
 
             const usage = await SubscriptionUsage.findOne({
-                where: {
-                    subscription_id: req.subscription.id,
-                    feature_code: featureCode,
-                    usage_period_start: { [Op.lte]: now },
-                    usage_period_end: { [Op.gte]: now }
-                }
+                subscription_id: req.subscription.id,
+                feature_code: featureCode,
+                usage_period_start: { $lte: now },
+                usage_period_end: { $gte: now }
             });
 
             const currentUsage = usage?.usage_count || 0;
@@ -118,23 +115,23 @@ const incrementUsage = async (req, featureCode, amount = 1) => {
     const periodEnd = new Date(req.subscription.current_period_end);
 
     try {
-        const [usage, created] = await SubscriptionUsage.findOrCreate({
-            where: {
-                subscription_id: req.subscription.id,
-                feature_code: featureCode,
-                usage_period_start: periodStart
-            },
-            defaults: {
+        let usage = await SubscriptionUsage.findOne({
+            subscription_id: req.subscription.id,
+            feature_code: featureCode,
+            usage_period_start: periodStart
+        });
+
+        if (!usage) {
+            usage = await SubscriptionUsage.create({
                 subscription_id: req.subscription.id,
                 feature_code: featureCode,
                 usage_period_start: periodStart,
                 usage_period_end: periodEnd,
                 usage_count: amount
-            }
-        });
-
-        if (!created) {
-            await usage.increment('usage_count', { by: amount });
+            });
+        } else {
+            usage.usage_count += amount;
+            await usage.save();
         }
 
         logger.debug(`Usage incremented: ${featureCode} for subscription ${req.subscription.id}`);
@@ -176,16 +173,14 @@ const requireActiveSubscription = (req, res, next) => {
  * Get usage stats for a feature
  */
 const getUsageStats = async (subscriptionId, featureCode) => {
-    const subscription = await Subscription.findByPk(subscriptionId);
+    const subscription = await Subscription.findById(subscriptionId);
     if (!subscription) return null;
 
     const usage = await SubscriptionUsage.findOne({
-        where: {
-            subscription_id: subscriptionId,
-            feature_code: featureCode,
-            usage_period_start: { [Op.lte]: new Date() },
-            usage_period_end: { [Op.gte]: new Date() }
-        }
+        subscription_id: subscriptionId,
+        feature_code: featureCode,
+        usage_period_start: { $lte: new Date() },
+        usage_period_end: { $gte: new Date() }
     });
 
     return {
