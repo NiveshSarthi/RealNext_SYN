@@ -12,6 +12,7 @@ services:
       - .env
     environment:
       - PORT=${BACKEND_INTERNAL_PORT:-5000}
+      - MONGODB_URI=${MONGODB_URI:-mongodb://root:CjmqvpwJAzemm4CcpcpCohYym9kp9wh8pDPnR6A8aTSP8sAjcXBi8x6ayEU3DfbV@72.61.248.175:5448/synditech_realnext?authSource=admin&directConnection=true}
     restart: unless-stopped
     networks:
       - app-network

@@ -570,13 +570,6 @@ export const adminAPI = {
 
   // Removed Tenant endpoints (replaced by Clients above)
 
-  // Features
-  getFeatures: () => api.get('/api/admin/features'),
-  createFeature: (data) => api.post('/api/admin/features', data),
-  updateFeature: (id, data) => api.put(`/api/admin/features/${id}`, data),
-  deleteFeature: (id) => api.delete(`/api/admin/features/${id}`),
-  toggleFeature: (id, isEnabled) => api.put(`/api/admin/features/${id}/toggle`, { is_enabled: isEnabled }),
-
   // Subscriptions
   getSubscriptions: (params) => api.get('/api/admin/subscriptions', { params }),
   getSubscription: (id) => api.get(`/api/admin/subscriptions/${id}`),
