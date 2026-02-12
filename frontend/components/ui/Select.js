@@ -56,7 +56,8 @@ export function SelectContent({ className, children }) {
                 className
             )}>
                 <div className="p-1">
-                    {React.Children.map(children, child => {
+                    {children && React.Children.map(children, child => {
+                        if (!React.isValidElement(child)) return child;
                         return React.cloneElement(child, {
                             onSelect: (val) => {
                                 onValueChange(val);

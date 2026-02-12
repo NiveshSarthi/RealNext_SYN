@@ -22,11 +22,12 @@ export default function LMS() {
     const router = useRouter();
 
     // Fetch Facebook Pages (for forms count)
-    const { data: pagesData } = useQuery({
+    const { data: pages = [] } = useQuery({
         queryKey: ['facebook-pages'],
         queryFn: async () => {
             const res = await metaAdsAPI.getPages();
-            return res.data;
+            const extractedData = res.data?.data || res.data || [];
+            return Array.isArray(extractedData) ? extractedData : [];
         },
         enabled: !!user,
     });
@@ -42,11 +43,11 @@ export default function LMS() {
     });
 
     // Calculate statistics
-    const totalForms = pagesData?.pages?.reduce((acc, page) => {
+    const totalForms = pages?.reduce((acc, page) => {
         return acc + (page.leadForms?.length || 0);
     }, 0) || 0;
 
-    const totalPages = pagesData?.pages?.length || 0;
+    const totalPages = pages?.length || 0;
     const totalLeads = leadsData?.total || leadsData?.data?.length || 0;
     const metaLeads = leadsData?.data?.filter(lead => lead.source === 'Facebook Ads')?.length || 0;
 

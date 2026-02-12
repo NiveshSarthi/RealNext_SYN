@@ -65,4 +65,19 @@ router.get('/', (req, res) => {
 // External API Proxy
 router.use('/external-proxy', require('./externalProxy'));
 
+// Debug routes
+router.get('/debug/db', (req, res) => {
+    const mongoose = require('mongoose');
+    res.json({
+        primary_connection: mongoose.connection.name,
+        all_connections: mongoose.connections.map(c => ({
+            name: c.name,
+            readyState: c.readyState,
+            host: c.host,
+            port: c.port
+        })),
+        uri_truncated: process.env.MONGODB_URI ? process.env.MONGODB_URI.substring(0, 30) + '...' : 'none'
+    });
+});
+
 module.exports = router;

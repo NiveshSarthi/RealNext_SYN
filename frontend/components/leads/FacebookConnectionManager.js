@@ -245,7 +245,7 @@ export default function FacebookConnectionManager() {
                                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                                     className="grid grid-cols-1 md:grid-cols-2 gap-5"
                                 >
-                                    {pages.map((page, idx) => (
+                                    {Array.isArray(pages) && pages.map((page, idx) => (
                                         <motion.div
                                             key={page.id || page._id || idx}
                                             initial={{ opacity: 0, y: 20 }}

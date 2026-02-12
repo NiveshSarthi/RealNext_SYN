@@ -30,7 +30,6 @@ const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
  * @desc Connect Facebook Account & Fetch Pages
  */
 router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
-    // const t = await sequelize.transaction();
     try {
         ensureClient(req);
         const { user_token } = req.body;
@@ -63,15 +62,12 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
             connectedPages.push(connection);
         }
 
-        // await t.commit();
-
         res.json({
             success: true,
             message: `Connected ${connectedPages.length} pages`,
             data: connectedPages
         });
     } catch (error) {
-        // await t.rollback();
         // Handle Graph API errors
         if (error.response?.data?.error) {
             return next(new ApiError(400, `Facebook API Error: ${error.response.data.error.message}`));
@@ -114,37 +110,40 @@ router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) =>
 
         for (const page of pages) {
             try {
-                const response = await axios.get(`${GRAPH_API_URL}/${page.page_id}/leadgen_forms`, {
-                    params: {
-                        access_token: page.access_token,
-                        fields: 'id,name,status,leads_count',
-                        limit: 100
-                    }
-                });
+                let formsUrl = `${GRAPH_API_URL}/${page.page_id}/leadgen_forms?access_token=${page.access_token}&fields=id,name,status,leads_count&limit=100`;
 
-                const forms = response.data.data || [];
-                for (const form of forms) {
-                    if (form.status === 'ACTIVE') {
-                        let savedForm = await FacebookLeadForm.findOne({
-                            client_id: req.client.id,
-                            form_id: form.id
-                        });
+                while (formsUrl) {
+                    const response = await axios.get(formsUrl);
+                    const forms = response.data.data || [];
+                    formsUrl = response.data.paging?.next;
 
-                        if (!savedForm) {
-                            savedForm = await FacebookLeadForm.create({
+                    for (const form of forms) {
+                        if (form.status === 'ACTIVE') {
+                            let savedForm = await FacebookLeadForm.findOne({
                                 client_id: req.client.id,
-                                form_id: form.id,
-                                page_connection_id: page.id,
-                                name: form.name,
-                                status: 'active'
+                                form_id: form.id
                             });
-                            newFormsCount++;
+
+                            if (!savedForm) {
+                                savedForm = await FacebookLeadForm.create({
+                                    client_id: req.client.id,
+                                    form_id: form.id,
+                                    page_connection_id: page.id,
+                                    name: form.name,
+                                    status: 'active',
+                                    lead_count: form.leads_count
+                                });
+                                newFormsCount++;
+                            } else {
+                                // Update lead count for existing forms
+                                savedForm.lead_count = form.leads_count;
+                                await savedForm.save();
+                            }
                         }
                     }
                 }
             } catch (pageError) {
                 logger.error(`Failed to sync forms for page ${page.page_name}: ${pageError.message}`);
-                // Continue to next page even if one fails
             }
         }
 
@@ -180,19 +179,16 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
                 }
 
                 let nextUrl = `${GRAPH_API_URL}/${form.form_id}/leads?access_token=${form.pageConnection.access_token}&fields=id,created_time,field_data&limit=100`;
-                let pageCount = 0;
-                const MAX_PAGES = 20; // Fetch up to 2000 leads max per sync to avoid timeout
 
-                while (nextUrl && pageCount < MAX_PAGES) {
+                while (nextUrl) {
                     const response = await axios.get(nextUrl);
                     const leads = response.data.data || [];
 
                     // Update nextUrl for pagination
                     nextUrl = response.data.paging?.next;
-                    pageCount++;
+
                     for (const leadData of leads) {
                         // Normalize Field Data
-                        // field_data is [{ name: 'email', values: ['...'] }, ...]
                         const emailField = leadData.field_data.find(f => f.name.includes('email'))?.values[0];
                         const phoneField = leadData.field_data.find(f => f.name.includes('phone') || f.name.includes('number'))?.values[0];
                         const nameField = leadData.field_data.find(f => f.name.includes('name') || f.name.includes('full_name'))?.values[0];
@@ -216,11 +212,14 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
                                 phone: phoneField,
                                 source: 'Facebook Ads',
                                 status: 'new',
+                                stage: 'Screening',
                                 metadata: {
                                     facebook_lead_id: leadData.id,
                                     form_id: form.form_id,
-                                    page_id: form.pageConnection.page_id
-                                }
+                                    page_id: form.pageConnection.page_id,
+                                    fetched_at: new Date()
+                                },
+                                created_at: new Date(leadData.created_time)
                             });
                             newLeadsCount++;
                         } else {
