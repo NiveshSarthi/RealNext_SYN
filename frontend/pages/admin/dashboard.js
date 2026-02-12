@@ -85,12 +85,6 @@ export default function AdminDashboard() {
             href: '/admin/plans'
         },
         {
-            title: 'Feature Control',
-            description: 'Manage global feature flags, modules, and system-wide kill switches.',
-            icon: CpuChipIcon,
-            href: '/admin/features'
-        },
-        {
             title: 'System Analytics',
             description: 'Deep dive into platform usage, API performance, and error rates.',
             icon: ChartBarIcon,

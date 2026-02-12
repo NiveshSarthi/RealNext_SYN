@@ -4,7 +4,6 @@ const router = express.Router();
 // Admin sub-routes
 // router.use('/partners', require('./partners'));
 router.use('/plans', require('./plans'));
-router.use('/features', require('./features'));
 router.use('/clients', require('./clients'));
 router.use('/subscriptions', require('./subscriptions'));
 router.use('/analytics', require('./analytics'));
@@ -22,7 +21,6 @@ router.get('/', async (req, res) => {
         endpoints: [
             '/api/admin/clients',
             '/api/admin/plans',
-            '/api/admin/features',
             '/api/admin/analytics',
             '/api/admin/lms',
             '/api/admin/wa-marketing',
