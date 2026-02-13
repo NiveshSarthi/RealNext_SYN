@@ -47,9 +47,10 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
         return [];
     }
 
-    const externalIds = [];
-
     // 2. Process each lead (syncing if needed)
+    const externalIds = [];
+    const syncErrors = [];
+
     for (const lead of leads) {
         try {
             let phone = lead.phone;
@@ -115,7 +116,16 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
                 console.error(`[DEBUG_SYNC] Response data:`, JSON.stringify(error.response.data));
             }
             logger.error(`Failed to sync lead ${lead._id} to external API: ${error.message}`);
+            syncErrors.push(errorMsg);
         }
+    }
+
+    // Check if we failed completely
+    if (externalIds.length === 0 && leads.length > 0) {
+        // Collect distinct error messages to give a hint
+        const errors = [...new Set(syncErrors)];
+        const errorSummary = errors.slice(0, 2).join('; '); // Show first 2 unique errors
+        throw new Error(`Sync failed for all ${leads.length} leads. Errors: ${errorSummary || 'Unknown error'}`);
     }
 
     console.log(`[DEBUG_SYNC] Summary: Successfully resolved ${externalIds.length} of ${leads.length} leads.`);
@@ -503,7 +513,9 @@ router.put('/:id/status',
                         const syncedContactIds = await syncAudienceContacts(validContactIds, req.client.id);
 
                         if (syncedContactIds.length === 0) {
-                            throw ApiError.badRequest('None of the selected leads could be successfully synced with the WhatsApp service. Please check lead phone numbers.');
+                            // The error is already thrown inside syncAudienceContacts if all failed, 
+                            // but if it returned empty for other reasons (e.g. no valid phones), catch here.
+                            throw ApiError.badRequest('None of the selected leads could be successfully synced. Please check if leads have valid phone numbers.');
                         }
 
                         const externalPayload = {
