@@ -109,7 +109,7 @@ app.get('/api/version', (req, res) => {
     message: 'Includes fix for contact sync payload (number vs phone) and specific error reporting.'
   });
 });
-}));
+
 
 // Body parsing
 
