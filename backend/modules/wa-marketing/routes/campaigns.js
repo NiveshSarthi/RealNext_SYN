@@ -131,7 +131,7 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
         // Collect distinct error messages to give a hint
         const errors = [...new Set(syncErrors)];
         const errorSummary = errors.slice(0, 2).join('; '); // Show first 2 unique errors
-        throw new Error(`Sync failed for all ${leads.length} leads. Errors: ${errorSummary || 'Unknown error'}`);
+        throw new Error(`Sync failed for all ${leads.length} leads. Errors: ${errorSummary || 'No errors captured (likely invalid phone numbers)'}`);
     }
 
     console.log(`[DEBUG_SYNC] Summary: Successfully resolved ${externalIds.length} of ${leads.length} leads.`);

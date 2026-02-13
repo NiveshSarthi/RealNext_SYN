@@ -103,10 +103,10 @@ app.use(morgan('combined', {
 // API Version for Deployment Verification
 app.get('/api/version', (req, res) => {
   res.json({
-    version: '1.0.1',
+    version: '1.0.2',
     timestamp: new Date().toISOString(),
-    deployed_at: '2026-02-13T14:20:00Z', // Update this manually on deploy
-    message: 'Includes fix for contact sync payload (number vs phone) and specific error reporting.'
+    deployed_at: '2026-02-13T16:50:00Z',
+    message: 'v1.0.2: Includes "Contact already exists" auto-resolution.'
   });
 });
 
