@@ -65,8 +65,8 @@ export default function NewCampaign() {
         } catch (error) {
             // Mock templates if API fails
             setTemplates([
-                { id: 1, name: 'Welcome Message', category: 'Marketing', content: { body: 'Hello {{1}}, welcome to our service!' } },
-                { id: 2, name: 'Festival Offer', category: 'Marketing', content: { body: 'Happy Diwali! Get 20% off on all items.' } }
+                { id: 1, name: 'Welcome Message', category: 'Marketing', language: 'en_US', content: { body: 'Hello {{1}}, welcome to our service!' } },
+                { id: 2, name: 'Festival Offer', category: 'Marketing', language: 'en_US', content: { body: 'Happy Diwali! Get 20% off on all items.' } }
             ]);
         }
     };
@@ -158,7 +158,7 @@ export default function NewCampaign() {
                 type: 'broadcast',
                 template_name: selectedTemplate?.name,
                 template_data: {
-                    language_code: 'en_US',
+                    language_code: selectedTemplate?.language || 'en_US',
                     variable_mapping: { "1": "Valued Customer" }
                 },
                 target_audience: targetAudience,
