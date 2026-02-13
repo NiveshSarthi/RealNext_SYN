@@ -94,17 +94,18 @@ class WaService {
                 try {
                     // Try to fetch the existing contact to get its ID
                     const existingContacts = await this.getContacts({ search: contactIdentifier });
-                    if (existingContacts && existingContacts.result && existingContacts.result.length > 0) {
-                        // API documentation says 'contacts' array, but checking response based on assumed structure
-                        // Copilot: The doc says: { contacts: [...], total... }
-                        const contacts = existingContacts.contacts || existingContacts.result || [];
+
+                    // Handle both 'contacts' (from verified API) and 'result' (potential alternative)
+                    const contacts = existingContacts?.contacts || existingContacts?.result || [];
+
+                    if (contacts.length > 0) {
                         const found = contacts.find(c => c.number === contactIdentifier || c.phone === contactIdentifier);
 
                         if (found) {
                             logger.info(`Found existing contact ID for ${contactIdentifier}: ${found._id || found.id}`);
                             return found;
-                        } else if (contacts.length > 0) {
-                            // Fallback: assume the search result is relevant if only one
+                        } else {
+                            // Fallback: assume the search result is relevant if we got results
                             logger.info(`Using first search result for ${contactIdentifier}`);
                             return contacts[0];
                         }
