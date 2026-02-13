@@ -70,10 +70,28 @@ class WaService {
             if (error.response) {
                 logger.error('External API Response:', JSON.stringify(error.response.data));
             }
-            // Don't block local creation if external fails? Or maybe throw?
-            // User wants "hit the endpoint", so likely we should try.
-            // But for robustness, maybe we log error and continue if it's a draft?
-            // If launching, we should probably throw.
+            throw error;
+        }
+    }
+
+    async getCampaigns(params = {}) {
+        try {
+            logger.info('Fetching campaigns from External API...');
+            const response = await this.api.get('/api/v1/campaigns', { params });
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to fetch campaigns from External API:', error.message);
+            throw error;
+        }
+    }
+
+    async getCampaignDetail(id) {
+        try {
+            logger.info(`Fetching campaign detail for ${id} from External API...`);
+            const response = await this.api.get(`/api/v1/campaigns/${id}`);
+            return response.data;
+        } catch (error) {
+            logger.error(`Failed to fetch campaign detail for ${id} from External API:`, error.message);
             throw error;
         }
     }

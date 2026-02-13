@@ -41,6 +41,7 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
             typeFilter
         );
 
+        // 1. Fetch Local Campaigns (for SaaS metadata/owner info)
         const campaigns = await Campaign.find(where)
             .sort(sorting)
             .limit(pagination.limit)
@@ -48,9 +49,59 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
 
         const count = await Campaign.countDocuments(where);
 
+        // 2. Fetch External Campaigns
+        let externalCampaigns = [];
+        try {
+            externalCampaigns = await waService.getCampaigns({ limit: pagination.limit });
+            // API V1 returns an array of campaigns directly often, 
+            // but let's be safe based on documentation example
+        } catch (extError) {
+            console.error('Failed to fetch external campaigns:', extError.message);
+        }
+
+        // 3. Merge Strategy:
+        // - Start with external campaigns (Source of Truth)
+        // - Add local campaigns that DON'T have an external_id yet (Drafts)
+
+        const mergedCampaigns = externalCampaigns.map(ext => {
+            const local = campaigns.find(loc =>
+                (loc.metadata?.external_id && (loc.metadata.external_id === ext._id || loc.metadata.external_id === ext.id))
+            );
+            return {
+                ...ext,
+                _id: ext._id || ext.id,
+                local_id: local?._id,
+                name: ext.name || local?.name || ext.template_name || 'Untitled Campaign',
+                created_by_name: local?.created_by ? 'RealNexT User' : 'External System',
+                is_external: true
+            };
+        });
+
+        // Add local drafts group that aren't in the external list yet
+        campaigns.forEach(loc => {
+            const isSynced = mergedCampaigns.some(m => m.local_id?.toString() === loc._id.toString());
+            if (!isSynced) {
+                mergedCampaigns.push({
+                    ...loc.toObject(),
+                    _id: loc._id,
+                    is_external: false,
+                    is_local_draft: true
+                });
+            }
+        });
+
+        // Sort by created_at desc (if available, else fallback)
+        mergedCampaigns.sort((a, b) => {
+            const dateA = new Date(a.created_at || a.createdAt || 0);
+            const dateB = new Date(b.created_at || b.createdAt || 0);
+            return dateB - dateA;
+        });
+
         res.json({
             success: true,
-            ...getPaginatedResponse(campaigns, count, pagination)
+            data: mergedCampaigns,
+            count: mergedCampaigns.length,
+            pagination
         });
     } catch (error) {
         next(error);
@@ -166,18 +217,34 @@ router.post('/',
 router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
     try {
         ensureClient(req);
-        const campaign = await Campaign.findOne({
+        const localCampaign = await Campaign.findOne({
             _id: req.params.id,
             client_id: req.client.id
         });
 
-        if (!campaign) {
-            throw ApiError.notFound('Campaign not found');
+        let data = localCampaign ? localCampaign.toObject() : null;
+
+        // If local has external ID, fetch live stats
+        if (data && data.metadata?.external_id) {
+            try {
+                const liveData = await waService.getCampaignDetail(data.metadata.external_id);
+                data = { ...data, ...liveData, stats: liveData.stats || data.stats };
+            } catch (err) {
+                console.error('Failed to fetch live stats:', err.message);
+            }
+        } else if (!localCampaign) {
+            // Try fetching directly as external ID
+            try {
+                const liveData = await waService.getCampaignDetail(req.params.id);
+                data = { ...liveData, is_external_only: true };
+            } catch (err) {
+                throw ApiError.notFound('Campaign not found local or external');
+            }
         }
 
         res.json({
             success: true,
-            data: campaign
+            data
         });
     } catch (error) {
         next(error);
@@ -266,6 +333,30 @@ router.put('/:id/status',
 
             if (status === 'running' && !campaign.started_at) {
                 updateData.started_at = now;
+
+                // TRIGGER EXTERNAL API IF NOT ALREADY SYNCED
+                if (!campaign.metadata?.external_id) {
+                    try {
+                        console.log(`[DEBUG_CAMPAIGN] Launching local campaign ${campaign._id} to external API`);
+                        const contactIds = campaign.target_audience?.include || [];
+                        const externalPayload = {
+                            template_name: campaign.template_name,
+                            language_code: campaign.template_data?.language_code || 'en_US',
+                            contact_ids: contactIds,
+                            variable_mapping: campaign.template_data?.variable_mapping || {},
+                            schedule_time: null // Immediate
+                        };
+
+                        const externalResponse = await waService.createCampaign(externalPayload);
+                        if (externalResponse && externalResponse.id) {
+                            updateData.metadata = { ...campaign.metadata, external_id: externalResponse.id };
+                        }
+                    } catch (extError) {
+                        console.error('Failed to trigger external campaign on status update:', extError.message);
+                        // We might want to fail the status update if it can't be launched
+                        throw ApiError.internal(`External API Error: ${extError.message}`);
+                    }
+                }
             }
 
             if (['completed', 'cancelled'].includes(status)) {

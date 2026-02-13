@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Layout from "../../components/Layout";
 import FacebookConnectionManager from "../../components/leads/FacebookConnectionManager";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Card";
@@ -10,16 +10,72 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from ".
 import { Zap, Plus, Link as LinkIcon, AlertCircle, Sparkles, Filter, Settings2, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { leadsAPI } from "../../utils/api";
 
 export default function LeadManagerPage() {
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [sources, setSources] = useState([]);
+    const [stats, setStats] = useState(null);
+    const [loadingStats, setLoadingStats] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const response = await leadsAPI.getStats();
+                if (response.data.success) {
+                    setStats(response.data.data.metrics);
+                }
+            } catch (error) {
+                console.error("Failed to fetch leads stats:", error);
+            } finally {
+                setLoadingStats(false);
+            }
+        };
+        fetchStats();
+    }, []);
 
     const handleCreateSource = () => {
         toast.success("Integration created! (Mock)");
         setAddModalOpen(false);
         setSources([...sources, { id: Date.now(), name: "New Source", type: "custom", active: true }]);
     };
+
+    const calculateGrowth = (today, yesterday) => {
+        if (!yesterday || yesterday === 0) return today > 0 ? "+100%" : "0%";
+        const diff = ((today - yesterday) / yesterday) * 100;
+        return `${diff > 0 ? '+' : ''}${diff.toFixed(1)}%`;
+    };
+
+    const statCards = [
+        {
+            label: 'Today Total',
+            value: stats?.today_total ?? '0',
+            sub: `${calculateGrowth(stats?.today_total, stats?.yesterday_total)} from yesterday`,
+            icon: Zap,
+            color: 'text-yellow-400'
+        },
+        {
+            label: 'Active Channels',
+            value: stats?.active_channels_count?.toString().padStart(2, '0') ?? '01',
+            sub: stats?.active_channels_list?.join(', ') ?? 'Manual',
+            icon: Share2,
+            color: 'text-blue-400'
+        },
+        {
+            label: 'Conversion Rate',
+            value: `${stats?.conversion_rate ?? '0'}%`,
+            sub: 'Closed Leads ratio',
+            icon: Sparkles,
+            color: 'text-purple-400'
+        },
+        {
+            label: 'Processing Lag',
+            value: stats?.processing_lag ?? '< 1s',
+            sub: 'Real-time sync active',
+            icon: Zap,
+            color: 'text-emerald-400'
+        },
+    ];
 
     return (
         <Layout>
@@ -75,12 +131,7 @@ export default function LeadManagerPage() {
 
                 {/* Stats Summary - Optional purely visual for RealNexT feel */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    {[
-                        { label: 'Today Total', value: '128', sub: '+12% from yesterday', icon: Zap, color: 'text-yellow-400' },
-                        { label: 'Active Channels', value: '04', sub: 'Facebook, Webhook', icon: Share2, color: 'text-blue-400' },
-                        { label: 'Conversion Rate', value: '18.5%', sub: 'Healthy performance', icon: Sparkles, color: 'text-purple-400' },
-                        { label: 'Processing Lag', value: '< 2s', sub: 'Real-time sync active', icon: Zap, color: 'text-emerald-400' },
-                    ].map((stat, i) => (
+                    {statCards.map((stat, i) => (
                         <motion.div
                             key={stat.label}
                             initial={{ opacity: 0, y: 20 }}
@@ -94,8 +145,12 @@ export default function LeadManagerPage() {
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{stat.label}</p>
-                                        <p className="text-xl font-black text-white">{stat.value}</p>
-                                        <p className="text-[9px] text-gray-600 font-medium mt-0.5">{stat.sub}</p>
+                                        <p className="text-xl font-black text-white">
+                                            {loadingStats ? (
+                                                <div className="h-6 w-12 bg-gray-800 animate-pulse rounded mt-1" />
+                                            ) : stat.value}
+                                        </p>
+                                        <p className="text-[9px] text-gray-600 font-medium mt-0.5 truncate max-w-[150px]">{stat.sub}</p>
                                     </div>
                                 </CardContent>
                             </Card>

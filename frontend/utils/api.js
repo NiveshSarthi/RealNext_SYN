@@ -248,6 +248,7 @@ export const campaignsAPI = {
   deleteCampaign: (id) => api.delete(`/api/campaigns/${id}`),
   updateCampaign: (id, data) => api.put(`/api/campaigns/${id}`, data),
   updateStatus: (id, status) => api.put(`/api/campaigns/${id}/status`, { status }),
+  sendCampaign: (id) => api.put(`/api/campaigns/${id}/status`, { status: 'running' }),
 };
 
 // Templates API (External WhatsApp API)

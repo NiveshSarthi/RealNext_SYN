@@ -235,12 +235,17 @@ export default function Campaigns() {
   };
 
   const handleSend = async (campaign) => {
-    if (!confirm(`Are you sure you want to send the campaign "${campaign.name}"?`)) {
+    if (!confirm(`Are you sure you want to send the campaign "${campaign.name || campaign.template_name}"?`)) {
       return;
     }
-    // API call simulation
-    toast.success('Campaign launched successfully!');
-    fetchCampaigns();
+    try {
+      await campaignsAPI.sendCampaign(campaign._id || campaign.id);
+      toast.success('Campaign launched successfully!');
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Failed to launch campaign:', error);
+      toast.error('Failed to launch campaign');
+    }
   };
 
   const handleDelete = async (campaign) => {
