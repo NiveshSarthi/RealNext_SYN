@@ -77,10 +77,13 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
 
             // Sync with external API
             console.log(`[DEBUG_SYNC] Calling waService.createContact for "${phone}"...`);
-            const extContact = await waService.createContact({
+            const contactPayload = {
                 name: lead.name || 'Unknown Contact',
-                phone: phone
-            });
+                number: phone,
+                tags: lead.tags || ['lead'] // Default tag if none
+            };
+
+            const extContact = await waService.createContact(contactPayload);
 
             console.log(`[DEBUG_SYNC] Sync Contact Response for ${phone}:`, JSON.stringify(extContact));
 
