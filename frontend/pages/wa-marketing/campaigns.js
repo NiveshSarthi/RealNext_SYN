@@ -86,32 +86,32 @@ const CampaignCard = ({ campaign, onEdit, onSend, onView, onDelete, onAnalytics 
         )}
 
         <div className="flex items-center justify-between pt-4 border-t border-border/50">
+          {/* Action Buttons */}
           <div className="flex space-x-2">
-            {campaign.status === 'draft' ? (
-              <>
-                <button
-                  onClick={() => onSend(campaign)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-green-400 hover:bg-green-500/10 transition-colors"
-                  title="Send Campaign"
-                >
-                  <PaperAirplaneIcon className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => onEdit(campaign)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/10 transition-colors"
-                  title="Edit"
-                >
-                  <PencilIcon className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => onDelete(campaign)}
-                  className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                  title="Delete"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
-              </>
-            ) : (
+            {/* Send (Draft only) */}
+            {campaign.status === 'draft' && (
+              <button
+                onClick={() => onSend(campaign)}
+                className="p-2 rounded-lg text-gray-400 hover:text-green-400 hover:bg-green-500/10 transition-colors"
+                title="Send Campaign"
+              >
+                <PaperAirplaneIcon className="h-4 w-4" />
+              </button>
+            )}
+
+            {/* Edit (Draft only) */}
+            {campaign.status === 'draft' && (
+              <button
+                onClick={() => onEdit(campaign)}
+                className="p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                title="Edit"
+              >
+                <PencilIcon className="h-4 w-4" />
+              </button>
+            )}
+
+            {/* View Details (Non-draft) */}
+            {campaign.status !== 'draft' && (
               <button
                 onClick={() => onView(campaign)}
                 className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
@@ -121,6 +121,7 @@ const CampaignCard = ({ campaign, onEdit, onSend, onView, onDelete, onAnalytics 
               </button>
             )}
 
+            {/* Analytics (Completed) */}
             {campaign.status === 'completed' && (
               <button
                 onClick={() => onAnalytics(campaign)}
@@ -130,9 +131,20 @@ const CampaignCard = ({ campaign, onEdit, onSend, onView, onDelete, onAnalytics 
                 <ChartBarIcon className="h-4 w-4" />
               </button>
             )}
+
+            {/* Delete (Everything except Running) */}
+            {campaign.status !== 'running' && (
+              <button
+                onClick={() => onDelete(campaign)}
+                className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                title="Delete"
+              >
+                <TrashIcon className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
-          {/* If draft, show Send button as primary action else View */}
+          {/* Primary Action Button */}
           {campaign.status === 'draft' ? (
             <Button onClick={() => onSend(campaign)} variant="primary" className="h-8 text-xs px-3">
               <PlayIcon className="h-3 w-3 mr-1.5" /> Launch
@@ -264,9 +276,9 @@ export default function Campaigns() {
     }
   };
 
-  const handleEdit = (campaign) => router.push(`/campaigns/${campaign.id}/edit`);
-  const handleView = (campaign) => router.push(`/campaigns/${campaign.id}`);
-  const handleAnalytics = (campaign) => router.push(`/campaigns/${campaign.id}/${campaign.is_ab_test ? 'ab-test-results' : 'analytics'}`);
+  const handleEdit = (campaign) => router.push(`/campaigns/${campaign._id || campaign.id}/edit`);
+  const handleView = (campaign) => router.push(`/campaigns/${campaign._id || campaign.id}`);
+  const handleAnalytics = (campaign) => router.push(`/campaigns/${campaign._id || campaign.id}/${campaign.is_ab_test ? 'ab-test-results' : 'analytics'}`);
 
   if (loading || authLoading) {
     return (
