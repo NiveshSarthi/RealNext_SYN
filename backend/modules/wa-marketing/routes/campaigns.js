@@ -10,6 +10,7 @@ const { ApiError } = require('../../../middleware/errorHandler');
 const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = require('../../../utils/helpers');
 const { createCampaign, validate, validators } = require('../../../utils/validators');
 const waService = require('../../../services/waService');
+const logger = require('../../../config/logger');
 
 // Middleware
 router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
