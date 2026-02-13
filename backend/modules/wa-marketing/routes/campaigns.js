@@ -23,6 +23,70 @@ const ensureClient = (req) => {
 };
 
 /**
+ * Helper to sync local leads to external WhatsApp API and get their external IDs
+ * @param {Array} localLeadIds - Array of local lead IDs (strings or ObjectIds)
+ * @param {String} clientId - Current client ID
+ * @returns {Array} - Array of external contact IDs
+ */
+const syncAudienceContacts = async (localLeadIds, clientId) => {
+    if (!localLeadIds || localLeadIds.length === 0) return [];
+
+    logger.info(`Resolving ${localLeadIds.length} local leads to external contact IDs...`);
+
+    // 1. Fetch leads from local DB
+    const leads = await Lead.find({
+        _id: { $in: localLeadIds },
+        client_id: clientId,
+        phone: { $exists: true, $ne: '' }
+    });
+
+    if (leads.length === 0) {
+        logger.warn('No valid leads with phone numbers found for the selected IDs.');
+        return [];
+    }
+
+    const externalIds = [];
+
+    // 2. Process each lead (syncing if needed)
+    for (const lead of leads) {
+        try {
+            // Check if already synced (cached in metadata)
+            if (lead.metadata?.external_contact_id) {
+                externalIds.push(lead.metadata.external_contact_id);
+                continue;
+            }
+
+            // Sync with external API
+            // Note: waService.createContact handles existing contacts if it returns 409 or similar
+            const extContact = await waService.createContact({
+                name: lead.name,
+                phone: lead.phone
+            });
+
+            const extId = extContact?.id || extContact?.data?.id || extContact?._id;
+
+            if (extId) {
+                // Save external_id for future use to increase performance next time
+                if (!lead.metadata) lead.metadata = {};
+                lead.metadata.external_contact_id = extId;
+                lead.markModified('metadata');
+                await lead.save();
+
+                externalIds.push(extId.toString());
+            } else {
+                logger.warn(`Could not extract external ID for lead ${lead.phone}`);
+            }
+        } catch (error) {
+            logger.error(`Failed to sync lead ${lead._id} (${lead.phone}) to external API: ${error.message}`);
+            // Continue with other leads to avoid blocking the whole campaign
+        }
+    }
+
+    logger.info(`Successfully resolved ${externalIds.length} external contact IDs.`);
+    return externalIds;
+};
+
+/**
  * @route GET /api/campaigns
  * @desc List campaigns
  * @access Tenant User
@@ -177,7 +241,7 @@ router.post('/',
                         const externalPayload = {
                             template_name,
                             language_code: template_data?.language_code || 'en_US',
-                            contact_ids: validContactIds,
+                            contact_ids: await syncAudienceContacts(validContactIds, req.client.id),
                             variable_mapping: template_data?.variable_mapping || {},
                             schedule_time: scheduled_at ? new Date(scheduled_at).toISOString() : null
                         };
@@ -393,7 +457,7 @@ router.put('/:id/status',
                         const externalPayload = {
                             template_name: campaign.template_name,
                             language_code: campaign.template_data?.language_code || 'en_US',
-                            contact_ids: validContactIds,
+                            contact_ids: await syncAudienceContacts(validContactIds, req.client.id),
                             variable_mapping: campaign.template_data?.variable_mapping || {},
                             schedule_time: null // Immediate
                         };

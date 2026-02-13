@@ -74,6 +74,23 @@ class WaService {
         }
     }
 
+    async createContact(payload) {
+        try {
+            logger.info(`Syncing contact ${payload.phone} with External API...`);
+            const response = await this.api.post('/api/v1/contacts', payload);
+            logger.info('External Contact Synced:', response.data);
+            return response.data;
+        } catch (error) {
+            // Check if contact already exists (often returns 409 or has the ID in error detail)
+            if (error.response?.status === 409 || error.message.includes('already exists')) {
+                logger.info(`Contact ${payload.phone} already exists in External API`);
+                return error.response.data; // Return existing data if available
+            }
+            logger.error('Failed to sync contact with External API:', error.message);
+            throw error;
+        }
+    }
+
     async getCampaigns(params = {}) {
         try {
             logger.info('Fetching campaigns from External API...');
