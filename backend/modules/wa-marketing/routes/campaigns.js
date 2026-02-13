@@ -202,20 +202,31 @@ router.post('/',
                     }
                 } catch (extError) {
                     const errorMessage = extError.response?.data?.message || extError.message;
+                    const errorDetails = extError.response?.data ? JSON.stringify(extError.response.data) : null;
+
                     console.log(`[DEBUG_CAMPAIGN] External Error: ${errorMessage}`);
+                    if (errorDetails) {
+                        console.log(`[DEBUG_CAMPAIGN] External Error Details:`, errorDetails);
+                    }
+
                     logger.error(`External API trigger failed for campaign ${campaign._id}:`, {
                         message: errorMessage,
+                        details: errorDetails,
                         stack: extError.stack,
                         response: extError.response?.data
                     });
 
                     // Fallback status
                     campaign.status = 'failed';
-                    campaign.metadata = { ...campaign.metadata, error: errorMessage };
+                    campaign.metadata = { ...campaign.metadata, error: errorMessage, error_details: errorDetails };
                     await campaign.save();
 
                     // Throw error to be caught by the outer catch and sent to frontend
-                    throw ApiError.badRequest(`WhatsApp API Error: ${errorMessage}`);
+                    const descriptiveError = errorDetails
+                        ? `WhatsApp API Error: ${errorMessage} - ${errorDetails}`
+                        : `WhatsApp API Error: ${errorMessage}`;
+
+                    throw ApiError.badRequest(descriptiveError);
                 }
             } else {
                 await campaign.save();
@@ -399,15 +410,26 @@ router.put('/:id/status',
                         }
                     } catch (extError) {
                         const errorMessage = extError.response?.data?.message || extError.message;
+                        const errorDetails = extError.response?.data ? JSON.stringify(extError.response.data) : null;
+
                         console.error('Failed to trigger external campaign on status update:', errorMessage);
+                        if (errorDetails) {
+                            console.error(`[DEBUG_CAMPAIGN] External Error Details:`, errorDetails);
+                        }
+
                         logger.error(`External API trigger failed for campaign ${campaign._id} on status update:`, {
                             message: errorMessage,
+                            details: errorDetails,
                             stack: extError.stack,
                             response: extError.response?.data
                         });
 
-                        // Throw error to be caught by the outer catch and sent to frontend
-                        throw ApiError.badRequest(`WhatsApp API Error: ${errorMessage}`);
+                        // Throw badRequest to be caught by the outer catch and sent to frontend
+                        const descriptiveError = errorDetails
+                            ? `WhatsApp API Error: ${errorMessage} - ${errorDetails}`
+                            : `WhatsApp API Error: ${errorMessage}`;
+
+                        throw ApiError.badRequest(descriptiveError);
                     }
                 }
             }
