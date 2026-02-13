@@ -59,10 +59,11 @@ class WaService {
         }
     }
 
-    async createCampaign(payload) {
+    async createCampaign(campaignData) {
         try {
+            const { template_name, contact_ids, template_data } = campaignData;
             logger.info('Sending campaign creation request to External API...');
-            const response = await this.api.post('/api/v1/campaigns', payload);
+            const response = await this.api.post('/api/v1/campaigns', campaignData);
             logger.info('External Campaign Created:', response.data);
             return response.data;
         } catch (error) {
