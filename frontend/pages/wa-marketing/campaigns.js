@@ -243,7 +243,11 @@ export default function Campaigns() {
       fetchCampaigns();
     } catch (error) {
       console.error('Failed to launch campaign:', error);
-      toast.error('Failed to launch campaign');
+      const errorMessage = error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to launch campaign';
+      toast.error(errorMessage);
     }
   };
 
