@@ -209,10 +209,9 @@ export default function Campaigns() {
 
   const fetchStats = async () => {
     try {
-      // V1 doesn't explicitly have a global /stats in the doc for campaigns, 
-      // but we can calculate from list or use separate if implemented
       const response = await campaignsAPI.getCampaigns();
-      const campaignsList = response.data;
+      const data = response.data;
+      const campaignsList = Array.isArray(data) ? data : (data.data || []);
 
       const statsObj = {
         total_campaigns: campaignsList.length,

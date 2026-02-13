@@ -72,6 +72,7 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
                 _id: ext._id || ext.id,
                 local_id: local?._id,
                 name: ext.name || local?.name || ext.template_name || 'Untitled Campaign',
+                total_contacts: ext.total_contacts || ext.contacts || ext.recipient_count || local?.target_audience?.include?.length || 0,
                 created_by_name: local?.created_by ? 'RealNexT User' : 'External System',
                 is_external: true
             };
@@ -84,6 +85,7 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
                 mergedCampaigns.push({
                     ...loc.toObject(),
                     _id: loc._id,
+                    total_contacts: loc.target_audience?.include?.length || 0,
                     is_external: false,
                     is_local_draft: true
                 });
