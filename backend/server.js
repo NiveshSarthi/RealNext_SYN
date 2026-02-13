@@ -36,7 +36,9 @@ const allowedOrigins = [
   'https://testbd.niveshsarthi.com',
   'https://realnext.syndicate.niveshsarthi.com',
   'https://realnext.in',
-  'https://www.realnext.in',
+  /\.realnext\.in$/,
+  /^(https?:\/\/)?(www\.)?niveshsarthi\.com$/,
+  /^(https?:\/\/)?(www\.)?realnext\.in$/,
   /\.niveshsarthi\.com$/,
   /\.realnext\.in$/
 ].filter(Boolean);
