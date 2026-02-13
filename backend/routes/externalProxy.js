@@ -45,6 +45,7 @@ router.all('*', async (req, res, next) => {
             headers,
             // Forward body for mutation requests
             data: ['POST', 'PUT', 'PATCH'].includes(method) ? req.body : undefined,
+            timeout: 30000, // 30 second timeout
             validateStatus: () => true // Resolve promise for all status codes so we can forward them
         };
 
@@ -53,15 +54,27 @@ router.all('*', async (req, res, next) => {
         // Forward status code
         res.status(response.status);
 
-        // Forward headers
+        // Forward headers, but SKIP access-control headers to let our CORS middleware handle it
         Object.keys(response.headers).forEach(key => {
-            res.setHeader(key, response.headers[key]);
+            const lowerKey = key.toLowerCase();
+            if (!lowerKey.startsWith('access-control-')) {
+                res.setHeader(key, response.headers[key]);
+            }
         });
 
         // Send back data
         res.json(response.data);
 
     } catch (error) {
+        if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+            logger.error(`Proxy Timeout Error: ${error.message} for ${req.method} ${req.url}`);
+            return res.status(504).json({
+                success: false,
+                error: 'External API Gateway Timeout',
+                message: 'The request to the external service timed out.'
+            });
+        }
+
         logger.error(`Proxy Error: ${error.message}`);
         if (error.response) {
             logger.error(`Upstream Response: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
