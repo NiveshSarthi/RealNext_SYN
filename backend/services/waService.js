@@ -82,12 +82,55 @@ class WaService {
             logger.info('External Contact Synced:', response.data);
             return response.data;
         } catch (error) {
-            // Check if contact already exists (often returns 409 or has the ID in error detail)
-            if (error.response?.status === 409 || error.message.includes('already exists')) {
-                logger.info(`Contact ${contactIdentifier} already exists in External API`);
-                return error.response.data; // Return existing data if available
+            const errorDetail = error.response?.data?.detail || error.message;
+
+            // Check if contact already exists
+            if (error.response?.status === 409 ||
+                errorDetail.includes('already exists') ||
+                error.message.includes('already exists')) {
+
+                logger.info(`Contact ${contactIdentifier} already exists. Fetching details...`);
+
+                try {
+                    // Try to fetch the existing contact to get its ID
+                    const existingContacts = await this.getContacts({ search: contactIdentifier });
+                    if (existingContacts && existingContacts.result && existingContacts.result.length > 0) {
+                        // API documentation says 'contacts' array, but checking response based on assumed structure
+                        // Copilot: The doc says: { contacts: [...], total... }
+                        const contacts = existingContacts.contacts || existingContacts.result || [];
+                        const found = contacts.find(c => c.number === contactIdentifier || c.phone === contactIdentifier);
+
+                        if (found) {
+                            logger.info(`Found existing contact ID for ${contactIdentifier}: ${found._id || found.id}`);
+                            return found;
+                        } else if (contacts.length > 0) {
+                            // Fallback: assume the search result is relevant if only one
+                            logger.info(`Using first search result for ${contactIdentifier}`);
+                            return contacts[0];
+                        }
+                    }
+                } catch (fetchError) {
+                    logger.warn(`Failed to fetch existing contact details for ${contactIdentifier}:`, fetchError.message);
+                }
+
+                // If fetch failed or no ID found, return error data if it has ID, else throw
+                if (error.response?.data?.id || error.response?.data?._id) {
+                    return error.response.data;
+                }
             }
+
             logger.error('Failed to sync contact with External API:', error.message);
+            throw error;
+        }
+    }
+
+    async getContacts(params = {}) {
+        try {
+            logger.info(`Fetching contacts from External API with params: ${JSON.stringify(params)}`);
+            const response = await this.api.get('/api/v1/contacts', { params });
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to fetch contacts from External API:', error.message);
             throw error;
         }
     }
