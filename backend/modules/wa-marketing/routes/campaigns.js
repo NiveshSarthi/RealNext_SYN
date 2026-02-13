@@ -31,17 +31,19 @@ const ensureClient = (req) => {
 const syncAudienceContacts = async (localLeadIds, clientId) => {
     if (!localLeadIds || localLeadIds.length === 0) return [];
 
+    console.log(`[DEBUG_SYNC] Resolving ${localLeadIds.length} local leads to external contact IDs for client ${clientId}...`);
     logger.info(`Resolving ${localLeadIds.length} local leads to external contact IDs...`);
 
     // 1. Fetch leads from local DB
     const leads = await Lead.find({
         _id: { $in: localLeadIds },
-        client_id: clientId,
-        phone: { $exists: true, $ne: '' }
+        client_id: clientId
     });
 
+    console.log(`[DEBUG_SYNC] Found ${leads.length} leads in database out of ${localLeadIds.length} requested.`);
+
     if (leads.length === 0) {
-        logger.warn('No valid leads with phone numbers found for the selected IDs.');
+        logger.warn('No leads found in database for the selected IDs.');
         return [];
     }
 
@@ -50,22 +52,33 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
     // 2. Process each lead (syncing if needed)
     for (const lead of leads) {
         try {
+            console.log(`[DEBUG_SYNC] Processing lead ${lead._id}: Name="${lead.name}", Phone="${lead.phone}"`);
+
+            if (!lead.phone) {
+                console.log(`[DEBUG_SYNC] Lead ${lead._id} has no phone number. Skipping.`);
+                continue;
+            }
+
             // Check if already synced (cached in metadata)
             if (lead.metadata?.external_contact_id) {
+                console.log(`[DEBUG_SYNC] Lead ${lead._id} already synced with external ID: ${lead.metadata.external_contact_id}`);
                 externalIds.push(lead.metadata.external_contact_id);
                 continue;
             }
 
             // Sync with external API
-            // Note: waService.createContact handles existing contacts if it returns 409 or similar
+            console.log(`[DEBUG_SYNC] Calling waService.createContact for "${lead.phone}"...`);
             const extContact = await waService.createContact({
-                name: lead.name,
+                name: lead.name || 'Unknown Contact',
                 phone: lead.phone
             });
 
-            const extId = extContact?.id || extContact?.data?.id || extContact?._id;
+            console.log(`[DEBUG_SYNC] Sync Contact Response for ${lead.phone}:`, JSON.stringify(extContact));
+
+            const extId = extContact?.id || extContact?.data?.id || extContact?._id || extContact?.data?._id;
 
             if (extId) {
+                console.log(`[DEBUG_SYNC] Successfully resolved to external ID: ${extId}`);
                 // Save external_id for future use to increase performance next time
                 if (!lead.metadata) lead.metadata = {};
                 lead.metadata.external_contact_id = extId;
@@ -74,14 +87,20 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
 
                 externalIds.push(extId.toString());
             } else {
+                console.log(`[DEBUG_SYNC] FAILED: No ID in response for ${lead.phone}`);
                 logger.warn(`Could not extract external ID for lead ${lead.phone}`);
             }
         } catch (error) {
+            const errorMsg = error.response?.data?.message || error.message;
+            console.error(`[DEBUG_SYNC] ERROR syncing lead ${lead._id} (${lead.phone}):`, errorMsg);
+            if (error.response?.data) {
+                console.error(`[DEBUG_SYNC] Response data:`, JSON.stringify(error.response.data));
+            }
             logger.error(`Failed to sync lead ${lead._id} (${lead.phone}) to external API: ${error.message}`);
-            // Continue with other leads to avoid blocking the whole campaign
         }
     }
 
+    console.log(`[DEBUG_SYNC] Summary: Successfully resolved ${externalIds.length} of ${leads.length} leads.`);
     logger.info(`Successfully resolved ${externalIds.length} external contact IDs.`);
     return externalIds;
 };
