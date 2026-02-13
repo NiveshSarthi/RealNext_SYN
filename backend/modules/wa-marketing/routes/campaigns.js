@@ -347,7 +347,8 @@ router.put('/:id/status',
                 draft: ['scheduled', 'running'],
                 scheduled: ['running', 'cancelled'],
                 running: ['paused', 'cancelled', 'completed'],
-                paused: ['running', 'cancelled']
+                paused: ['running', 'cancelled'],
+                failed: ['running', 'cancelled']
             };
 
             if (!validTransitions[campaign.status]?.includes(status)) {
@@ -363,23 +364,50 @@ router.put('/:id/status',
                 if (!campaign.metadata?.external_id) {
                     try {
                         console.log(`[DEBUG_CAMPAIGN] Launching local campaign ${campaign._id} to external API`);
-                        const contactIds = campaign.target_audience?.include || [];
+                        let contactIds = campaign.target_audience?.include || [];
+
+                        if (contactIds.length === 0) {
+                            throw new Error('No contacts found for this campaign.');
+                        }
+
+                        // Ensure all IDs are strings and not empty
+                        const validContactIds = contactIds
+                            .filter(id => id && (typeof id === 'string' || typeof id === 'object'))
+                            .map(id => id.toString());
+
+                        if (validContactIds.length === 0) {
+                            throw new Error('No valid contact IDs provided after filtering.');
+                        }
+
                         const externalPayload = {
                             template_name: campaign.template_name,
                             language_code: campaign.template_data?.language_code || 'en_US',
-                            contact_ids: contactIds,
+                            contact_ids: validContactIds,
                             variable_mapping: campaign.template_data?.variable_mapping || {},
                             schedule_time: null // Immediate
                         };
 
+                        console.log(`[DEBUG_CAMPAIGN] Triggering External Service via Status Update with payload:`, JSON.stringify(externalPayload, null, 2));
+                        logger.info(`Triggering external campaign for ${campaign._id} on status change with ${validContactIds.length} contacts`);
+
                         const externalResponse = await waService.createCampaign(externalPayload);
-                        if (externalResponse && externalResponse.id) {
-                            updateData.metadata = { ...campaign.metadata, external_id: externalResponse.id };
+                        console.log(`[DEBUG_CAMPAIGN] External Success:`, JSON.stringify(externalResponse));
+
+                        if (externalResponse && (externalResponse.id || externalResponse.campaign_id)) {
+                            const extId = externalResponse.id || externalResponse.campaign_id;
+                            updateData.metadata = { ...campaign.metadata, external_id: extId };
                         }
                     } catch (extError) {
-                        console.error('Failed to trigger external campaign on status update:', extError.message);
-                        // We might want to fail the status update if it can't be launched
-                        throw ApiError.internal(`External API Error: ${extError.message}`);
+                        const errorMessage = extError.response?.data?.message || extError.message;
+                        console.error('Failed to trigger external campaign on status update:', errorMessage);
+                        logger.error(`External API trigger failed for campaign ${campaign._id} on status update:`, {
+                            message: errorMessage,
+                            stack: extError.stack,
+                            response: extError.response?.data
+                        });
+
+                        // Throw error to be caught by the outer catch and sent to frontend
+                        throw ApiError.badRequest(`WhatsApp API Error: ${errorMessage}`);
                     }
                 }
             }
@@ -459,10 +487,10 @@ router.get('/:id/stats', requireFeature('campaigns'), async (req, res, next) => 
         // Calculate rates
         const total = stats.sent || 1;
         const rates = {
-            delivery_rate: ((stats.delivered / total) * 100).toFixed(2),
-            read_rate: ((stats.read / total) * 100).toFixed(2),
-            reply_rate: ((stats.replied / total) * 100).toFixed(2),
-            failure_rate: ((stats.failed / total) * 100).toFixed(2)
+            delivery_rate: (((stats.delivered || 0) / total) * 100).toFixed(2),
+            read_rate: (((stats.read || 0) / total) * 100).toFixed(2),
+            reply_rate: (((stats.replied || 0) / total) * 100).toFixed(2),
+            failure_rate: (((stats.failed || 0) / total) * 100).toFixed(2)
         };
 
         res.json({

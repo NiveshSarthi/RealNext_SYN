@@ -19,7 +19,7 @@ const campaignSchema = new Schema({
     status: {
         type: String,
         default: 'draft',
-        enum: ['draft', 'scheduled', 'running', 'completed', 'failed', 'paused']
+        enum: ['draft', 'scheduled', 'running', 'completed', 'failed', 'paused', 'cancelled']
     },
     template_name: {
         type: String,
