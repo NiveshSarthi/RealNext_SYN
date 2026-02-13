@@ -211,7 +211,7 @@ export default function Layout({ children }) {
           className="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
           onClick={() => setSidebarOpen(false)}
         />
-        <div className="fixed inset-y-0 left-0 w-64 bg-card border-r border-border shadow-2xl transform transition-transform duration-300 ease-in-out">
+        <div className="fixed inset-y-0 left-0 w-64 bg-card border-r border-border shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col">
           <div className="flex items-center justify-between p-6 border-b border-border/50">
             <div className="flex flex-col leading-none">
               <span className="text-2xl font-bold font-display tracking-tight text-white flex items-center">
