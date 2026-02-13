@@ -33,6 +33,7 @@ export default function NewCampaign() {
     const [loading, setLoading] = useState(false);
     const [templates, setTemplates] = useState([]);
     const [leads, setLeads] = useState([]);
+    const [totalLeads, setTotalLeads] = useState(0);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -90,6 +91,7 @@ export default function NewCampaign() {
 
             console.log('Extracted Leads:', leadsData);
             setLeads(leadsData);
+            setTotalLeads(response.data?.pagination?.total || leadsData.length);
         } catch (error) {
             console.error('Failed to fetch leads:', error);
         }
@@ -134,20 +136,18 @@ export default function NewCampaign() {
 
             // 1. Prepare Contact IDs
             let contactIds = [];
+            let targetAudience = {};
+
             if (formData.audienceType === 'all') {
-                if (leads.length === 0) {
-                    const leadRes = await leadsAPI.getLeads({ limit: 1000 });
-                    contactIds = (leadRes.data.data || []).map(l => l._id || l.id);
-                } else {
-                    contactIds = leads.map(l => l._id || l.id);
-                }
+                targetAudience = { type: 'all' };
+                // We don't send individual IDs for 'all' to avoid large payload and hit backend optimization
+                contactIds = ["GLOBAL_ALL"]; // Dummy entry to pass frontend length check if any
             } else if (formData.audienceType === 'manual' || formData.audienceType === 'csv') {
                 contactIds = formData.selectedLeadIds || [];
-            } else {
-                contactIds = [];
+                targetAudience = { include: contactIds };
             }
 
-            if (contactIds.length === 0) {
+            if (formData.audienceType !== 'all' && contactIds.length === 0) {
                 toast.error('No contacts selected for this campaign');
                 setLoading(false);
                 return;
@@ -161,9 +161,7 @@ export default function NewCampaign() {
                     language_code: 'en_US',
                     variable_mapping: { "1": "Valued Customer" }
                 },
-                target_audience: {
-                    include: contactIds
-                },
+                target_audience: targetAudience,
                 scheduled_at: formData.isImmediate ? null : formData.scheduledAt,
                 metadata: {
                     audience_type: formData.audienceType
@@ -538,7 +536,7 @@ export default function NewCampaign() {
                                     <div className="ml-4">
                                         <h4 className="text-white font-medium">Global Broadcast</h4>
                                         <p className="text-sm text-gray-400 mt-1">
-                                            This campaign will target all <strong>{leads.length}</strong> available contacts in your database.
+                                            This campaign will target all <strong>{totalLeads}</strong> available contacts in your database.
                                         </p>
                                     </div>
                                 </div>

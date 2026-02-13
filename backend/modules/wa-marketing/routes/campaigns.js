@@ -259,94 +259,99 @@ router.post('/',
             // Only trigger if we are "launching" (not just saving draft, though front-end only keeps launch button)
             if (targetStatus !== 'draft') {
                 try {
-                    const contactIds = target_audience?.include || [];
-                    console.log(`[DEBUG_CAMPAIGN] Contacts count: ${contactIds.length}`);
+                    let validContactIds = [];
 
-                    if (contactIds.length > 0) {
-                        // Ensure all IDs are strings and not empty
-                        const validContactIds = contactIds
+                    if (target_audience?.type === 'all') {
+                        console.log(`[DEBUG_CAMPAIGN] Expanding 'all' audience for client ${req.client.id}`);
+                        const allLeads = await Lead.find({ client_id: req.client.id }).select('_id');
+                        validContactIds = allLeads.map(l => l._id.toString());
+                        console.log(`[DEBUG_CAMPAIGN] expanded 'all' to ${validContactIds.length} contacts`);
+                    } else {
+                        const contactIds = target_audience?.include || [];
+                        validContactIds = contactIds
                             .filter(id => id && (typeof id === 'string' || typeof id === 'object'))
                             .map(id => id.toString());
-
-                        if (validContactIds.length === 0) {
-                            throw new Error('No valid contact IDs provided after filtering.');
-                        }
-
-                        const syncedContactIds = await syncAudienceContacts(validContactIds, req.client.id);
-
-                        if (syncedContactIds.length === 0) {
-                            throw ApiError.badRequest('None of the selected leads could be successfully synced with the WhatsApp service. Please check lead phone numbers.');
-                        }
-
-                        const externalPayload = {
-                            template_name,
-                            language_code: template_data?.language_code || 'en_US',
-                            contact_ids: syncedContactIds,
-                            variable_mapping: template_data?.variable_mapping || {},
-                            schedule_time: scheduled_at ? new Date(scheduled_at).toISOString() : null
-                        };
-
-                        console.log(`[DEBUG_CAMPAIGN] Triggering External Service with payload:`, JSON.stringify(externalPayload, null, 2));
-                        logger.info(`Triggering external campaign for ${campaign._id} with ${validContactIds.length} contacts`);
-
-                        const externalResponse = await waService.createCampaign(externalPayload);
-                        console.log(`[DEBUG_CAMPAIGN] External Success:`, JSON.stringify(externalResponse));
-
-                        // Update local campaign with external ID if available
-                        if (externalResponse && externalResponse.id) {
-                            campaign.metadata = { ...campaign.metadata, external_id: externalResponse.id };
-                        }
-
-                        campaign.status = targetStatus;
-                        if (targetStatus === 'running') campaign.started_at = new Date();
-                        await campaign.save();
-                        console.log(`[DEBUG_CAMPAIGN] Status updated to ${targetStatus}`);
-                    } else {
-                        console.log(`[DEBUG_CAMPAIGN] No contacts. Skipping.`);
-                    }
-                } catch (extError) {
-                    const errorMessage = extError.response?.data?.message || extError.message;
-                    const errorDetails = extError.response?.data ? JSON.stringify(extError.response.data) : null;
-
-                    console.log(`[DEBUG_CAMPAIGN] External Error: ${errorMessage}`);
-                    if (errorDetails) {
-                        console.log(`[DEBUG_CAMPAIGN] External Error Details:`, errorDetails);
                     }
 
-                    logger.error(`External API trigger failed for campaign ${campaign._id}:`, {
-                        message: errorMessage,
-                        details: errorDetails,
-                        stack: extError.stack,
-                        response: extError.response?.data
-                    });
+                    if (validContactIds.length === 0) {
+                        throw new Error('No valid contact IDs provided or found for this audience.');
+                    }
 
-                    // Fallback status
-                    campaign.status = 'failed';
-                    campaign.metadata = { ...campaign.metadata, error: errorMessage, error_details: errorDetails };
+                    const syncedContactIds = await syncAudienceContacts(validContactIds, req.client.id);
+
+                    if (syncedContactIds.length === 0) {
+                        throw ApiError.badRequest('None of the selected leads could be successfully synced with the WhatsApp service. Please check lead phone numbers.');
+                    }
+
+                    const externalPayload = {
+                        template_name,
+                        language_code: template_data?.language_code || 'en_US',
+                        contact_ids: syncedContactIds,
+                        variable_mapping: template_data?.variable_mapping || {},
+                        schedule_time: scheduled_at ? new Date(scheduled_at).toISOString() : null
+                    };
+
+                    console.log(`[DEBUG_CAMPAIGN] Triggering External Service with payload:`, JSON.stringify(externalPayload, null, 2));
+                    logger.info(`Triggering external campaign for ${campaign._id} with ${validContactIds.length} contacts`);
+
+                    const externalResponse = await waService.createCampaign(externalPayload);
+                    console.log(`[DEBUG_CAMPAIGN] External Success:`, JSON.stringify(externalResponse));
+
+                    // Update local campaign with external ID if available
+                    if (externalResponse && externalResponse.id) {
+                        campaign.metadata = { ...campaign.metadata, external_id: externalResponse.id };
+                    }
+
+                    campaign.status = targetStatus;
+                    if (targetStatus === 'running') campaign.started_at = new Date();
                     await campaign.save();
-
-                    // Throw error to be caught by the outer catch and sent to frontend
-                    const descriptiveError = errorDetails
-                        ? `WhatsApp API Error: ${errorMessage} - ${errorDetails}`
-                        : `WhatsApp API Error: ${errorMessage}`;
-
-                    throw ApiError.badRequest(descriptiveError);
+                    console.log(`[DEBUG_CAMPAIGN] Status updated to ${targetStatus}`);
+                } else {
+                    console.log(`[DEBUG_CAMPAIGN] No contacts. Skipping.`);
                 }
-            } else {
+            } catch (extError) {
+                const errorMessage = extError.response?.data?.message || extError.message;
+                const errorDetails = extError.response?.data ? JSON.stringify(extError.response.data) : null;
+
+                console.log(`[DEBUG_CAMPAIGN] External Error: ${errorMessage}`);
+                if (errorDetails) {
+                    console.log(`[DEBUG_CAMPAIGN] External Error Details:`, errorDetails);
+                }
+
+                logger.error(`External API trigger failed for campaign ${campaign._id}:`, {
+                    message: errorMessage,
+                    details: errorDetails,
+                    stack: extError.stack,
+                    response: extError.response?.data
+                });
+
+                // Fallback status
+                campaign.status = 'failed';
+                campaign.metadata = { ...campaign.metadata, error: errorMessage, error_details: errorDetails };
                 await campaign.save();
-                console.log(`[DEBUG_CAMPAIGN] Draft saved: ${campaign._id}`);
+
+                // Throw error to be caught by the outer catch and sent to frontend
+                const descriptiveError = errorDetails
+                    ? `WhatsApp API Error: ${errorMessage} - ${errorDetails}`
+                    : `WhatsApp API Error: ${errorMessage}`;
+
+                throw ApiError.badRequest(descriptiveError);
             }
-
-            await incrementUsage(req, 'campaigns');
-
-            res.status(201).json({
-                success: true,
-                message: targetStatus === 'draft' ? 'Campaign saved as draft' : 'Campaign launched successfully',
-                data: campaign
-            });
-        } catch (error) {
-            next(error);
+        } else {
+            await campaign.save();
+            console.log(`[DEBUG_CAMPAIGN] Draft saved: ${campaign._id}`);
         }
+
+        await incrementUsage(req, 'campaigns');
+
+        res.status(201).json({
+            success: true,
+            message: targetStatus === 'draft' ? 'Campaign saved as draft' : 'Campaign launched successfully',
+            data: campaign
+        });
+    } catch (error) {
+        next(error);
+    }
     });
 
 /**
@@ -479,19 +484,22 @@ router.put('/:id/status',
                 if (!campaign.metadata?.external_id) {
                     try {
                         console.log(`[DEBUG_CAMPAIGN] Launching local campaign ${campaign._id} to external API`);
-                        let contactIds = campaign.target_audience?.include || [];
+                        let validContactIds = [];
 
-                        if (contactIds.length === 0) {
-                            throw new Error('No contacts found for this campaign.');
+                        if (campaign.target_audience?.type === 'all') {
+                            console.log(`[DEBUG_CAMPAIGN] Expanding 'all' audience for campaign ${campaign._id} (client: ${req.client.id})`);
+                            const allLeads = await Lead.find({ client_id: req.client.id }).select('_id');
+                            validContactIds = allLeads.map(l => l._id.toString());
+                            console.log(`[DEBUG_CAMPAIGN] expanded 'all' to ${validContactIds.length} contacts`);
+                        } else {
+                            const contactIds = campaign.target_audience?.include || [];
+                            validContactIds = contactIds
+                                .filter(id => id && (typeof id === 'string' || typeof id === 'object'))
+                                .map(id => id.toString());
                         }
 
-                        // Ensure all IDs are strings and not empty
-                        const validContactIds = contactIds
-                            .filter(id => id && (typeof id === 'string' || typeof id === 'object'))
-                            .map(id => id.toString());
-
                         if (validContactIds.length === 0) {
-                            throw new Error('No valid contact IDs provided after filtering.');
+                            throw new Error('No valid contact IDs found for this campaign.');
                         }
 
                         const syncedContactIds = await syncAudienceContacts(validContactIds, req.client.id);
