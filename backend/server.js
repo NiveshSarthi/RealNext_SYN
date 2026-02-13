@@ -34,7 +34,8 @@ const allowedOrigins = [
   'http://localhost:3000',
   process.env.FRONTEND_URL,
   'https://test.niveshsarthi.com',
-  'https://realnext.syndicate.niveshsarthi.com'
+  'https://realnext.syndicate.niveshsarthi.com',
+  'https://realnext.in'
 ].filter(Boolean);
 
 
@@ -130,7 +131,6 @@ const startServer = async () => {
   try {
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`CRITICAL: Server listening on PORT ${PORT}`);
-      console.log(`CRITICAL: Connected to database: ${mongoose.connection.name}`);
       logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
     });
   } catch (error) {
@@ -143,6 +143,7 @@ const startServer = async () => {
     dbStatus = 'connecting';
     await testConnection();
     dbStatus = 'connected';
+    console.log(`CRITICAL: Connected to database: ${mongoose.connection.name}`);
 
     // NOTE: Seeding is handled if SYNC_DB is true
     if (process.env.SYNC_DB === 'true') {

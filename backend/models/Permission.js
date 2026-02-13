@@ -28,9 +28,6 @@ const permissionSchema = new Schema({
     collection: 'permissions'
 });
 
-// Indexes
-permissionSchema.index({ code: 1 }, { unique: true });
-
 // Virtual for ID
 permissionSchema.virtual('id').get(function () {
     return this._id.toHexString();

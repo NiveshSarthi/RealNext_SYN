@@ -34,9 +34,6 @@ const environmentFlagSchema = new Schema({
     collection: 'environment_flags'
 });
 
-// Indexes
-environmentFlagSchema.index({ key: 1 });
-
 // Virtual for ID
 environmentFlagSchema.virtual('id').get(function () {
     return this._id.toHexString();

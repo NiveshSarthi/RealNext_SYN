@@ -71,10 +71,6 @@ const invoiceSchema = new Schema({
     collection: 'invoices'
 });
 
-// Indexes
-invoiceSchema.index({ client_id: 1, status: 1 });
-invoiceSchema.index({ invoice_number: 1 }, { unique: true });
-
 // Pre-save hook// Generate invoice number before validation
 invoiceSchema.pre('validate', async function () {
     if (this.isNew && !this.invoice_number) {

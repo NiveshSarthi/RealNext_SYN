@@ -70,8 +70,6 @@ planSchema.virtual('planFeatures', {
     foreignField: 'plan_id'
 });
 
-// Indexes
-planSchema.index({ code: 1 });
 planSchema.index({ is_active: 1 });
 
 // Virtual for ID

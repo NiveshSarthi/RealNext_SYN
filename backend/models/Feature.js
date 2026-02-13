@@ -36,9 +36,6 @@ const featureSchema = new Schema({
     collection: 'features'
 });
 
-// Indexes
-featureSchema.index({ code: 1 });
-
 // Virtual for ID
 featureSchema.virtual('id').get(function () {
     return this._id.toHexString();
