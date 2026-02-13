@@ -33,9 +33,12 @@ const allowedOrigins = [
   'http://localhost:5173',
   process.env.FRONTEND_URL,
   'https://test.niveshsarthi.com',
+  'https://testbd.niveshsarthi.com',
   'https://realnext.syndicate.niveshsarthi.com',
   'https://realnext.in',
-  'https://www.realnext.in'
+  'https://www.realnext.in',
+  /\.niveshsarthi\.com$/,
+  /\.realnext\.in$/
 ].filter(Boolean);
 
 const corsOptions = {
@@ -44,10 +47,14 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     const isAllowed = allowedOrigins.some(allowedOrigin => {
+      // Regexp check
+      if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
       // Direct match
       if (allowedOrigin === origin) return true;
-      // Handle potential trailing slash in process.env.FRONTEND_URL
-      if (allowedOrigin.replace(/\/$/, '') === origin) return true;
+      // Handle potential trailing slash in allowedOrigin
+      if (typeof allowedOrigin === 'string' && allowedOrigin.replace(/\/$/, '') === origin) return true;
       return false;
     });
 
@@ -55,7 +62,6 @@ const corsOptions = {
       callback(null, true);
     } else {
       logger.warn(`Blocked by CORS: ${origin}`);
-      // Return null, false instead of Error to avoid breaking the response flow
       callback(null, false);
     }
   },
