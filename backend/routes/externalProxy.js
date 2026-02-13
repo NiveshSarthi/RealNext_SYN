@@ -45,7 +45,7 @@ router.all('*', async (req, res, next) => {
             headers,
             // Forward body for mutation requests
             data: ['POST', 'PUT', 'PATCH'].includes(method) ? req.body : undefined,
-            timeout: 30000, // 30 second timeout
+            timeout: 60000, // 60 second timeout
             validateStatus: () => true // Resolve promise for all status codes so we can forward them
         };
 
@@ -68,10 +68,15 @@ router.all('*', async (req, res, next) => {
     } catch (error) {
         if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
             logger.error(`Proxy Timeout Error: ${error.message} for ${req.method} ${req.url}`);
+
+            // Explicitly set CORS header for error response to ensure browser sees the 504
+            res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+            res.header("Access-Control-Allow-Credentials", "true");
+
             return res.status(504).json({
                 success: false,
                 error: 'External API Gateway Timeout',
-                message: 'The request to the external service timed out.'
+                message: 'The request to the external service timed out (limit: 60s).'
             });
         }
 
