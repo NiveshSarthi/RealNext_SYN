@@ -253,9 +253,9 @@ export const campaignsAPI = {
 
 // Templates API (Internal Backend -> Syncs with External)
 export const templatesAPI = {
-  getTemplates: (params) => api.get('/api/templates', { params }), // Changed from waApi to api
-  createTemplate: (data) => api.post('/api/templates', data),      // Changed from waApi to api
-  deleteTemplate: (id) => api.delete(`/api/templates/${id}`),      // Changed from waApi to api, using ID
+  getTemplates: (params) => api.get('/api/v1/templates', { params }), // Updated to match API Docs
+  createTemplate: (data) => api.post('/api/v1/templates', data),      // Updated to match API Docs
+  deleteTemplate: (id) => api.delete(`/api/v1/templates/${id}`),      // Updated to match API Docs
 };
 
 // Drip Sequences API (Now using V1 if applicable, otherwise preserving existing)

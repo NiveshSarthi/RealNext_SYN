@@ -33,6 +33,11 @@ router.use('/lms', require('../modules/lms/routes'));
 router.use('/meta-ads', require('../modules/wa-marketing/routes/metaAds'));
 router.use('/payments', require('./payments'));
 
+// V1 Routes (matching API Documentation)
+router.use('/v1/templates', require('../modules/wa-marketing/routes/templates'));
+router.use('/v1/campaigns', require('../modules/wa-marketing/routes/campaigns'));
+router.use('/v1/contacts', require('../modules/lms/leads')); // Mapping leads to contacts for V1 API
+
 // Health check
 router.get('/health', (req, res) => {
     res.json({
