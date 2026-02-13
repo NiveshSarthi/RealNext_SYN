@@ -43,7 +43,9 @@ export default function NewCampaign() {
         selectedLeadIds: [],
         audienceFilters: {},
         scheduledAt: null,
-        isImmediate: true
+        isImmediate: true,
+        variableValues: {},
+        detectedVariables: []
     });
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -117,9 +119,19 @@ export default function NewCampaign() {
             toast.error('Campaign name is required');
             return;
         }
-        if (currentStep === 2 && !formData.templateId) {
-            toast.error('Please select a template');
-            return;
+        if (currentStep === 2) {
+            if (!formData.templateId) {
+                toast.error('Please select a template');
+                return;
+            }
+            // Check if all variables have values
+            if (formData.detectedVariables?.length > 0) {
+                const missing = formData.detectedVariables.filter(v => !formData.variableValues[v]);
+                if (missing.length > 0) {
+                    toast.error(`Please provide values for: ${missing.map(v => `{{${v}}}`).join(', ')}`);
+                    return;
+                }
+            }
         }
         setCurrentStep(prev => prev + 1);
     };
@@ -159,7 +171,7 @@ export default function NewCampaign() {
                 template_name: selectedTemplate?.name,
                 template_data: {
                     language_code: selectedTemplate?.language || 'en_US',
-                    variable_mapping: { "1": "Valued Customer" }
+                    variable_mapping: formData.variableValues || {}
                 },
                 target_audience: targetAudience,
                 scheduled_at: formData.isImmediate ? null : formData.scheduledAt,
@@ -271,26 +283,80 @@ export default function NewCampaign() {
                     )}
 
                     {currentStep === 2 && (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {templates.map((template) => (
-                                <div
-                                    key={template.id}
-                                    onClick={() => setFormData({ ...formData, templateId: template.id })}
-                                    className={`cursor-pointer rounded-xl border-2 p-6 transition-all duration-300 ${formData.templateId === template.id ? 'border-primary bg-primary/10 shadow-glow-sm' : 'border-white/5 bg-[#0E1117] hover:border-white/20'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h3 className="font-bold text-white font-display">{template.name}</h3>
-                                        {formData.templateId === template.id && <CheckCircleIcon className="h-6 w-6 text-primary" />}
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                {templates.map((template) => (
+                                    <div
+                                        key={template.id}
+                                        onClick={() => {
+                                            // Extract variables from body (e.g. {{1}}, {{2}})
+                                            const bodyText = template.content?.body || '';
+                                            const matches = [...bodyText.matchAll(/{{(\d+)}}/g)];
+                                            const variables = [...new Set(matches.map(m => m[1]))].sort((a, b) => a - b);
+
+                                            // Initialize empty values for new variables
+                                            const newValues = {};
+                                            variables.forEach(v => newValues[v] = '');
+
+                                            setFormData({
+                                                ...formData,
+                                                templateId: template.id,
+                                                variableValues: newValues,
+                                                detectedVariables: variables
+                                            });
+                                        }}
+                                        className={`cursor-pointer rounded-xl border-2 p-6 transition-all duration-300 ${formData.templateId === template.id ? 'border-primary bg-primary/10 shadow-glow-sm' : 'border-white/5 bg-[#0E1117] hover:border-white/20'
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-bold text-white font-display">{template.name}</h3>
+                                            {formData.templateId === template.id && <CheckCircleIcon className="h-6 w-6 text-primary" />}
+                                        </div>
+                                        <div className="inline-block px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-white/5 text-gray-400 mb-3">
+                                            {template.category} | {template.language}
+                                        </div>
+                                        <p className="text-sm text-gray-400 line-clamp-3 leading-relaxed whitespace-pre-wrap">
+                                            {template.content?.body || 'No preview available'}
+                                        </p>
                                     </div>
-                                    <div className="inline-block px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-white/5 text-gray-400 mb-3">
-                                        {template.category}
-                                    </div>
-                                    <p className="text-sm text-gray-400 line-clamp-3 leading-relaxed">
-                                        {template.content?.body || 'No preview available'}
+                                ))}
+                            </div>
+
+                            {/* Variable Mapping Section */}
+                            {formData.templateId && formData.detectedVariables?.length > 0 && (
+                                <div className="mt-8 p-6 bg-[#0E1117] border border-white/10 rounded-xl animate-fade-in">
+                                    <h3 className="text-lg font-bold text-white mb-4 flex items-center">
+                                        <PencilIcon className="h-5 w-5 mr-2 text-primary" />
+                                        Customize Template Variables
+                                    </h3>
+                                    <p className="text-sm text-gray-400 mb-6">
+                                        This template contains variables (placeholders). Please provide values for them.
                                     </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {formData.detectedVariables.map((variable) => (
+                                            <div key={variable}>
+                                                <label className="block text-sm font-medium text-gray-300 mb-2">
+                                                    Variable {`{{${variable}}}`}
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.variableValues?.[variable] || ''}
+                                                    onChange={(e) => setFormData({
+                                                        ...formData,
+                                                        variableValues: {
+                                                            ...formData.variableValues,
+                                                            [variable]: e.target.value
+                                                        }
+                                                    })}
+                                                    className="block w-full bg-black/20 border border-white/10 rounded-lg py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                                    placeholder={`Value for {{${variable}}}`}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            ))}
+                            )}
+
                             {templates.length === 0 && (
                                 <div className="col-span-full py-16 text-center text-gray-500 bg-[#0E1117] rounded-xl border border-dashed border-white/10">
                                     <DocumentTextIcon className="h-10 w-10 mx-auto text-gray-600 mb-2" />
