@@ -238,10 +238,16 @@ router.post('/',
                             throw new Error('No valid contact IDs provided after filtering.');
                         }
 
+                        const syncedContactIds = await syncAudienceContacts(validContactIds, req.client.id);
+
+                        if (syncedContactIds.length === 0) {
+                            throw ApiError.badRequest('None of the selected leads could be successfully synced with the WhatsApp service. Please check lead phone numbers.');
+                        }
+
                         const externalPayload = {
                             template_name,
                             language_code: template_data?.language_code || 'en_US',
-                            contact_ids: await syncAudienceContacts(validContactIds, req.client.id),
+                            contact_ids: syncedContactIds,
                             variable_mapping: template_data?.variable_mapping || {},
                             schedule_time: scheduled_at ? new Date(scheduled_at).toISOString() : null
                         };
@@ -454,10 +460,16 @@ router.put('/:id/status',
                             throw new Error('No valid contact IDs provided after filtering.');
                         }
 
+                        const syncedContactIds = await syncAudienceContacts(validContactIds, req.client.id);
+
+                        if (syncedContactIds.length === 0) {
+                            throw ApiError.badRequest('None of the selected leads could be successfully synced with the WhatsApp service. Please check lead phone numbers.');
+                        }
+
                         const externalPayload = {
                             template_name: campaign.template_name,
                             language_code: campaign.template_data?.language_code || 'en_US',
-                            contact_ids: await syncAudienceContacts(validContactIds, req.client.id),
+                            contact_ids: syncedContactIds,
                             variable_mapping: campaign.template_data?.variable_mapping || {},
                             schedule_time: null // Immediate
                         };
