@@ -76,12 +76,15 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
                 continue;
             }
 
-            // Sync with external API
-            console.log(`[DEBUG_SYNC] Calling waService.createContact for "${phone}"...`);
+            // Sanitize tags to ensure they are strings
+            const sanitizerTags = Array.isArray(lead.tags)
+                ? lead.tags.filter(t => typeof t === 'string' && t.trim() !== '')
+                : ['lead'];
+
             const contactPayload = {
                 name: lead.name || 'Unknown Contact',
                 number: phone,
-                tags: lead.tags || ['lead'] // Default tag if none
+                tags: sanitizerTags.length > 0 ? sanitizerTags : ['lead']
             };
 
             const extContact = await waService.createContact(contactPayload);
@@ -110,7 +113,10 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
                 logger.warn(`Could not extract external ID for lead ${phone}`);
             }
         } catch (error) {
-            const errorMsg = error.response?.data?.message || error.message;
+            // Capture specific error details from external API
+            const errorMsg = error.response?.data?.detail ||
+                error.response?.data?.message ||
+                (error.response?.data ? JSON.stringify(error.response.data) : error.message);
             console.error(`[DEBUG_SYNC] ERROR syncing lead ${lead._id}:`, errorMsg);
             if (error.response?.data) {
                 console.error(`[DEBUG_SYNC] Response data:`, JSON.stringify(error.response.data));
