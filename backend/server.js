@@ -100,6 +100,17 @@ app.use(morgan('combined', {
   stream: { write: (message) => logger.info(message.trim()) }
 }));
 
+// API Version for Deployment Verification
+app.get('/api/version', (req, res) => {
+  res.json({
+    version: '1.0.1',
+    timestamp: new Date().toISOString(),
+    deployed_at: '2026-02-13T14:20:00Z', // Update this manually on deploy
+    message: 'Includes fix for contact sync payload (number vs phone) and specific error reporting.'
+  });
+});
+}));
+
 // Body parsing
 
 app.use(express.json({ limit: '10mb' }));
