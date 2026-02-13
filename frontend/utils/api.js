@@ -251,11 +251,11 @@ export const campaignsAPI = {
   sendCampaign: (id) => api.put(`/api/campaigns/${id}/status`, { status: 'running' }),
 };
 
-// Templates API (External WhatsApp API)
+// Templates API (Internal Backend -> Syncs with External)
 export const templatesAPI = {
-  getTemplates: (params) => waApi.get('/api/v1/templates', { params }),
-  createTemplate: (data) => waApi.post('/api/v1/templates', data),
-  deleteTemplate: (name) => waApi.delete(`/api/v1/templates/${name}`),
+  getTemplates: (params) => api.get('/api/templates', { params }), // Changed from waApi to api
+  createTemplate: (data) => api.post('/api/templates', data),      // Changed from waApi to api
+  deleteTemplate: (id) => api.delete(`/api/templates/${id}`),      // Changed from waApi to api, using ID
 };
 
 // Drip Sequences API (Now using V1 if applicable, otherwise preserving existing)

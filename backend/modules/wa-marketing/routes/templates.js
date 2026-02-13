@@ -9,6 +9,7 @@ const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
 const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = require('../../../utils/helpers');
 const { validate, validators } = require('../../../utils/validators');
+const waService = require('../../../services/waService');
 
 // Middleware
 router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
@@ -77,19 +78,42 @@ router.post('/',
                 body_text, footer_text, buttons, metadata
             } = req.body;
 
+            console.log('[Template Create Request]', JSON.stringify(req.body, null, 2));
+
+            // 1. Create in External WhatsApp API
+            let externalTemplate;
+            try {
+                externalTemplate = await waService.createTemplate({
+                    name,
+                    category,
+                    language: language || 'en_US',
+                    components: components || [],
+                    // allow passing other fields if needed by external API
+                });
+            } catch (extError) {
+                // If external creation fails, do not create local record
+                throw new ApiError(502, `External WhatsApp API Error: ${extError.response?.data?.error || extError.message}`);
+            }
+
+            // 2. Create Local Record
             const template = await Template.create({
                 client_id: req.client.id,
                 name,
                 category,
-                language: language || 'en',
-                status: 'pending',
+                language: language || 'en_US',
+                status: externalTemplate?.status || 'approved', // Assume approved/pending based on response
                 components: components || {},
                 header_type,
                 body_text,
                 footer_text,
                 buttons: buttons || [],
                 created_by: req.user.id,
-                metadata: metadata || {}
+                metadata: {
+                    ...(metadata || {}),
+                    external_id: externalTemplate?.id,
+                    external_response: externalTemplate
+                },
+                wa_template_id: externalTemplate?.id
             });
 
             res.status(201).json({
@@ -97,6 +121,8 @@ router.post('/',
                 data: template
             });
         } catch (error) {
+            console.error('[Template Create Error]', error);
+            logger.error(`Failed to create template: ${error.message}`, { stack: error.stack, body: req.body });
             next(error);
         }
     }

@@ -59,6 +59,18 @@ class WaService {
         }
     }
 
+    async createTemplate(templateData) {
+        try {
+            logger.info('Sending template creation request to External API...');
+            const response = await this.api.post('/api/v1/templates', templateData);
+            logger.info('External Template Created:', response.data);
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to create template in External API:', error.message);
+            throw error;
+        }
+    }
+
     async createCampaign(campaignData) {
         try {
             const { template_name, contact_ids, template_data } = campaignData;
