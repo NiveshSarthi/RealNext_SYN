@@ -38,11 +38,13 @@ export default function NewCampaign() {
         name: '',
         description: '',
         templateId: '',
-        audienceType: 'all', // all, segment
+        audienceType: 'all', // all, manual, csv
+        selectedLeadIds: [],
         audienceFilters: {},
         scheduledAt: null,
         isImmediate: true
     });
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -73,7 +75,6 @@ export default function NewCampaign() {
             console.log('Fetching leads for campaign...');
             const response = await leadsAPI.getLeads({ limit: 100 });
             console.log('Leads API Response:', response);
-            console.log('Leads Data:', response.data);
 
             // Robust data extraction
             const rawData = response.data;
@@ -91,6 +92,21 @@ export default function NewCampaign() {
             setLeads(leadsData);
         } catch (error) {
             console.error('Failed to fetch leads:', error);
+        }
+    };
+
+    const fetchLiveLeads = async () => {
+        setLoading(true);
+        try {
+            toast.loading('Fetching live leads from Meta Ads...', { id: 'fetch-live' });
+            const res = await metaAdsAPI.fetchLeads();
+            toast.success(`Fetched ${res.data.newLeadsCreated || 0} new leads!`, { id: 'fetch-live' });
+            await fetchLeads(); // Refresh list
+        } catch (err) {
+            console.error('Failed to fetch live leads:', err);
+            toast.error('Failed to fetch live leads. Check your Meta Ads connection.', { id: 'fetch-live' });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -119,19 +135,15 @@ export default function NewCampaign() {
             // 1. Prepare Contact IDs
             let contactIds = [];
             if (formData.audienceType === 'all') {
-                // If all leads, we might need to fetch them all first to get IDs, 
-                // OR if the API supports a special "all" flag (not documented), we'd use that.
-                // Based on doc, we need contact_ids. So we use the loaded leads.
-                // If leads are paginated, this might miss some, but for now we use what we have.
                 if (leads.length === 0) {
-                    // Try to fetch if empty
-                    const leadRes = await leadsAPI.getLeads({ limit: 1000 }); // Increase limit
-                    contactIds = (leadRes.data.data || []).map(l => l._id);
+                    const leadRes = await leadsAPI.getLeads({ limit: 1000 });
+                    contactIds = (leadRes.data.data || []).map(l => l._id || l.id);
                 } else {
-                    contactIds = leads.map(l => l._id);
+                    contactIds = leads.map(l => l._id || l.id);
                 }
+            } else if (formData.audienceType === 'manual' || formData.audienceType === 'csv') {
+                contactIds = formData.selectedLeadIds || [];
             } else {
-                // Handle segment logic later
                 contactIds = [];
             }
 
@@ -158,13 +170,19 @@ export default function NewCampaign() {
                 }
             };
 
-            await campaignsAPI.createCampaign(payload);
-            toast.success('Campaign created successfully!');
-            router.push('/campaigns');
+            console.log('Creating campaign...', payload);
+            const response = await campaignsAPI.createCampaign(payload);
+            console.log('Campaign created:', response.data);
+
+            toast.success(response.data.message || 'Campaign launched successfully!');
+            router.push('/wa-marketing/campaigns');
         } catch (error) {
             console.error('Failed to create campaign:', error);
-            toast.error('Failed to create campaign');
-            // router.push('/campaigns'); // Don't redirect on error
+            const errorMessage = error.response?.data?.message ||
+                (error.response?.data?.error) ||
+                error.message ||
+                'Failed to create campaign';
+            toast.error(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -286,146 +304,370 @@ export default function NewCampaign() {
                     )}
 
                     {currentStep === 3 && (
-                        <div className="space-y-8 max-w-2xl">
-                            <div>
-                                <h3 className="text-lg font-medium text-white mb-4">Select Target Audience</h3>
-                                <div className="flex items-center space-x-4">
-                                    <button
-                                        onClick={() => setFormData({ ...formData, audienceType: 'all' })}
-                                        className={`px-6 py-3 rounded-lg text-sm font-medium transition-all ${formData.audienceType === 'all' ? 'bg-primary text-black shadow-glow-sm' : 'bg-[#0E1117] border border-white/10 text-gray-400 hover:text-white'
-                                            }`}
-                                    >
-                                        All Leads ({leads.length})
-                                    </button>
-                                    <button
-                                        onClick={() => setFormData({ ...formData, audienceType: 'segment' })}
-                                        className={`px-6 py-3 rounded-lg text-sm font-medium transition-all ${formData.audienceType === 'segment' ? 'bg-primary text-black shadow-glow-sm' : 'bg-[#0E1117] border border-white/10 text-gray-400 hover:text-white'
-                                            }`}
-                                    >
-                                        Custom Segment
-                                    </button>
+                        <div className="space-y-8">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-xl font-bold text-white mb-2">Select Target Audience</h3>
+                                    <p className="text-sm text-gray-400">Choose how you want to reach your audience.</p>
                                 </div>
+                                <Button
+                                    onClick={fetchLiveLeads}
+                                    disabled={loading}
+                                    variant="outline"
+                                    className="border-primary/50 text-primary hover:bg-primary/10 transition-all flex items-center"
+                                >
+                                    <ChatBubbleLeftRightIcon className="h-4 w-4 mr-2" />
+                                    Fetch Live Leads
+                                </Button>
                             </div>
 
-                            {formData.audienceType === 'segment' && (
-                                <div className="rounded-lg bg-orange-500/10 p-5 border border-orange-500/20 flex items-start">
-                                    <div className="flex-shrink-0">
-                                        <ClockIcon className="h-5 w-5 text-orange-400" />
-                                    </div>
-                                    <div className="ml-3">
-                                        <h3 className="text-sm font-medium text-orange-400">Feature Coming Soon</h3>
-                                        <div className="mt-1 text-sm text-orange-400/80">
-                                            <p>Advanced segmentation filters are currently under development. You can currently only target your entire lead base.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {[
+                                    { id: 'all', name: 'All Leads', desc: `Broadcast to all ${leads.length} contacts`, icon: UsersIcon },
+                                    { id: 'manual', name: 'Manual Selection', desc: 'Search and pick specific contacts', icon: CheckCircleIcon },
+                                    { id: 'csv', name: 'Import CSV', desc: 'Upload and target new contacts via EXCEL/CSV', icon: DocumentTextIcon },
+                                ].map((type) => (
+                                    <button
+                                        key={type.id}
+                                        onClick={() => setFormData({ ...formData, audienceType: type.id })}
+                                        className={`flex flex-col items-start p-5 rounded-xl border-2 transition-all text-left ${formData.audienceType === type.id
+                                            ? 'border-primary bg-primary/10 shadow-glow-sm'
+                                            : 'border-white/5 bg-[#0E1117] hover:border-white/10'
+                                            }`}
+                                    >
+                                        <type.icon className={`h-6 w-6 mb-3 ${formData.audienceType === type.id ? 'text-primary' : 'text-gray-500'}`} />
+                                        <span className={`font-bold ${formData.audienceType === type.id ? 'text-white' : 'text-gray-400'}`}>{type.name}</span>
+                                        <span className="text-xs text-gray-500 mt-1">{type.desc}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                            {/* CSV IMPORT UI */}
+                    {formData.audienceType === 'csv' && (
+                        <div className="p-8 border-2 border-dashed border-white/10 rounded-xl bg-[#0E1117] text-center">
+                            <div className="mx-auto h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                                <DocumentTextIcon className="h-6 w-6 text-primary" />
+                            </div>
+                            <h4 className="text-white font-medium mb-1">Upload Audience CSV</h4>
+                            <p className="text-xs text-gray-500 mb-6">File must contain "Name" and "Phone" columns.</p>
+                            <input
+                                type="file"
+                                id="csv-upload"
+                                accept=".csv"
+                                className="hidden"
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
+
+                                    const reader = new FileReader();
+                                    reader.onload = async (event) => {
+                                        const text = event.target.result;
+                                        const lines = text.split(/\r?\n/).filter(line => line.trim());
+                                        if (lines.length < 2) {
+                                            toast.error('CSV appears to be empty or missing data');
+                                            return;
+                                        }
+
+                                        // Simple CSV parser that handles quotes
+                                        const parseCSVLine = (line) => {
+                                            const result = [];
+                                            let cur = "";
+                                            let inQuotes = false;
+                                            for (let i = 0; i < line.length; i++) {
+                                                const char = line[i];
+                                                if (char === '"') {
+                                                    if (inQuotes && line[i + 1] === '"') {
+                                                        cur += '"';
+                                                        i++;
+                                                    } else {
+                                                        inQuotes = !inQuotes;
+                                                    }
+                                                } else if (char === ',' && !inQuotes) {
+                                                    result.push(cur);
+                                                    cur = "";
+                                                } else {
+                                                    cur += char;
+                                                }
+                                            }
+                                            result.push(cur);
+                                            return result;
+                                        };
+
+                                        try {
+                                            const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+                                            const nameIdx = headers.findIndex(h => h.includes('name'));
+                                            const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('number') || h.includes('mobile'));
+
+                                            if (nameIdx === -1 || phoneIdx === -1) {
+                                                toast.error('CSV must have "Name" and "Phone" headers');
+                                                return;
+                                            }
+
+                                            const importedLeads = lines.slice(1).map(line => {
+                                                const cols = parseCSVLine(line);
+                                                return {
+                                                    name: cols[nameIdx]?.trim(),
+                                                    phone: cols[phoneIdx]?.trim()?.replace(/[^0-9+]/g, '')
+                                                };
+                                            }).filter(l => l.name && l.phone && l.phone.length >= 10);
+
+                                            if (importedLeads.length === 0) {
+                                                toast.error('No valid contacts found in CSV (ensure name and valid phone numbers exist)');
+                                                return;
+                                            }
+
+                                            setLoading(true);
+                                            toast.loading(`Importing ${importedLeads.length} leads...`, { id: 'csv-import' });
+
+                                            const res = await leadsAPI.importLeads({ leads: importedLeads });
+                                            const newLeads = Array.isArray(res.data?.data) ? res.data.data : (res.data?.leads || []);
+
+                                            toast.success(`Successfully imported ${newLeads.length} contacts!`, { id: 'csv-import' });
+
+                                            setLeads(prev => [...newLeads, ...prev]);
+                                            setFormData({
+                                                ...formData,
+                                                audienceType: 'manual',
+                                                selectedLeadIds: newLeads.map(l => l._id || l.id)
+                                            });
+                                        } catch (err) {
+                                            console.error('CSV Parsing/Import Error:', err);
+                                            toast.error(err.response?.data?.message || 'Failed to import CSV contacts', { id: 'csv-import' });
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    };
+                                    reader.readAsText(file);
+                                }}
+                            />
+                            <Button
+                                onClick={() => document.getElementById('csv-upload').click()}
+                                variant="outline"
+                                className="border-primary/50 text-primary hover:bg-primary/10"
+                            >
+                                Browse Files
+                            </Button>
                         </div>
                     )}
 
-                    {currentStep === 4 && (
-                        <div className="space-y-8">
-                            <div className="rounded-xl border border-primary/20 bg-primary/5 p-6 backdrop-blur-sm">
-                                <h3 className="text-base font-bold text-white border-b border-primary/20 pb-3 mb-4 flex items-center">
-                                    <CheckCircleIcon className="h-5 w-5 mr-2 text-primary" />
-                                    Campaign Summary
-                                </h3>
-                                <dl className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2 text-sm">
-                                    <div>
-                                        <dt className="text-gray-500 mb-1">Campaign Name</dt>
-                                        <dd className="font-semibold text-white text-lg">{formData.name}</dd>
+                    {/* MANUAL SELECTION UI */}
+                    {formData.audienceType === 'manual' && (
+                        <div className="space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+                                <div className="relative flex-1">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <PencilIcon className="h-4 w-4 text-gray-500" />
                                     </div>
-                                    <div>
-                                        <dt className="text-gray-500 mb-1">Selected Template</dt>
-                                        <dd className="font-semibold text-white">{templates.find(t => t.id === formData.templateId)?.name || 'N/A'}</dd>
-                                    </div>
-                                    <div>
-                                        <dt className="text-gray-500 mb-1">Target Audience</dt>
-                                        <dd className="font-semibold text-white">{formData.audienceType === 'all' ? `All Leads (${leads.length})` : 'Custom Segment'}</dd>
-                                    </div>
-                                    <div>
-                                        <dt className="text-gray-500 mb-1">Delivery Schedule</dt>
-                                        <dd className="font-semibold text-white">{formData.isImmediate ? 'Send Immediately' : `Scheduled: ${formData.scheduledAt}`}</dd>
-                                    </div>
-                                </dl>
-                            </div>
-
-                            <div className="space-y-4 pt-4 border-t border-border/50">
-                                <label className="text-sm font-medium text-gray-300">Schedule Delivery</label>
-                                <div className="flex items-center space-x-6">
-                                    <div className="flex items-center">
-                                        <input
-                                            id="immediate"
-                                            name="delivery"
-                                            type="radio"
-                                            checked={formData.isImmediate}
-                                            onChange={() => setFormData({ ...formData, isImmediate: true })}
-                                            className="h-4 w-4 bg-[#0E1117] border-white/20 text-primary focus:ring-primary"
-                                        />
-                                        <label htmlFor="immediate" className="ml-3 text-sm font-medium text-white">Send Immediately</label>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <input
-                                            id="scheduled"
-                                            name="delivery"
-                                            type="radio"
-                                            checked={!formData.isImmediate}
-                                            onChange={() => setFormData({ ...formData, isImmediate: false })}
-                                            className="h-4 w-4 bg-[#0E1117] border-white/20 text-primary focus:ring-primary"
-                                        />
-                                        <label htmlFor="scheduled" className="ml-3 text-sm font-medium text-white">Schedule for Later</label>
-                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Search by name or number..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="block w-full bg-[#0E1117] border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                    />
                                 </div>
-
-                                {!formData.isImmediate && (
-                                    <div className="max-w-xs mt-3">
-                                        <input
-                                            type="datetime-local"
-                                            onChange={(e) => setFormData({ ...formData, scheduledAt: e.target.value })}
-                                            className="block w-full bg-[#0E1117] border border-border/50 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 sm:text-sm"
-                                        />
-                                    </div>
+                                <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={() => {
+                                            const filteredIds = leads
+                                                .filter(p => !searchTerm || p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || p.phone?.includes(searchTerm))
+                                                .map(l => l._id || l.id);
+                                            setFormData({ ...formData, selectedLeadIds: [...new Set([...(formData.selectedLeadIds || []), ...filteredIds])] });
+                                        }}
+                                        className="text-[10px] uppercase font-bold text-primary hover:text-primary/80 transition-colors"
+                                    >
+                                        Select Filtered
+                                    </button>
+                                    <span className="text-gray-700">|</span>
+                                    <button
+                                        onClick={() => setFormData({ ...formData, selectedLeadIds: [] })}
+                                        className="text-[10px] uppercase font-bold text-gray-500 hover:text-gray-400 transition-colors"
+                                    >
+                                        Clear
+                                    </button>
+                                    <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">
+                                        {formData.selectedLeadIds?.length || 0} selected
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="max-h-[300px] overflow-y-auto border border-white/5 rounded-xl bg-[#0E1117] divide-y divide-white/5 custom-scrollbar">
+                                {leads
+                                    .filter(p => !searchTerm || p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || p.phone?.includes(searchTerm))
+                                    .map(lead => {
+                                        const leadId = lead._id || lead.id;
+                                        const isSelected = formData.selectedLeadIds?.includes(leadId);
+                                        return (
+                                            <div
+                                                key={leadId}
+                                                onClick={() => {
+                                                    const current = formData.selectedLeadIds || [];
+                                                    setFormData({
+                                                        ...formData,
+                                                        selectedLeadIds: isSelected
+                                                            ? current.filter(id => id !== leadId)
+                                                            : [...current, leadId]
+                                                    });
+                                                }}
+                                                className={`flex items-center p-4 cursor-pointer hover:bg-white/5 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}
+                                            >
+                                                <div className={`h-5 w-5 rounded border-2 mr-4 flex items-center justify-center transition-all ${isSelected ? 'bg-primary border-primary' : 'border-gray-700'}`}>
+                                                    {isSelected && <CheckIcon className="h-3 w-3 text-black font-bold" />}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-medium text-white">{lead.name}</p>
+                                                    <p className="text-xs text-gray-500">{lead.phone || lead.email || 'No contact info'}</p>
+                                                </div>
+                                                <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-gray-500 uppercase font-bold">
+                                                    {lead.source || 'Manual'}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                {leads.length === 0 && (
+                                    <div className="p-8 text-center text-gray-500 italic">No contacts found.</div>
                                 )}
                             </div>
                         </div>
                     )}
-                </div>
 
-                {/* Actions */}
-                <div className="flex justify-between items-center py-4 px-2">
-                    {currentStep > 1 ? (
-                        <Button
-                            onClick={handleBack}
-                            variant="outline"
-                            className="bg-[#0E1117] border-white/10 text-white hover:bg-white/5"
-                        >
-                            <ChevronLeftIcon className="h-5 w-5 mr-1" />
-                            Back
-                        </Button>
-                    ) : <div />}
+                    {formData.audienceType === 'all' && (
+                        <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 flex items-start">
+                            <div className="flex-shrink-0 p-2 bg-primary/10 rounded-lg">
+                                <UsersIcon className="h-6 w-6 text-primary" />
+                            </div>
+                            <div className="ml-4">
+                                <h4 className="text-white font-medium">Global Broadcast</h4>
+                                <p className="text-sm text-gray-400 mt-1">
+                                    This campaign will target all <strong>{leads.length}</strong> available contacts in your database.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
-                    {currentStep < steps.length ? (
-                        <Button
-                            onClick={handleNext}
-                            variant="primary"
-                            className="w-32"
-                        >
-                            Next
-                            <ChevronRightIcon className="h-5 w-5 ml-1" />
-                        </Button>
-                    ) : (
-                        <Button
-                            onClick={handleSubmit}
-                            disabled={loading}
-                            variant="primary"
-                            className="w-48 shadow-glow"
-                        >
-                            {loading ? 'Creating...' : 'Launch Campaign'}
-                            {!loading && <CheckIcon className="h-5 w-5 ml-2" />}
-                        </Button>
+                    {formData.audienceType === 'segment' && (
+                        <div className="rounded-lg bg-orange-500/10 p-5 border border-orange-500/20 flex items-start">
+                            <div className="flex-shrink-0">
+                                <ClockIcon className="h-5 w-5 text-orange-400" />
+                            </div>
+                            <div className="ml-3">
+                                <h3 className="text-sm font-medium text-orange-400">Feature Coming Soon</h3>
+                                <div className="mt-1 text-sm text-orange-400/80">
+                                    <p>Advanced segmentation filters are currently under development. You can currently only target your entire lead base or specific selections.</p>
+                                </div>
+                            </div>
+                        </div>
                     )}
                 </div>
+                    )}
+
+                {currentStep === 4 && (
+                    <div className="space-y-8">
+                        <div className="rounded-xl border border-primary/20 bg-primary/5 p-6 backdrop-blur-sm">
+                            <h3 className="text-base font-bold text-white border-b border-primary/20 pb-3 mb-4 flex items-center">
+                                <CheckCircleIcon className="h-5 w-5 mr-2 text-primary" />
+                                Campaign Summary
+                            </h3>
+                            <dl className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2 text-sm">
+                                <div>
+                                    <dt className="text-gray-500 mb-1">Campaign Name</dt>
+                                    <dd className="font-semibold text-white text-lg">{formData.name}</dd>
+                                </div>
+                                <div>
+                                    <dt className="text-gray-500 mb-1">Selected Template</dt>
+                                    <dd className="font-semibold text-white">{templates.find(t => t.id === formData.templateId)?.name || 'N/A'}</dd>
+                                </div>
+                                <div>
+                                    <dt className="text-gray-500 mb-1">Target Audience</dt>
+                                    <dd className="font-semibold text-white">
+                                        {formData.audienceType === 'all' ? `All Leads (${leads.length} contacts)` :
+                                            formData.audienceType === 'manual' ? `Selected Contacts (${formData.selectedLeadIds?.length || 0})` :
+                                                'CSV Import'}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-gray-500 mb-1">Delivery Schedule</dt>
+                                    <dd className="font-semibold text-white">{formData.isImmediate ? 'Send Immediately' : `Scheduled: ${formData.scheduledAt}`}</dd>
+                                </div>
+                            </dl>
+                        </div>
+
+                        <div className="space-y-4 pt-4 border-t border-border/50">
+                            <label className="text-sm font-medium text-gray-300">Schedule Delivery</label>
+                            <div className="flex items-center space-x-6">
+                                <div className="flex items-center">
+                                    <input
+                                        id="immediate"
+                                        name="delivery"
+                                        type="radio"
+                                        checked={formData.isImmediate}
+                                        onChange={() => setFormData({ ...formData, isImmediate: true })}
+                                        className="h-4 w-4 bg-[#0E1117] border-white/20 text-primary focus:ring-primary"
+                                    />
+                                    <label htmlFor="immediate" className="ml-3 text-sm font-medium text-white">Send Immediately</label>
+                                </div>
+                                <div className="flex items-center">
+                                    <input
+                                        id="scheduled"
+                                        name="delivery"
+                                        type="radio"
+                                        checked={!formData.isImmediate}
+                                        onChange={() => setFormData({ ...formData, isImmediate: false })}
+                                        className="h-4 w-4 bg-[#0E1117] border-white/20 text-primary focus:ring-primary"
+                                    />
+                                    <label htmlFor="scheduled" className="ml-3 text-sm font-medium text-white">Schedule for Later</label>
+                                </div>
+                            </div>
+
+                            {!formData.isImmediate && (
+                                <div className="max-w-xs mt-3">
+                                    <input
+                                        type="datetime-local"
+                                        onChange={(e) => setFormData({ ...formData, scheduledAt: e.target.value })}
+                                        className="block w-full bg-[#0E1117] border border-border/50 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 sm:text-sm"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
-        </Layout>
+
+            {/* Actions */}
+            <div className="flex justify-between items-center py-4 px-2">
+                {currentStep > 1 ? (
+                    <Button
+                        onClick={handleBack}
+                        variant="outline"
+                        className="bg-[#0E1117] border-white/10 text-white hover:bg-white/5"
+                    >
+                        <ChevronLeftIcon className="h-5 w-5 mr-1" />
+                        Back
+                    </Button>
+                ) : <div />}
+
+                {currentStep < steps.length ? (
+                    <Button
+                        onClick={handleNext}
+                        variant="primary"
+                        className="w-32"
+                    >
+                        Next
+                        <ChevronRightIcon className="h-5 w-5 ml-1" />
+                    </Button>
+                ) : (
+                    <Button
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        variant="primary"
+                        className="w-48 shadow-glow"
+                    >
+                        {loading ? 'Creating...' : 'Launch Campaign'}
+                        {!loading && <CheckIcon className="h-5 w-5 ml-2" />}
+                    </Button>
+                )}
+            </div>
+        </div>
+        </Layout >
     );
 }

@@ -415,10 +415,9 @@ router.post('/import',
 
             res.status(201).json({
                 success: true,
-                data: {
-                    imported: result.length,
-                    total: leads.length
-                }
+                data: result,
+                imported: result.length,
+                total: leads.length
             });
         } catch (error) {
             next(error);

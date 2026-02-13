@@ -161,21 +161,31 @@ router.post('/',
             if (targetStatus !== 'draft') {
                 try {
                     const contactIds = target_audience?.include || [];
-                    console.log(`[DEBUG_CAMPAIGN] Contacts: ${contactIds.length}`);
+                    console.log(`[DEBUG_CAMPAIGN] Contacts count: ${contactIds.length}`);
 
                     if (contactIds.length > 0) {
+                        // Ensure all IDs are strings and not empty
+                        const validContactIds = contactIds
+                            .filter(id => id && (typeof id === 'string' || typeof id === 'object'))
+                            .map(id => id.toString());
+
+                        if (validContactIds.length === 0) {
+                            throw new Error('No valid contact IDs provided after filtering.');
+                        }
+
                         const externalPayload = {
                             template_name,
                             language_code: template_data?.language_code || 'en_US',
-                            contact_ids: contactIds,
+                            contact_ids: validContactIds,
                             variable_mapping: template_data?.variable_mapping || {},
                             schedule_time: scheduled_at ? new Date(scheduled_at).toISOString() : null
                         };
 
-                        console.log(`[DEBUG_CAMPAIGN] Triggering External Service...`);
-                        logger.info(`Triggering external campaign for ${campaign._id}`);
+                        console.log(`[DEBUG_CAMPAIGN] Triggering External Service with payload:`, JSON.stringify(externalPayload, null, 2));
+                        logger.info(`Triggering external campaign for ${campaign._id} with ${validContactIds.length} contacts`);
+
                         const externalResponse = await waService.createCampaign(externalPayload);
-                        console.log(`[DEBUG_CAMPAIGN] External Success: ${JSON.stringify(externalResponse)}`);
+                        console.log(`[DEBUG_CAMPAIGN] External Success:`, JSON.stringify(externalResponse));
 
                         // Update local campaign with external ID if available
                         if (externalResponse && externalResponse.id) {
@@ -190,20 +200,32 @@ router.post('/',
                         console.log(`[DEBUG_CAMPAIGN] No contacts. Skipping.`);
                     }
                 } catch (extError) {
-                    console.log(`[DEBUG_CAMPAIGN] External Error: ${extError.message}`);
-                    logger.error(`External API trigger failed for campaign ${campaign._id}:`, extError);
+                    const errorMessage = extError.response?.data?.message || extError.message;
+                    console.log(`[DEBUG_CAMPAIGN] External Error: ${errorMessage}`);
+                    logger.error(`External API trigger failed for campaign ${campaign._id}:`, {
+                        message: errorMessage,
+                        stack: extError.stack,
+                        response: extError.response?.data
+                    });
+
                     // Fallback status
                     campaign.status = 'failed';
-                    campaign.metadata = { ...campaign.metadata, error: extError.message };
+                    campaign.metadata = { ...campaign.metadata, error: errorMessage };
                     await campaign.save();
-                    // We catch but don't fail the request completely so user sees "Failed" status in UI
+
+                    // Throw error to be caught by the outer catch and sent to frontend
+                    throw ApiError.badRequest(`WhatsApp API Error: ${errorMessage}`);
                 }
+            } else {
+                await campaign.save();
+                console.log(`[DEBUG_CAMPAIGN] Draft saved: ${campaign._id}`);
             }
 
             await incrementUsage(req, 'campaigns');
 
             res.status(201).json({
                 success: true,
+                message: targetStatus === 'draft' ? 'Campaign saved as draft' : 'Campaign launched successfully',
                 data: campaign
             });
         } catch (error) {
