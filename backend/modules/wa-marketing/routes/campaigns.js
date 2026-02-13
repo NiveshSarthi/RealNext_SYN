@@ -52,34 +52,49 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
     // 2. Process each lead (syncing if needed)
     for (const lead of leads) {
         try {
-            console.log(`[DEBUG_SYNC] Processing lead ${lead._id}: Name="${lead.name}", Phone="${lead.phone}"`);
-
-            if (!lead.phone) {
+            let phone = lead.phone;
+            if (!phone) {
                 console.log(`[DEBUG_SYNC] Lead ${lead._id} has no phone number. Skipping.`);
                 continue;
             }
 
+            // Normalize phone: strip non-digits
+            phone = phone.toString().replace(/\D/g, '');
+
+            // Assume 10-digit number is Indian (common context here) and needs 91 prefix
+            if (phone.length === 10) {
+                phone = '91' + phone;
+            }
+
+            console.log(`[DEBUG_SYNC] Processing lead ${lead._id}: Name="${lead.name}", OriginalPhone="${lead.phone}", NormalizedPhone="${phone}"`);
+
             // Check if already synced (cached in metadata)
             if (lead.metadata?.external_contact_id) {
-                console.log(`[DEBUG_SYNC] Lead ${lead._id} already synced with external ID: ${lead.metadata.external_contact_id}`);
+                console.log(`[DEBUG_SYNC] Lead ${lead._id} already synced with ID: ${lead.metadata.external_contact_id}`);
                 externalIds.push(lead.metadata.external_contact_id);
                 continue;
             }
 
             // Sync with external API
-            console.log(`[DEBUG_SYNC] Calling waService.createContact for "${lead.phone}"...`);
+            console.log(`[DEBUG_SYNC] Calling waService.createContact for "${phone}"...`);
             const extContact = await waService.createContact({
                 name: lead.name || 'Unknown Contact',
-                phone: lead.phone
+                phone: phone
             });
 
-            console.log(`[DEBUG_SYNC] Sync Contact Response for ${lead.phone}:`, JSON.stringify(extContact));
+            console.log(`[DEBUG_SYNC] Sync Contact Response for ${phone}:`, JSON.stringify(extContact));
 
-            const extId = extContact?.id || extContact?.data?.id || extContact?._id || extContact?.data?._id;
+            // Wide extraction strategy: check for id in various nesting levels
+            const extId = extContact?.id ||
+                extContact?.data?.id ||
+                extContact?._id ||
+                extContact?.data?._id ||
+                extContact?.contact?.id ||
+                extContact?.data?.contact?.id;
 
             if (extId) {
                 console.log(`[DEBUG_SYNC] Successfully resolved to external ID: ${extId}`);
-                // Save external_id for future use to increase performance next time
+                // Save external_id for future use
                 if (!lead.metadata) lead.metadata = {};
                 lead.metadata.external_contact_id = extId;
                 lead.markModified('metadata');
@@ -87,16 +102,16 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
 
                 externalIds.push(extId.toString());
             } else {
-                console.log(`[DEBUG_SYNC] FAILED: No ID in response for ${lead.phone}`);
-                logger.warn(`Could not extract external ID for lead ${lead.phone}`);
+                console.log(`[DEBUG_SYNC] FAILED: No ID extracted from response for ${phone}`);
+                logger.warn(`Could not extract external ID for lead ${phone}`);
             }
         } catch (error) {
             const errorMsg = error.response?.data?.message || error.message;
-            console.error(`[DEBUG_SYNC] ERROR syncing lead ${lead._id} (${lead.phone}):`, errorMsg);
+            console.error(`[DEBUG_SYNC] ERROR syncing lead ${lead._id}:`, errorMsg);
             if (error.response?.data) {
                 console.error(`[DEBUG_SYNC] Response data:`, JSON.stringify(error.response.data));
             }
-            logger.error(`Failed to sync lead ${lead._id} (${lead.phone}) to external API: ${error.message}`);
+            logger.error(`Failed to sync lead ${lead._id} to external API: ${error.message}`);
         }
     }
 
