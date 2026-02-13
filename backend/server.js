@@ -38,10 +38,12 @@ const allowedOrigins = [
   'https://realnext.in'
 ].filter(Boolean);
 
-
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       logger.warn(`Blocked by CORS: ${origin}`);
@@ -50,11 +52,14 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-ID']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-ID'],
+  maxAge: 86400 // 24 hours
+};
 
-// Enable pre-flight requests for all routes
-app.options('*', cors());
+app.use(cors(corsOptions));
+
+// Enable pre-flight requests for all routes using the same options
+app.options('*', cors(corsOptions));
 
 // Compression
 
