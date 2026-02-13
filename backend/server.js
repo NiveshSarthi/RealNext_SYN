@@ -27,15 +27,15 @@ app.set('trust proxy', 1);
 
 // Security middleware
 
-app.use(helmet());
-
-// CORS configuration
+// CORS configuration - Moved to the TOP before helmet
 const allowedOrigins = [
   'http://localhost:3000',
+  'http://localhost:5173',
   process.env.FRONTEND_URL,
   'https://test.niveshsarthi.com',
   'https://realnext.syndicate.niveshsarthi.com',
-  'https://realnext.in'
+  'https://realnext.in',
+  'https://www.realnext.in'
 ].filter(Boolean);
 
 const corsOptions = {
@@ -43,23 +43,44 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin)) {
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      // Direct match
+      if (allowedOrigin === origin) return true;
+      // Handle potential trailing slash in process.env.FRONTEND_URL
+      if (allowedOrigin.replace(/\/$/, '') === origin) return true;
+      return false;
+    });
+
+    if (isAllowed) {
       callback(null, true);
     } else {
       logger.warn(`Blocked by CORS: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      // Return null, false instead of Error to avoid breaking the response flow
+      callback(null, false);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-ID'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Client-ID',
+    'X-Tenant-ID',
+    'Accept',
+    'X-Requested-With'
+  ],
+  exposedHeaders: ['Set-Cookie'],
   maxAge: 86400 // 24 hours
 };
 
 app.use(cors(corsOptions));
-
-// Enable pre-flight requests for all routes using the same options
+// Handle pre-flight for all routes
 app.options('*', cors(corsOptions));
+
+// Security middleware - After CORS
+app.use(helmet({
+  crossOriginResourcePolicy: false, // Disable to prevent conflicts with CORS
+}));
 
 // Compression
 
