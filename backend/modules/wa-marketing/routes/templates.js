@@ -7,6 +7,7 @@ const { enforceClientScope, setClientContext } = require('../../../middleware/sc
 const { requireFeature } = require('../../../middleware/featureGate');
 const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
+const logger = require('../../../config/logger');
 const { getPagination, getPaginatedResponse, getSorting, mergeFilters } = require('../../../utils/helpers');
 const { validate, validators } = require('../../../utils/validators');
 const waService = require('../../../services/waService');
@@ -82,17 +83,22 @@ router.post('/',
 
             // 1. Create in External WhatsApp API
             let externalTemplate;
+            // Ensure language is valid (en -> en_US)
+            const languageCode = (language === 'en' || !language) ? 'en_US' : language;
+
             try {
                 externalTemplate = await waService.createTemplate({
                     name,
                     category,
-                    language: language || 'en_US',
+                    language: languageCode,
                     components: components || [],
                     // allow passing other fields if needed by external API
                 });
             } catch (extError) {
                 // If external creation fails, do not create local record
-                throw new ApiError(502, `External WhatsApp API Error: ${extError.response?.data?.error || extError.message}`);
+                // Also provide detailed error message
+                const errorMsg = extError.response?.data?.error?.message || extError.response?.data?.error || extError.message;
+                throw new ApiError(400, `External WhatsApp API Error: ${errorMsg}`);
             }
 
             // 2. Create Local Record
@@ -100,7 +106,7 @@ router.post('/',
                 client_id: req.client.id,
                 name,
                 category,
-                language: language || 'en_US',
+                language: languageCode,
                 status: externalTemplate?.status || 'approved', // Assume approved/pending based on response
                 components: components || {},
                 header_type,
