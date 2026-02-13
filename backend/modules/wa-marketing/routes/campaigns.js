@@ -302,56 +302,51 @@ router.post('/',
                         campaign.metadata = { ...campaign.metadata, external_id: externalResponse.id };
                     }
 
-                    campaign.status = targetStatus;
-                    if (targetStatus === 'running') campaign.started_at = new Date();
                     await campaign.save();
                     console.log(`[DEBUG_CAMPAIGN] Status updated to ${targetStatus}`);
-                } else {
-                    console.log(`[DEBUG_CAMPAIGN] No contacts. Skipping.`);
+                } catch (extError) {
+                    const errorMessage = extError.response?.data?.message || extError.message;
+                    const errorDetails = extError.response?.data ? JSON.stringify(extError.response.data) : null;
+
+                    console.log(`[DEBUG_CAMPAIGN] External Error: ${errorMessage}`);
+                    if (errorDetails) {
+                        console.log(`[DEBUG_CAMPAIGN] External Error Details:`, errorDetails);
+                    }
+
+                    logger.error(`External API trigger failed for campaign ${campaign._id}:`, {
+                        message: errorMessage,
+                        details: errorDetails,
+                        stack: extError.stack,
+                        response: extError.response?.data
+                    });
+
+                    // Fallback status
+                    campaign.status = 'failed';
+                    campaign.metadata = { ...campaign.metadata, error: errorMessage, error_details: errorDetails };
+                    await campaign.save();
+
+                    // Throw error to be caught by the outer catch and sent to frontend
+                    const descriptiveError = errorDetails
+                        ? `WhatsApp API Error: ${errorMessage} - ${errorDetails}`
+                        : `WhatsApp API Error: ${errorMessage}`;
+
+                    throw ApiError.badRequest(descriptiveError);
                 }
-            } catch (extError) {
-                const errorMessage = extError.response?.data?.message || extError.message;
-                const errorDetails = extError.response?.data ? JSON.stringify(extError.response.data) : null;
-
-                console.log(`[DEBUG_CAMPAIGN] External Error: ${errorMessage}`);
-                if (errorDetails) {
-                    console.log(`[DEBUG_CAMPAIGN] External Error Details:`, errorDetails);
-                }
-
-                logger.error(`External API trigger failed for campaign ${campaign._id}:`, {
-                    message: errorMessage,
-                    details: errorDetails,
-                    stack: extError.stack,
-                    response: extError.response?.data
-                });
-
-                // Fallback status
-                campaign.status = 'failed';
-                campaign.metadata = { ...campaign.metadata, error: errorMessage, error_details: errorDetails };
+            } else {
                 await campaign.save();
-
-                // Throw error to be caught by the outer catch and sent to frontend
-                const descriptiveError = errorDetails
-                    ? `WhatsApp API Error: ${errorMessage} - ${errorDetails}`
-                    : `WhatsApp API Error: ${errorMessage}`;
-
-                throw ApiError.badRequest(descriptiveError);
+                console.log(`[DEBUG_CAMPAIGN] Draft saved: ${campaign._id}`);
             }
-        } else {
-            await campaign.save();
-            console.log(`[DEBUG_CAMPAIGN] Draft saved: ${campaign._id}`);
+
+            await incrementUsage(req, 'campaigns');
+
+            res.status(201).json({
+                success: true,
+                message: targetStatus === 'draft' ? 'Campaign saved as draft' : 'Campaign launched successfully',
+                data: campaign
+            });
+        } catch (error) {
+            next(error);
         }
-
-        await incrementUsage(req, 'campaigns');
-
-        res.status(201).json({
-            success: true,
-            message: targetStatus === 'draft' ? 'Campaign saved as draft' : 'Campaign launched successfully',
-            data: campaign
-        });
-    } catch (error) {
-        next(error);
-    }
     });
 
 /**
