@@ -152,7 +152,7 @@ class WaService {
     async getCampaigns(params = {}) {
         try {
             logger.info('Fetching campaigns from External API...');
-            const response = await this.api.get('/api/v1/campaigns', { params });
+            const response = await this.api.get('/api/v1/campaigns', { params, timeout: 5000 });
             return response.data;
         } catch (error) {
             logger.error('Failed to fetch campaigns from External API:', error.message);
@@ -163,7 +163,7 @@ class WaService {
     async getCampaignDetail(id) {
         try {
             logger.info(`Fetching campaign detail for ${id} from External API...`);
-            const response = await this.api.get(`/api/v1/campaigns/${id}`);
+            const response = await this.api.get(`/api/v1/campaigns/${id}`, { timeout: 5000 });
             return response.data;
         } catch (error) {
             logger.error(`Failed to fetch campaign detail for ${id} from External API:`, error.message);
