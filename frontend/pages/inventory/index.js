@@ -18,7 +18,19 @@ import {
   TrashIcon
 } from '@heroicons/react/24/outline';
 
-const PropertyCard = ({ property, onEdit, onDelete }) => {
+const PropertyCard = ({ property, onEdit, onDelete, onVisit }) => {
+  const handleShare = () => {
+    const text = `Check out this property: ${property.name}\n` +
+      `Location: ${property.description || 'N/A'}\n` +
+      `Price: ${property.currency} ${property.price ? Number(property.price).toLocaleString() : 'N/A'}\n` +
+      `Category: ${property.category}\n` +
+      `Details: ${property.properties?.bhk || '-'} BHK, ${property.properties?.area || '-'} sqft\n` +
+      `Status: ${property.status}`;
+
+    navigator.clipboard.writeText(text);
+    toast.success('Pitch copied to clipboard!');
+  };
+
   return (
     <div className="card group hover:border-primary/50 transition-all duration-300 overflow-hidden flex flex-col">
       {/* Image / Header Area */}
@@ -90,10 +102,21 @@ const PropertyCard = ({ property, onEdit, onDelete }) => {
         </div>
 
         <div className="pt-4 border-t border-border flex items-center justify-between gap-3 mt-auto">
-          <Button variant="outline" size="sm" className="flex-1 text-xs font-medium">
-            <CalendarIcon className="h-4 w-4 mr-2" /> Visited
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs font-medium"
+            onClick={() => onVisit(property)}
+          >
+            <CalendarIcon className="h-4 w-4 mr-2" />
+            Visited {property.properties?.visitCount > 0 ? `(${property.properties.visitCount})` : ''}
           </Button>
-          <Button variant="primary" size="sm" className="flex-1 text-xs font-semibold">
+          <Button
+            variant="primary"
+            size="sm"
+            className="flex-1 text-xs font-semibold"
+            onClick={handleShare}
+          >
             Share Pitch
           </Button>
         </div>
@@ -182,6 +205,47 @@ export default function Catalog() {
       }
     } catch (error) {
       toast.error('Failed to delete property');
+    }
+  };
+
+  const handleVisit = async (property) => {
+    try {
+      const currentProps = property.properties || {};
+      const newCount = (currentProps.visitCount || 0) + 1;
+
+      // Optimistic update
+      setItems(prev => prev.map(p =>
+        p.id === property.id
+          ? { ...p, properties: { ...p.properties, visitCount: newCount } }
+          : p
+      ));
+
+      // Call API to persist
+      // We need to send the full payload or partial depending on API. 
+      // Assuming updateItem merges or replaces. Based on handle submit, it sends full payload usually.
+      // But let's try sending just the properties update if the backend supports partial updates via PATCH/PUT logic,
+      // or we construct the full payload from the item.
+      // Safer to construct a payload similar to handleSubmit but with existing data.
+
+      const payload = {
+        name: property.name,
+        category: property.category,
+        price: property.price,
+        currency: property.currency,
+        description: property.description,
+        properties: {
+          ...currentProps,
+          visitCount: newCount
+        },
+        images: property.images
+      };
+
+      await catalogAPI.updateItem(property.id, payload);
+
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to update visit count');
+      fetchItems(); // Revert on error
     }
   };
 
@@ -278,8 +342,8 @@ export default function Catalog() {
               key={tag}
               onClick={() => setActiveFilter(tag)}
               className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${activeFilter === tag
-                  ? 'bg-primary/20 border-primary text-primary'
-                  : 'bg-card border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground'
+                ? 'bg-primary/20 border-primary text-primary'
+                : 'bg-card border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground'
                 }`}
             >
               {tag}
@@ -307,6 +371,7 @@ export default function Catalog() {
                 property={property}
                 onEdit={openEditModal}
                 onDelete={handleDelete}
+                onVisit={handleVisit}
               />
             ))}
           </div>
