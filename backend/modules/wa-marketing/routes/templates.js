@@ -33,6 +33,43 @@ router.get('/', requireFeature('templates'), async (req, res, next) => {
         const pagination = getPagination(req.query);
         const sorting = getSorting(req.query, ['name', 'status', 'category', 'created_at'], 'created_at');
 
+        // --- START SYNC ---
+        try {
+            const externalTemplates = await waService.getTemplates();
+            if (Array.isArray(externalTemplates) && externalTemplates.length > 0) {
+                // Upsert logic
+                const bulkOps = externalTemplates.map(ext => ({
+                    updateOne: {
+                        filter: {
+                            client_id: req.client.id,
+                            name: ext.name
+                        },
+                        update: {
+                            $set: {
+                                status: ext.status,
+                                category: ext.category,
+                                language: ext.language,
+                                components: ext.components,
+                                wa_template_id: ext.id,
+                                metadata: { external_id: ext.id, external_response: ext }
+                            },
+                            $setOnInsert: {
+                                client_id: req.client.id,
+                                created_by: req.user.id,
+                                buttons: [] // Default if missing
+                            }
+                        },
+                        upsert: true
+                    }
+                }));
+                await Template.bulkWrite(bulkOps);
+                logger.info(`Synced ${externalTemplates.length} templates from external API`);
+            }
+        } catch (syncError) {
+            logger.warn('Template sync failed (showing local data):', syncError.message);
+        }
+        // --- END SYNC ---
+
         const statusFilter = req.query.status ? { status: req.query.status } : null;
         const categoryFilter = req.query.category ? { category: req.query.category } : null;
 

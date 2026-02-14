@@ -171,6 +171,18 @@ class WaService {
         }
     }
 
+    async getTemplates(params = {}) {
+        try {
+            logger.info('Fetching templates from External API...');
+            const response = await this.api.get('/api/v1/templates', { params, timeout: 5000 });
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to fetch templates from External API:', error.message);
+            // Don't throw, return empty array to allow local fallback
+            return [];
+        }
+    }
+
     // Helper to format local campaign to external payload
     formatPayload(localCampaign, contactIds) {
         return {
