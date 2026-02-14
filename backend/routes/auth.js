@@ -15,15 +15,26 @@ const { ApiError } = require('../middleware/errorHandler');
  * @access Public
  */
 router.post('/login', async (req, res, next) => {
+    const start = Date.now();
     try {
+        console.log(`[AUTH-DEBUG] Login request received for email: ${req.body.email}`);
+        logger.info(`[AUTH-DEBUG] Login request received for email: ${req.body.email}`);
+
         const { email, password } = req.body;
         const result = await authService.login(email, password, req);
+
+        const duration = Date.now() - start;
+        console.log(`[AUTH-DEBUG] Login successful for ${email} in ${duration}ms`);
+        logger.info(`[AUTH-DEBUG] Login successful for ${email} in ${duration}ms`);
 
         res.json({
             success: true,
             data: result
         });
     } catch (error) {
+        const duration = Date.now() - start;
+        console.error(`[AUTH-DEBUG] Login failed for ${req.body.email} in ${duration}ms: ${error.message}`);
+        logger.error(`[AUTH-DEBUG] Login failed for ${req.body.email} in ${duration}ms: ${error.message}`);
         next(error);
     }
 });
