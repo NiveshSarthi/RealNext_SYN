@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const logger = require('../config/logger');
 const authService = require('../services/authService');
 const { authenticate } = require('../middleware/auth');
 const { authLimiter, passwordResetLimiter } = require('../middleware/rateLimiter');
