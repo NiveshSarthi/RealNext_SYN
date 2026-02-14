@@ -24,11 +24,18 @@ const PropertyCard = ({ property, onEdit, onDelete }) => {
       {/* Image / Header Area */}
       <div className="relative h-48 bg-muted/20 w-full overflow-hidden border-b border-border/50">
         <div className="absolute inset-0 bg-gradient-to-t from-[#0E1117] to-transparent opacity-80 z-10" />
-        <img
-          src={property.images?.[0] || property.imageUrl || "https://via.placeholder.com/400x300/161B22/FFFFFF?text=Property"}
-          alt={property.name}
-          className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-        />
+
+        {property.images?.[0] || property.imageUrl ? (
+          <img
+            src={property.images?.[0] || property.imageUrl}
+            alt={property.name}
+            className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-800/50">
+            <BuildingOfficeIcon className="h-20 w-20 text-gray-600" />
+          </div>
+        )}
         <div className="absolute bottom-4 left-4 z-20">
           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-primary text-black mb-2 inline-block">
             {property.category}
@@ -215,11 +222,26 @@ export default function Catalog() {
     }
   };
 
+  const [activeFilter, setActiveFilter] = useState('All');
+
   // Filter items
-  const filteredItems = items.filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredItems = items.filter(item => {
+    // 1. Search Term Filter
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    if (!matchesSearch) return false;
+
+    // 2. Category/Tag Filter
+    if (activeFilter === 'All') return true;
+    if (activeFilter === 'Premium') return (item.price && item.price >= 50000000); // > 5 Cr
+    if (activeFilter === 'Villa') return item.category === 'Villa';
+    if (activeFilter === 'Under 2Cr') return (item.price && item.price < 20000000);
+    if (activeFilter === 'Ready to move') return item.status === 'Ready to move';
+    if (activeFilter === 'RERA Approved') return item.rera || false; // Placeholder
+
+    return true;
+  });
 
   return (
     <Layout>
@@ -249,12 +271,16 @@ export default function Catalog() {
           </div>
         </div>
 
-        {/* Filters (Visual Mockup - logic can be refined later) */}
+        {/* Filters */}
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {['All', 'Premium', 'Villa', 'Under 2Cr', 'Ready to move', 'RERA Approved'].map((tag, i) => (
+          {['All', 'Premium', 'Villa', 'Under 2Cr', 'Ready to move', 'RERA Approved'].map((tag) => (
             <button
               key={tag}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${i === 0 ? 'bg-primary/10 border-primary text-primary' : 'bg-card border-border text-muted-foreground hover:border-muted-foreground'}`}
+              onClick={() => setActiveFilter(tag)}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${activeFilter === tag
+                  ? 'bg-primary/20 border-primary text-primary'
+                  : 'bg-card border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground'
+                }`}
             >
               {tag}
             </button>
