@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../utils/api';
 import Router from 'next/router';
+import SessionWarning from '../components/auth/SessionWarning';
+import toast from 'react-hot-toast';
 
 const AuthContext = createContext();
 
@@ -76,10 +78,13 @@ export function AuthProvider({ children, router }) {
         throw new Error(response.data.error || 'Invalid response structure');
       }
 
-      const { user: initialUser, token } = response.data.data;
+      const { user: initialUser, token, refresh_token } = response.data.data;
       let finalUser = initialUser;
 
       localStorage.setItem('access_token', token);
+      if (refresh_token) {
+        localStorage.setItem('refresh_token', refresh_token);
+      }
 
       if (!finalUser) {
         // Fetch profile if user info not in login response
@@ -166,6 +171,76 @@ export function AuthProvider({ children, router }) {
     }
   };
 
+  // --- Session Management ---
+  const [showWarning, setShowWarning] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  // Helper to decode JWT
+  const parseJwt = (token) => {
+    try {
+      return JSON.parse(atob(token.split('.')[1]));
+    } catch (e) {
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(() => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+
+      const payload = parseJwt(token);
+      if (!payload || !payload.exp) return;
+
+      const now = Math.floor(Date.now() / 1000);
+      const secondsRemaining = payload.exp - now;
+
+      console.log(`[SessionCheck] Exp: ${payload.exp}, Now: ${now}, Left: ${secondsRemaining}s`);
+
+      // Warning threshold: 5 minutes (300 seconds)
+      if (secondsRemaining <= 300 && secondsRemaining > 0) {
+        console.log('[SessionCheck] Triggering Warning');
+        setShowWarning(true);
+        setTimeLeft(secondsRemaining);
+      } else if (secondsRemaining <= 0) {
+        console.log('[SessionCheck] Token Expired => Logout');
+        // Expired
+        logout();
+      } else {
+        setShowWarning(false);
+      }
+    }, 1000); // Check every second for countdown accuracy
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const renewSession = async () => {
+    try {
+      // Assuming backend has /api/auth/refresh endpoint that uses cookie or body
+      // Based on auth.js: POST /api/auth/refresh with { refresh_token }
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) throw new Error('No refresh token');
+
+      const response = await authAPI.refresh(refreshToken);
+
+      if (response.data.success) {
+        const { access_token, refresh_token: newRefreshToken } = response.data.data;
+        localStorage.setItem('access_token', access_token);
+        if (newRefreshToken) {
+          localStorage.setItem('refresh_token', newRefreshToken);
+        }
+        setShowWarning(false);
+        toast.success('Session renewed!');
+      }
+    } catch (error) {
+      console.error('Session renewal failed:', error);
+      logout();
+      toast.error('Session expired. Please login again.');
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -181,6 +256,15 @@ export function AuthProvider({ children, router }) {
   return (
     <AuthContext.Provider value={value}>
       {children}
+      {user && (
+        <SessionWarning
+          isOpen={showWarning}
+          onClose={() => setShowWarning(false)}
+          timeLeft={timeLeft}
+          onRenew={renewSession}
+          onLogout={logout}
+        />
+      )}
     </AuthContext.Provider>
   );
 }

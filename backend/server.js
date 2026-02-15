@@ -1,5 +1,6 @@
 console.log('--- SERVER STARTING ---');
 require('dotenv').config();
+console.log('DEBUG: JWT_ACCESS_EXPIRY from process.env:', process.env.JWT_ACCESS_EXPIRY);
 
 const express = require('express');
 
