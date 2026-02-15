@@ -217,12 +217,21 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
                                     facebook_lead_id: leadData.id,
                                     form_id: form.form_id,
                                     page_id: form.pageConnection.page_id,
-                                    fetched_at: new Date()
+                                    fetched_at: new Date(),
+                                    facebook_form_data: leadData.field_data // Save all form answers
                                 },
                                 created_at: new Date(leadData.created_time)
                             });
                             newLeadsCount++;
                         } else {
+                            // Update metadata for existing leads
+                            if (!existingLead.metadata?.facebook_form_data) {
+                                existingLead.metadata = existingLead.metadata || {};
+                                existingLead.metadata.facebook_form_data = leadData.field_data;
+                                existingLead.markModified('metadata');
+                                await existingLead.save();
+                                logger.info(`Updated metadata for lead ${existingLead.name}`);
+                            }
                             skippedCount++;
                         }
                     }
@@ -400,7 +409,8 @@ router.post('/webhook', async (req, res) => {
                                     facebook_lead_id: leadgenId,
                                     form_id: formId,
                                     page_id: pageId,
-                                    webhook_received_at: new Date()
+                                    webhook_received_at: new Date(),
+                                    facebook_form_data: fieldData // Save all form answers
                                 }
                             });
 

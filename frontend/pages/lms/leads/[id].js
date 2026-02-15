@@ -26,6 +26,7 @@ export default function LeadDetail() {
     const { user, loading: authLoading } = useAuth();
     const [lead, setLead] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [noteContent, setNoteContent] = useState('');
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -73,6 +74,19 @@ export default function LeadDetail() {
         } catch (error) {
             console.error('Failed to delete lead:', error);
             toast.error('Failed to delete lead');
+        }
+    };
+
+    const handleAddNote = async () => {
+        if (!noteContent.trim()) return;
+        try {
+            await leadsAPI.addNote(id, noteContent);
+            toast.success('Note added');
+            setNoteContent('');
+            fetchLead(); // Refresh to show new note
+        } catch (error) {
+            console.error('Failed to add note:', error);
+            toast.error('Failed to add note');
         }
     };
 
@@ -131,7 +145,7 @@ export default function LeadDetail() {
                 {/* Navigation and Actions */}
                 <div className="flex items-center justify-between">
                     <button
-                        onClick={() => router.back()}
+                        onClick={() => router.push('/lms/leads')}
                         className="inline-flex items-center text-sm text-gray-400 hover:text-white font-medium transition-colors"
                     >
                         <ArrowLeftIcon className="h-4 w-4 mr-2" />
@@ -211,7 +225,7 @@ export default function LeadDetail() {
                                 <DetailRow
                                     label="Preferred Type"
                                     value={lead.property_type || 'Any'}
-                                    icon={BuildingOfficeIcon} // Assuming you might import this or use another icon
+                                    icon={BuildingOfficeIcon}
                                     isUppercase
                                 />
                                 <DetailRow
@@ -220,14 +234,87 @@ export default function LeadDetail() {
                                     icon={CalendarIcon}
                                 />
                             </dl>
+
+                            {/* Facebook Meta Data */}
+                            {lead.metadata?.facebook_form_data && lead.metadata.facebook_form_data.length > 0 && (
+                                <div className="mt-8 pt-6 border-t border-border/50">
+                                    <h3 className="text-lg font-semibold text-white mb-6 flex items-center">
+                                        <BuildingOfficeIcon className="h-5 w-5 mr-2 text-blue-400" />
+                                        Facebook Form Answers
+                                    </h3>
+                                    <dl className="space-y-4">
+                                        {lead.metadata.facebook_form_data.map((field, index) => (
+                                            <DetailRow
+                                                key={index}
+                                                label={field.name}
+                                                value={field.values ? field.values[0] : 'N/A'}
+                                                icon={TagIcon}
+                                            />
+                                        ))}
+                                    </dl>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Notes/Activities */}
                     <div className="px-6 py-6 border-t border-border/50">
                         <h3 className="text-lg font-semibold text-white mb-4">Notes & Activity</h3>
-                        <div className="bg-[#0E1117] border border-border/50 p-6 rounded-lg">
-                            <p className="text-sm text-gray-500 italic">No activity logs or notes yet.</p>
+                        <div className="bg-[#0E1117] border border-border/50 p-6 rounded-lg space-y-6">
+                            {/* Add Note Input */}
+                            <div className="flex gap-4">
+                                <textarea
+                                    className="flex-1 bg-[#161B22] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none h-24"
+                                    placeholder="Add a note..."
+                                    value={noteContent}
+                                    onChange={(e) => setNoteContent(e.target.value)}
+                                />
+                                <Button
+                                    onClick={handleAddNote}
+                                    disabled={!noteContent.trim()}
+                                    className="self-end bg-indigo-600 hover:bg-indigo-500 text-white"
+                                >
+                                    Add Note
+                                </Button>
+                            </div>
+
+                            {/* Timeline */}
+                            <div className="space-y-6 pt-6 border-t border-white/5">
+                                {lead.activity_logs && lead.activity_logs.length > 0 ? (
+                                    lead.activity_logs.slice().reverse().map((log, index) => (
+                                        <div key={index} className="flex gap-4 group">
+                                            <div className="flex flex-col items-center">
+                                                <div className={`h-8 w-8 rounded-full flex items-center justify-center border ${log.type === 'note' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' :
+                                                    log.type === 'status_change' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                                        'bg-gray-500/10 border-gray-500/20 text-gray-400'
+                                                    }`}>
+                                                    {log.type === 'note' ? <PencilIcon className="h-4 w-4" /> :
+                                                        log.type === 'status_change' ? <TagIcon className="h-4 w-4" /> :
+                                                            <UserCircleIcon className="h-4 w-4" />}
+                                                </div>
+                                                {index !== lead.activity_logs.length - 1 && (
+                                                    <div className="w-0.5 flex-1 bg-white/5 group-hover:bg-white/10 my-2" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 pb-4">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-sm font-bold text-white">
+                                                        {log.user_id?.name || 'System'}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(log.created_at).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-gray-400 leading-relaxed">
+                                                    {log.content}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-sm text-gray-500 italic text-center py-4">No activity logs or notes yet.</p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

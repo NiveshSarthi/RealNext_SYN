@@ -19,37 +19,78 @@ router.get('/', async (req, res, next) => {
     try {
         const clientId = req.client.id;
 
-        const teamMembers = await ClientUser.find({ client_id: clientId })
-            .populate({
-                path: 'user_id',
-                select: 'name email phone avatar_url status last_login_at created_at'
+        const [teamMembers, superAdmins] = await Promise.all([
+            ClientUser.find({ client_id: clientId })
+                .populate({
+                    path: 'user_id',
+                    select: 'name email phone avatar_url status last_login_at created_at'
+                })
+                .populate({
+                    path: 'role_id',
+                    select: 'name description permissions'
+                })
+                .sort({ created_at: -1 }),
+            User.find({
+                $or: [
+                    { is_super_admin: true },
+                    { system_role_id: { $ne: null } }
+                ]
             })
-            .populate({
-                path: 'role_id',
-                select: 'name description permissions'
-            })
-            .sort({ created_at: -1 });
+                .select('name email phone avatar_url status last_login_at created_at is_super_admin system_role_id')
+        ]);
 
-        const formattedMembers = teamMembers.map(tm => ({
-            id: tm._id,
-            user_id: tm.user_id?._id,
-            name: tm.user_id?.name,
-            email: tm.user_id?.email,
-            phone: tm.user_id?.phone,
-            avatar_url: tm.user_id?.avatar_url,
-            status: tm.user_id?.status,
-            role: tm.role,
-            role_id: tm.role_id?._id,
-            custom_role: tm.role_id ? {
-                id: tm.role_id._id,
-                name: tm.role_id.name,
-                description: tm.role_id.description
-            } : null,
-            is_owner: tm.is_owner,
-            department: tm.department,
-            last_login_at: tm.user_id?.last_login_at,
-            joined_at: tm.created_at
-        }));
+        const memberMap = new Map();
+
+        // Add Client Members first
+        teamMembers.forEach(tm => {
+            if (tm.user_id) {
+                memberMap.set(tm.user_id._id.toString(), {
+                    id: tm._id,
+                    user_id: tm.user_id._id,
+                    name: tm.user_id.name,
+                    email: tm.user_id.email,
+                    phone: tm.user_id.phone,
+                    avatar_url: tm.user_id.avatar_url,
+                    status: tm.user_id.status,
+                    role: tm.role,
+                    role_id: tm.role_id?._id,
+                    custom_role: tm.role_id ? {
+                        id: tm.role_id._id,
+                        name: tm.role_id.name,
+                        description: tm.role_id.description
+                    } : null,
+                    is_owner: tm.is_owner,
+                    department: tm.department,
+                    last_login_at: tm.user_id.last_login_at,
+                    joined_at: tm.created_at
+                });
+            }
+        });
+
+        // Add Super Admins and System Users if not already present
+        superAdmins.forEach(sa => {
+            if (!memberMap.has(sa._id.toString())) {
+                memberMap.set(sa._id.toString(), {
+                    id: sa._id, // Using user ID as fallback ID
+                    user_id: sa._id,
+                    name: sa.name,
+                    email: sa.email,
+                    phone: sa.phone,
+                    avatar_url: sa.avatar_url,
+                    status: sa.status,
+                    role: sa.is_super_admin ? 'admin' : 'system_user', // Differentiate roles
+                    role_id: null,
+                    custom_role: null,
+                    is_owner: false,
+                    department: 'Global',
+                    last_login_at: sa.last_login_at,
+                    joined_at: sa.created_at,
+                    is_super_admin: sa.is_super_admin
+                });
+            }
+        });
+
+        const formattedMembers = Array.from(memberMap.values());
 
         res.json({
             success: true,

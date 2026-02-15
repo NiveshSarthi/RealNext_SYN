@@ -223,6 +223,7 @@ export const internalLeadsAPI = {
   updateLead: (id, data) => api.put(`/api/leads/${id}`, data),
   deleteLead: (id) => api.delete(`/api/leads/${id}`),
   assignLead: (id, data) => api.put(`/api/leads/${id}/assign`, data),
+  addNote: (id, content) => api.post(`/api/leads/${id}/notes`, { content }),
   importLeads: (data) => api.post('/api/leads/import', data),
   getStats: () => api.get('/api/leads/stats/overview'),
 };
@@ -236,6 +237,11 @@ export const leadsAPI = {
   createContact: internalLeadsAPI.createLead,
   updateContact: internalLeadsAPI.updateLead,
   deleteContact: internalLeadsAPI.deleteLead,
+};
+
+// Team API
+export const teamAPI = {
+  getTeam: () => api.get('/api/team'),
 };
 
 

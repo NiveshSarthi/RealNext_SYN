@@ -78,6 +78,34 @@ const leadSchema = new Schema({
         type: Schema.Types.Mixed,
         default: {}
     },
+    activity_logs: [{
+        type: {
+            type: String,
+            enum: ['status_change', 'stage_change', 'note', 'assignment', 'creation'],
+            required: true
+        },
+        content: {
+            type: String,
+            required: true
+        },
+        old_value: {
+            type: String,
+            required: false
+        },
+        new_value: {
+            type: String,
+            required: false
+        },
+        user_id: {
+            type: Schema.Types.ObjectId,
+            ref: 'User',
+            required: true
+        },
+        created_at: {
+            type: Date,
+            default: Date.now
+        }
+    }],
     deleted_at: {
         type: Date,
         default: null

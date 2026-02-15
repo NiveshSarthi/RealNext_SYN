@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { leadsAPI } from '../../../utils/api';
+import { leadsAPI, teamAPI } from '../../../utils/api';
 import toast from 'react-hot-toast';
 import {
   Plus,
@@ -24,11 +24,68 @@ import {
   List,
   Sparkles,
   Facebook,
-  Zap
+  Zap,
+  UserPlus
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../../../components/ui/Dialog";
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
+
+// Modal Component for Assignment
+const AssignModal = ({ isOpen, onClose, onAssign, lead, members }) => {
+  const [selectedMember, setSelectedMember] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedMember(lead?.assigned_to?._id || lead?.assigned_to || '');
+    }
+  }, [isOpen, lead]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-[#161B22] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+        <h3 className="text-xl font-bold text-white mb-4">Assign Lead</h3>
+        <p className="text-gray-400 text-sm mb-6">
+          Assign <strong>{lead?.name}</strong> to a team member.
+        </p>
+
+        <div className="space-y-4">
+          <label className="block text-xs font-black uppercase tracking-widest text-gray-500">Select Member</label>
+          <select
+            value={selectedMember}
+            onChange={(e) => setSelectedMember(e.target.value)}
+            className="w-full bg-[#0D1117] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500/50"
+          >
+            <option value="">Select a member...</option>
+            {members.map(member => (
+              <option key={member.user_id} value={member.user_id}>
+                {member.name} ({member.email})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-8">
+          <Button variant="ghost" onClick={onClose} className="text-gray-400 hover:text-white">Cancel</Button>
+          <Button
+            onClick={() => onAssign(lead.id, selectedMember)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white"
+          >
+            {selectedMember ? 'Assign Member' : 'Unassign'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Stats Card Component
 const StatsCard = ({ title, value, icon: Icon, colorClass, bgClass, delay = 0 }) => (
@@ -52,7 +109,7 @@ const StatsCard = ({ title, value, icon: Icon, colorClass, bgClass, delay = 0 })
 );
 
 // Lead Card Component
-const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, index }) => {
+const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, onAssign, canEdit, index }) => {
   const isMetaLead = lead.source === 'Facebook Ads' || (lead.tags && lead.tags.includes('Meta'));
 
   const stageStatusMapping = {
@@ -82,6 +139,10 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, index }) => 
 
   const handleStageChange = async (e) => {
     e.stopPropagation();
+    if (!canEdit) {
+      toast.error("You don't have permission to edit this lead");
+      return;
+    }
     const newStage = e.target.value;
     const defaultStatus = stageStatusMapping[newStage][0];
     onStatusChange(lead, defaultStatus, newStage);
@@ -112,7 +173,8 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, index }) => 
                 value={lead.stage || 'Screening'}
                 onChange={handleStageChange}
                 onClick={(e) => e.stopPropagation()}
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${stageColors[lead.stage] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+                disabled={!canEdit}
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${stageColors[lead.stage] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
               >
                 {Object.keys(stageStatusMapping).map(stage => (
                   <option key={stage} value={stage} className="bg-[#161B22] text-gray-300">
@@ -124,7 +186,8 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, index }) => 
                 value={lead.status || 'Uncontacted'}
                 onChange={(e) => onStatusChange(lead, e.target.value, lead.stage)}
                 onClick={(e) => e.stopPropagation()}
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+                disabled={!canEdit}
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
               >
                 {(stageStatusMapping[lead.stage] || stageStatusMapping['Screening']).map(status => (
                   <option key={status} value={status} className="bg-[#161B22] text-gray-300">
@@ -136,9 +199,14 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, index }) => 
           </div>
         </div>
         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-[#0D1117] p-1 rounded-xl shadow-xl">
-          <button onClick={() => onEdit(lead)} className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
-            <Pencil className="h-4 w-4" />
+          <button onClick={() => onAssign(lead)} className="p-2 text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors" title="Assign Lead">
+            <UserPlus className="h-4 w-4" />
           </button>
+          {canEdit && (
+            <button onClick={() => onEdit(lead)} className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
           <button onClick={() => onDelete(lead)} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
             <Trash2 className="h-4 w-4" />
           </button>
@@ -158,6 +226,12 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, index }) => 
           </div>
           <span className="truncate">{lead.location || 'Location not set'}</span>
         </div>
+        {lead.assigned_to && (
+          <div className="flex items-center text-xs font-bold text-indigo-400 mt-2 bg-indigo-500/10 p-2 rounded-lg border border-indigo-500/20">
+            <Users className="h-3 w-3 mr-2" />
+            Assigned to: {lead.assigned_to.name || 'Unknown'}
+          </div>
+        )}
 
         <div className="flex items-center justify-between mt-6 pt-4 border-t border-dashed border-white/5">
           <span className="text-[10px] text-gray-500 font-bold flex items-center gap-1.5 uppercase tracking-wider">
@@ -189,8 +263,36 @@ export default function Leads() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [viewMode, setViewMode] = useState('table');
+
+  // Assignment State
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedLeadForAssign, setSelectedLeadForAssign] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  // Quick Update Modal State
+  const [selectedLeadForUpdate, setSelectedLeadForUpdate] = useState(null);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [quickUpdateStage, setQuickUpdateStage] = useState('');
+  const [quickUpdateStatus, setQuickUpdateStatus] = useState('');
+
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+
+  // Derived permissions
+  const isSuperAdmin = user?.is_super_admin;
+  const isClientAdminOrManager = user?.client?.role === 'admin' || user?.client?.role === 'manager';
+
+  // Helper check for edit permission
+  const canEditLead = (lead) => {
+    // If super admin or client admin/manager, allow
+    if (isSuperAdmin || isClientAdminOrManager) return true;
+    // If assigned, only allow if assigned to current user
+    if (lead.assigned_to) {
+      return (lead.assigned_to._id === user.id || lead.assigned_to === user.id);
+    }
+    // If unassigned, allow all (or restriction policy can be applied here)
+    return true;
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -198,8 +300,20 @@ export default function Leads() {
     } else if (user) {
       fetchLeads();
       fetchStats();
+      fetchTeamMembers();
     }
   }, [user, authLoading, searchTerm, stageFilter, statusFilter, currentPage]);
+
+  const fetchTeamMembers = async () => {
+    try {
+      const res = await teamAPI.getTeam();
+      if (res.data?.success) {
+        setTeamMembers(res.data.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch team", err);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -227,8 +341,8 @@ export default function Leads() {
     }
   };
 
-  const fetchLeads = async () => {
-    setLoading(true);
+  const fetchLeads = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const params = {
         page: currentPage,
@@ -246,7 +360,7 @@ export default function Leads() {
       console.error('Failed to fetch leads:', error);
       setLeads([]);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -262,33 +376,56 @@ export default function Leads() {
     }
   };
 
-  const tabs = [
-    { id: 'all', label: 'All Activity' },
-    { id: 'New', label: 'New' },
-    { id: 'Contacted', label: 'Contacted' },
-    { id: 'Screening', label: 'Screening' },
-    { id: 'Qualified', label: 'Qualified' },
-    { id: 'Proposal', label: 'Proposal' },
-    { id: 'Negotiation', label: 'Negotiation' },
-    { id: 'Site Visit', label: 'Site Visit' },
-    { id: 'Agreement', label: 'Agreement' },
-    { id: 'Payment', label: 'Payment' },
-    { id: 'Closed Won', label: 'Closed Won' },
-  ];
+  const handleAssignClick = (lead) => {
+    setSelectedLeadForAssign(lead);
+    setIsAssignModalOpen(true);
+  };
+
+  const handleAssignSubmit = async (leadId, userId) => {
+    try {
+      await leadsAPI.assignLead(leadId, { user_id: userId });
+      toast.success(userId ? "Lead assigned successfully" : "Lead unassigned");
+      setIsAssignModalOpen(false);
+      fetchLeads();
+    } catch (error) {
+      toast.error("Failed to assign lead");
+      console.error(error);
+    }
+  };
 
   const handleStatusChange = async (lead, newStatus, newStage = null) => {
+    if (!canEditLead(lead)) {
+      toast.error("You don't have permission to edit this lead");
+      return;
+    }
     try {
       const updateData = { status: newStatus };
       if (newStage) updateData.stage = newStage;
 
       await leadsAPI.updateLead(lead.id, updateData);
       toast.success(`Updated to ${newStage || lead.stage} - ${newStatus}`);
-      fetchLeads();
+      fetchLeads(false); // Silent refresh
       fetchStats();
     } catch (error) {
       toast.error('Failed to update status');
       console.error(error);
     }
+  };
+
+  const handleRowDoubleClick = (lead) => {
+    if (!canEditLead(lead)) return;
+    setSelectedLeadForUpdate(lead);
+    setQuickUpdateStage(lead.stage || 'Screening');
+    setQuickUpdateStatus(lead.status || 'Uncontacted');
+    setIsUpdateModalOpen(true);
+  };
+
+  const handleQuickUpdate = async () => {
+    if (!selectedLeadForUpdate) return;
+
+    await handleStatusChange(selectedLeadForUpdate, quickUpdateStatus, quickUpdateStage);
+    setIsUpdateModalOpen(false);
+    setSelectedLeadForUpdate(null);
   };
 
   const stageStatusMapping = {
@@ -319,6 +456,14 @@ export default function Leads() {
   return (
     <Layout>
       <div className="min-h-screen bg-[#0E1117] p-6 md:p-10 space-y-10 max-w-[1500px] mx-auto pb-24">
+
+        <AssignModal
+          isOpen={isAssignModalOpen}
+          onClose={() => setIsAssignModalOpen(false)}
+          onAssign={handleAssignSubmit}
+          lead={selectedLeadForAssign}
+          members={teamMembers}
+        />
 
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
@@ -475,6 +620,7 @@ export default function Leads() {
                           <tbody className="divide-y divide-white/5">
                             {leads.map((lead, idx) => {
                               const isMetaLead = lead.source === 'Facebook Ads' || (lead.tags && lead.tags.includes('Meta'));
+                              const canEdit = canEditLead(lead);
                               const statusColors = {
                                 'New': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
                                 'Contacted': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
@@ -489,7 +635,7 @@ export default function Leads() {
                               };
 
                               return (
-                                <tr key={lead.id} className="hover:bg-white/[0.02] transition-colors group">
+                                <tr key={lead.id} onDoubleClick={() => handleRowDoubleClick(lead)} className="hover:bg-white/[0.02] transition-colors group cursor-pointer">
                                   <td className="px-6 py-4">
                                     <div className="flex items-center gap-4">
                                       <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-white/10 text-indigo-400 font-bold text-sm shadow-inner group-hover:scale-110 transition-transform">
@@ -526,9 +672,17 @@ export default function Leads() {
                                     </div>
                                   </td>
                                   <td className="px-6 py-4">
-                                    <div className="flex items-center text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
-                                      <MapPin className="h-3 w-3 mr-2 opacity-50" />
-                                      {lead.location || 'Location not set'}
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
+                                        <MapPin className="h-3 w-3 mr-2 opacity-50" />
+                                        {lead.location || 'Location not set'}
+                                      </div>
+                                      {lead.assigned_to && (
+                                        <div className="flex items-center text-[10px] font-bold text-indigo-400 mt-1">
+                                          <Users className="h-3 w-3 mr-1" />
+                                          {lead.assigned_to.name}
+                                        </div>
+                                      )}
                                     </div>
                                   </td>
                                   <td className="px-6 py-4 text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
@@ -538,7 +692,8 @@ export default function Leads() {
                                         const newStage = e.target.value;
                                         handleStatusChange(lead, stageStatusMapping[newStage][0], newStage);
                                       }}
-                                      className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${stageColors[lead.stage] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+                                      disabled={!canEdit}
+                                      className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${stageColors[lead.stage] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
                                     >
                                       {Object.keys(stageStatusMapping).map(stage => (
                                         <option key={stage} value={stage} className="bg-[#161B22] text-gray-300">
@@ -551,7 +706,8 @@ export default function Leads() {
                                     <select
                                       value={lead.status || 'Uncontacted'}
                                       onChange={(e) => handleStatusChange(lead, e.target.value, lead.stage)}
-                                      className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+                                      disabled={!canEdit}
+                                      className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
                                     >
                                       {(stageStatusMapping[lead.stage] || stageStatusMapping['Screening']).map(status => (
                                         <option key={status} value={status} className="bg-[#161B22] text-gray-300">
@@ -563,19 +719,28 @@ export default function Leads() {
                                   <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2">
                                       <button
+                                        onClick={() => handleAssignClick(lead)}
+                                        className="p-2 text-indigo-400 hover:text-white hover:bg-indigo-500/10 rounded-lg transition-colors"
+                                        title="Assign Lead"
+                                      >
+                                        <UserPlus className="h-4 w-4" />
+                                      </button>
+                                      <button
                                         onClick={() => router.push(`/lms/leads/${lead.id}`)}
                                         className="p-2 text-indigo-400 hover:text-white hover:bg-indigo-500/10 rounded-lg transition-colors"
                                         title="View Details"
                                       >
                                         <Eye className="h-4 w-4" />
                                       </button>
-                                      <button
-                                        onClick={() => router.push(`/lms/leads/${lead.id}/edit`)}
-                                        className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                                        title="Edit"
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </button>
+                                      {canEdit && (
+                                        <button
+                                          onClick={() => router.push(`/lms/leads/${lead.id}/edit`)}
+                                          className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                                          title="Edit"
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </button>
+                                      )}
                                       <button
                                         onClick={() => handleDelete(lead)}
                                         className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
@@ -599,9 +764,11 @@ export default function Leads() {
                           key={lead.id}
                           lead={lead}
                           index={idx}
+                          canEdit={canEditLead(lead)}
                           onView={() => router.push(`/lms/leads/${lead.id}`)}
                           onEdit={() => router.push(`/lms/leads/${lead.id}/edit`)}
                           onDelete={() => handleDelete(lead)}
+                          onAssign={() => handleAssignClick(lead)}
                           onStatusChange={handleStatusChange}
                         />
                       ))}
@@ -652,6 +819,59 @@ export default function Leads() {
           </motion.div>
         )}
       </div>
+      <Dialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-[#161B22] border-[#1F2937] text-white">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Update Lead Status</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-6 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label className="text-right text-sm font-bold text-gray-400 uppercase tracking-widest">
+                Stage
+              </label>
+              <select
+                value={quickUpdateStage}
+                onChange={(e) => setQuickUpdateStage(e.target.value)}
+                className="col-span-3 flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              >
+                {Object.keys(stageStatusMapping).map((stage) => (
+                  <option key={stage} value={stage} className="bg-[#161B22]">
+                    {stage}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <label className="text-right text-sm font-bold text-gray-400 uppercase tracking-widest">
+                Status
+              </label>
+              <select
+                value={quickUpdateStatus}
+                onChange={(e) => setQuickUpdateStatus(e.target.value)}
+                className="col-span-3 flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              >
+                {(stageStatusMapping[quickUpdateStage] || stageStatusMapping['Screening']).map((status) => (
+                  <option key={status} value={status} className="bg-[#161B22]">
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsUpdateModalOpen(false)}
+              className="bg-transparent border-white/10 text-gray-400 hover:text-white rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleQuickUpdate} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl">
+              Update Lead
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

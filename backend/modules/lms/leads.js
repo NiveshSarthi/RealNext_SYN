@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Lead, User } = require('../../models');
+const { Lead, User, ClientUser } = require('../../models');
 const { authenticate } = require('../../middleware/auth');
 const { requireClientAccess } = require('../../middleware/roles');
 const { enforceClientScope, setClientContext } = require('../../middleware/scopeEnforcer');
@@ -232,6 +232,9 @@ router.get('/:id', requireFeature('leads'), async (req, res, next) => {
         }).populate({
             path: 'assigned_to',
             select: 'name email avatar_url'
+        }).populate({
+            path: 'activity_logs.user_id',
+            select: 'name email avatar_url'
         });
 
         if (!lead) {
@@ -273,10 +276,20 @@ router.put('/:id',
                 throw ApiError.notFound('Lead not found');
             }
 
+            // Permission Check: Only assigned user or Admin/Manager can edit
+            const isAssignedToUser = lead.assigned_to && lead.assigned_to.toString() === req.user.id;
+            const isAdminOrManager = req.clientUser && ['admin', 'manager'].includes(req.clientUser.role);
+            const isSuperAdmin = req.user.is_super_admin;
+
+            if (lead.assigned_to && !isAssignedToUser && !isAdminOrManager && !isSuperAdmin) {
+                throw ApiError.forbidden('Only the assigned team member or an admin can edit this lead');
+            }
+
             const updateData = { ...req.body };
             delete updateData.client_id; // Prevent client change
             delete updateData.id;
 
+            // Track status change
             // Track status change
             if (updateData.status && updateData.status !== lead.status) {
                 const history = { from: lead.status, to: updateData.status, at: new Date(), by: req.user.id };
@@ -284,6 +297,26 @@ router.put('/:id',
                 if (!lead.metadata.status_history) lead.metadata.status_history = [];
                 lead.metadata.status_history.push(history);
                 lead.markModified('metadata');
+
+                // Add to Activity Log
+                lead.activity_logs.push({
+                    type: 'status_change',
+                    content: `Changed status from ${lead.status} to ${updateData.status}`,
+                    old_value: lead.status,
+                    new_value: updateData.status,
+                    user_id: req.user.id
+                });
+            }
+
+            // Track stage change
+            if (updateData.stage && updateData.stage !== lead.stage) {
+                lead.activity_logs.push({
+                    type: 'stage_change',
+                    content: `Changed stage from ${lead.stage} to ${updateData.stage}`,
+                    old_value: lead.stage,
+                    new_value: updateData.stage,
+                    user_id: req.user.id
+                });
             }
 
             Object.assign(lead, updateData);
@@ -323,13 +356,18 @@ router.put('/:id/assign',
 
             // Verify user is part of client
             if (user_id) {
-                const { ClientUser } = require('../../models');
+                // Check membership
                 const isMember = await ClientUser.findOne({
                     client_id: req.client.id,
                     user_id
                 });
+
                 if (!isMember) {
-                    throw ApiError.badRequest('User is not a team member');
+                    // Check if Super Admin or System Admin
+                    const targetUser = await User.findById(user_id);
+                    if (!targetUser || (!targetUser.is_super_admin && !targetUser.system_role_id)) {
+                        throw ApiError.badRequest('User is not a team member');
+                    }
                 }
             }
 
@@ -432,5 +470,53 @@ router.post('/import',
  */
 
 
+
+
+/**
+ * @route POST /api/leads/:id/notes
+ * @desc Add a note to a lead
+ * @access Tenant User
+ */
+router.post('/:id/notes',
+    requireFeature('leads'),
+    [
+        validators.requiredString('content'),
+        validate
+    ],
+    async (req, res, next) => {
+        try {
+            ensureClient(req);
+            const lead = await Lead.findOne({
+                _id: req.params.id,
+                client_id: req.client.id
+            });
+
+            if (!lead) {
+                throw ApiError.notFound('Lead not found');
+            }
+
+            // Add Note to Activity Log
+            lead.activity_logs.push({
+                type: 'note',
+                content: req.body.content,
+                user_id: req.user.id,
+                created_at: new Date()
+            });
+
+            await lead.save();
+
+            // Return the newly added log entry with populated user
+            const updatedLead = await Lead.findById(lead._id).populate('activity_logs.user_id', 'name email avatar_url');
+            const newLog = updatedLead.activity_logs[updatedLead.activity_logs.length - 1];
+
+            res.json({
+                success: true,
+                data: newLog
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
 
 module.exports = router;
