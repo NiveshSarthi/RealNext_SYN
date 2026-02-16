@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -14,7 +16,9 @@ import {
     Power,
     CheckCircle2,
     ArrowRight,
-    Zap
+    Zap,
+    ChevronDown,
+    FileTextIcon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -23,7 +27,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export default function FacebookConnectionManager() {
     const [userToken, setUserToken] = useState('');
+    const [expandedPages, setExpandedPages] = useState({});
+    const [isHydrated, setIsHydrated] = useState(false);
     const queryClient = useQueryClient();
+
+    useEffect(() => {
+        setIsHydrated(true);
+    }, []);
 
     // Fetch Connected Pages
     const { data: pages = [], isLoading, error } = useQuery({
@@ -103,6 +113,21 @@ export default function FacebookConnectionManager() {
         }
     });
 
+    // Update Existing Forms Mutation
+    const updateExistingFormsMutation = useMutation({
+        mutationFn: async () => {
+            const res = await metaAdsAPI.updateExistingForms();
+            return res.data;
+        },
+        onSuccess: async (data) => {
+            await queryClient.invalidateQueries(['leads']);
+            toast.success(`✅ Updated ${data.updated} existing leads with form names`);
+        },
+        onError: (error) => {
+            toast.error(`Update failed: ${error.message}`);
+        }
+    });
+
     const handleConnectAccount = () => {
         if (!userToken) {
             toast.error('Please enter User Access Token');
@@ -111,9 +136,14 @@ export default function FacebookConnectionManager() {
         connectAccountMutation.mutate({ user_token: userToken });
     };
 
+    // Don't render animated content until hydrated to avoid hydration mismatch
+    if (!isHydrated) {
+        return <div className="space-y-8">Loading...</div>;
+    }
+
     return (
         <div className="space-y-8">
-            <Card className="bg-[#161B22]/60 backdrop-blur-xl border-[#1F2937] text-white shadow-2xl overflow-hidden relative">
+            <Card className="bg-[#161B22]/60 backdrop-blur-xl border-[#1F2937] text-white shadow-2xl overflow-hidden relative" suppressHydrationWarning={true}>
                 {/* Visual Accent */}
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
 
@@ -149,11 +179,20 @@ export default function FacebookConnectionManager() {
                                 <Download className={`w-4 h-4 ${fetchLeadsMutation.isPending ? 'animate-spin' : ''}`} />
                                 Fetch Leads
                             </Button>
+                            <Button
+                                size="sm"
+                                className="h-10 gap-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg shadow-amber-900/20 border-0 transition-all active:scale-95"
+                                onClick={() => updateExistingFormsMutation.mutate()}
+                                disabled={updateExistingFormsMutation.isPending}
+                            >
+                                <RefreshCw className={`w-4 h-4 ${updateExistingFormsMutation.isPending ? 'animate-spin' : ''}`} />
+                                Update Existing
+                            </Button>
                         </div>
                     </div>
                 </CardHeader>
 
-                <CardContent className="space-y-8 p-8">
+                <CardContent className="space-y-8 p-8" suppressHydrationWarning={true}>
                     {/* Setup Section */}
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
@@ -314,6 +353,63 @@ export default function FacebookConnectionManager() {
                                                         </div>
                                                     )}
                                                 </div>
+
+                                                {/* Forms List (Expandable) */}
+                                                {page.leadForms && page.leadForms.length > 0 && (
+                                                    <div className="mt-4 pt-4 border-t border-gray-800/50">
+                                                        <button
+                                                            onClick={() => setExpandedPages(prev => ({
+                                                                ...prev,
+                                                                [page._id || page.id]: !prev[page._id || page.id]
+                                                            }))}
+                                                            className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-800/30 transition-colors"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <FileTextIcon className="w-4 h-4 text-blue-400/60" />
+                                                                <span className="text-xs font-semibold text-gray-300">View Forms ({page.leadForms.length})</span>
+                                                            </div>
+                                                            <ChevronDown 
+                                                                className={`w-4 h-4 text-gray-500 transition-transform ${expandedPages[page._id || page.id] ? 'rotate-180' : ''}`}
+                                                            />
+                                                        </button>
+
+                                                        <AnimatePresence mode="wait">
+                                                            {expandedPages[page._id || page.id] && (
+                                                                <motion.div
+                                                                    initial={{ opacity: 0, height: 0 }}
+                                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                                    exit={{ opacity: 0, height: 0 }}
+                                                                    className="mt-3 space-y-2 max-h-60 overflow-y-auto"
+                                                                >
+                                                                    {page.leadForms.map((form, formIdx) => (
+                                                                        <div
+                                                                            key={form._id || form.id || formIdx}
+                                                                            className="flex items-start justify-between px-3 py-2.5 bg-gray-800/20 border border-gray-700/30 rounded-lg hover:bg-gray-800/40 transition-colors"
+                                                                        >
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <p className="text-xs font-semibold text-gray-200 truncate">{form.name || form.form_name || 'Untitled Form'}</p>
+                                                                                <div className="flex items-center gap-2 mt-1">
+                                                                                    <span className="text-[10px] text-gray-500 truncate max-w-[150px]">
+                                                                                        Page: {form.page_name || page.page_name}
+                                                                                    </span>
+                                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${form.status === 'active' || form.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700/40 text-gray-400'}`}>
+                                                                                        {form.status?.toUpperCase() || 'ACTIVE'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                            {(form.lead_count !== undefined || form.leads_count !== undefined) && (
+                                                                                <div className="ml-2 text-right">
+                                                                                    <p className="text-xs font-bold text-gray-300">{form.lead_count || form.leads_count || 0}</p>
+                                                                                    <p className="text-[9px] text-gray-600">leads</p>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </motion.div>
+                                                            )}
+                                                        </AnimatePresence>
+                                                    </div>
+                                                )}
                                             </div>
                                         </motion.div>
                                     ))}
@@ -329,8 +425,9 @@ export default function FacebookConnectionManager() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
+                suppressHydrationWarning={true}
             >
-                <Card className="bg-gradient-to-r from-[#161B22] to-[#0D1117] border-[#1F2937] border shadow-xl">
+                <Card className="bg-gradient-to-r from-[#161B22] to-[#0D1117] border-[#1F2937] border shadow-xl" suppressHydrationWarning={true}>
                     <CardContent className="p-6 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/10">

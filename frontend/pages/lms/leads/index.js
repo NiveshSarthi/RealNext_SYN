@@ -659,7 +659,7 @@ export default function Leads() {
                             <tr className="border-b border-white/5 bg-[#0D1117]/50">
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Lead Info</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Contact Details</th>
-                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Campaign</th>
+                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Form Name</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Assigned To</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Stages</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Status</th>
@@ -735,8 +735,8 @@ export default function Leads() {
                                   <td className="px-6 py-4">
                                     <div className="flex flex-col gap-1">
                                       <div className="flex items-center text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
-                                        <Megaphone className="h-3 w-3 mr-2 opacity-50" />
-                                        {lead.campaign_name || 'No Campaign'}
+                                        <FileText className="h-3 w-3 mr-2 opacity-50" />
+                                        {lead.form_name || lead.campaign_name || 'No Form'}
                                       </div>
                                     </div>
                                   </td>
@@ -919,10 +919,10 @@ export default function Leads() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Campaign</label>
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Form Name</label>
                 <input
-                  value={quickUpdateForm.campaign_name}
-                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, campaign_name: e.target.value })}
+                  value={quickUpdateForm.form_name}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, form_name: e.target.value })}
                   className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                 />
               </div>

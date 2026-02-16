@@ -133,6 +133,7 @@ router.post('/webhook', async (req, res) => {
                                 source: 'Facebook Ads',
                                 status: 'new',
                                 campaign_name: leadData.campaign_name,
+                                form_name: leadForm.name,
                                 metadata: {
                                     facebook_lead_id: leadgenId,
                                     form_id: formId,
@@ -613,6 +614,7 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
                                         status: 'new',
                                         stage: 'Screening',
                                         campaign_name: leadData.campaign_name,
+                                        form_name: form.name,
                                         metadata: {
                                             facebook_lead_id: leadData.id,
                                             form_id: form.form_id,
@@ -720,6 +722,78 @@ router.patch('/pages/:pageId/toggle-sync', requireFeature('meta_ads'), async (re
     }
 });
 
+/**
+ * @route POST /api/meta-ads/update-existing-forms
+ * @desc Retroactively update all existing leads with their form names
+ */
+router.post('/update-existing-forms', authenticate, async (req, res, next) => {
+    try {
+        logger.info(`[UPDATE-FORMS] Starting retroactive update`);
+
+        // Find all Facebook leads without form_name
+        // Note: Not filtering by client_id since client context may not be set in JWT claims
+        const leadsToUpdate = await Lead.find({
+            source: 'Facebook Ads',
+            $or: [
+                { form_name: { $exists: false } },
+                { form_name: null },
+                { form_name: '' }
+            ]
+        });
+
+        logger.info(`[UPDATE-FORMS] Found ${leadsToUpdate.length} leads to update`);
+
+        let updated = 0;
+        let skipped = 0;
+        let errors = 0;
+
+        for (const lead of leadsToUpdate) {
+            try {
+                const formId = lead.metadata?.form_id;
+
+                if (!formId) {
+                    logger.debug(`[UPDATE-FORMS] Skipping lead ${lead.name} - No form_id in metadata`);
+                    skipped++;
+                    continue;
+                }
+
+                // Find the form by form_id
+                const form = await FacebookLeadForm.findOne({ form_id: formId });
+
+                if (!form) {
+                    logger.debug(`[UPDATE-FORMS] Skipping lead ${lead.name} - Form ${formId} not found`);
+                    skipped++;
+                    continue;
+                }
+
+                // Update lead with form name
+                lead.form_name = form.name;
+                await lead.save();
+
+                logger.debug(`[UPDATE-FORMS] ✅ Updated lead "${lead.name}" with form_name: "${form.name}"`);
+                updated++;
+
+            } catch (leadError) {
+                logger.error(`[UPDATE-FORMS] Error updating lead: ${leadError.message}`);
+                errors++;
+            }
+        }
+
+        logger.info(`[UPDATE-FORMS] 📊 Summary: Updated=${updated}, Skipped=${skipped}, Errors=${errors}`);
+
+        res.json({
+            success: true,
+            updated,
+            skipped,
+            errors,
+            message: `Updated ${updated} leads with form names`
+        });
+
+    } catch (error) {
+        logger.error(`[UPDATE-FORMS] Fatal error: ${error.message}`);
+        next(error);
+    }
+});
 
 // Other endpoints (Analytics, etc.) could be added here similar to before
 // Keeping the original structure for analytics if it's still needed, or removing if strictly replacing.

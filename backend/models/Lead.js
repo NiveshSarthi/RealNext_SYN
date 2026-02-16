@@ -55,6 +55,10 @@ const leadSchema = new Schema({
         type: String,
         required: false
     },
+    form_name: {
+        type: String,
+        required: false
+    },
     notes: {
         type: String,
         required: false
