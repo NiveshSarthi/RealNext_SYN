@@ -24,16 +24,19 @@ router.get('/webhook', (req, res) => {
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
 
+    logger.info(`🔍 Meta Webhook Verification Attempt - mode: ${mode}, token: ${token}`);
+
     if (mode && token) {
         if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-            logger.info('✅ Webhook verified by Meta');
-            res.status(200).send(challenge);
+            logger.info('✅ Webhook verified successfully');
+            return res.status(200).send(challenge);
         } else {
-            logger.warn(`❌ Webhook verification failed: mode=${mode}, token=${token}`);
-            res.sendStatus(403);
+            logger.warn(`❌ Webhook verification failed: Expected="${VERIFY_TOKEN}", Received="${token}"`);
+            return res.status(403).send('Verification failed');
         }
     } else {
-        res.sendStatus(400);
+        logger.warn('⚠️ Webhook request missing hub.mode or hub.verify_token');
+        return res.status(400).send('Invalid request');
     }
 });
 

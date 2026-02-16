@@ -187,7 +187,9 @@ export default function Home() {
             </div>
           </div>
           <div className="flex gap-8 text-gray-400">
-            <a href="#" className="hover:text-primary">Privacy</a>
+            <Link href="/privacy-policy" className="hover:text-primary">
+              Privacy
+            </Link>
             <a href="#" className="hover:text-primary">Terms</a>
             <a href="#" className="hover:text-primary">Contact</a>
           </div>
