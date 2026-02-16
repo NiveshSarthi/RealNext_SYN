@@ -170,9 +170,8 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
         // 2. Fetch External Campaigns
         let externalCampaigns = [];
         try {
-            externalCampaigns = await waService.getCampaigns({ limit: pagination.limit });
-            // API V1 returns an array of campaigns directly often, 
-            // but let's be safe based on documentation example
+            const extResponse = await waService.getCampaigns({ limit: pagination.limit });
+            externalCampaigns = Array.isArray(extResponse) ? extResponse : (extResponse.data || extResponse.result || []);
         } catch (extError) {
             console.error('Failed to fetch external campaigns:', extError.message);
         }
