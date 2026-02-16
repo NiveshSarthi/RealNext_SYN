@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../../components/Layout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { leadsAPI } from '../../../utils/api';
+import { leadsAPI, teamAPI } from '../../../utils/api';
 import toast from 'react-hot-toast';
 import {
     ArrowLeftIcon,
@@ -16,7 +16,10 @@ import {
     CalendarIcon,
     UserCircleIcon,
     TagIcon,
-    BuildingOfficeIcon
+    BuildingOfficeIcon,
+    ShieldCheckIcon,
+    PaperAirplaneIcon,
+    XMarkIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '../../../components/ui/Button';
 
@@ -25,40 +28,61 @@ export default function LeadDetail() {
     const { id } = router.query;
     const { user, loading: authLoading } = useAuth();
     const [lead, setLead] = useState(null);
+    const [team, setTeam] = useState([]);
     const [loading, setLoading] = useState(true);
     const [noteContent, setNoteContent] = useState('');
+    const [showQuickUpdate, setShowQuickUpdate] = useState(false);
+    const [updating, setUpdating] = useState(false);
+    const [quickUpdateForm, setQuickUpdateForm] = useState({
+        stage: '',
+        status: '',
+        assigned_to: '',
+        source: ''
+    });
+
+    const stageStatusMapping = {
+        'Screening': ['Uncontacted', 'Not Interested', 'Not Responding', 'Dead'],
+        'Sourcing': ['Hot', 'Warm', 'Cold', 'Lost'],
+        'Walk-in': ['Hot', 'Warm', 'Cold', 'Lost'],
+        'Closure': ['Hot', 'Warm', 'Cold', 'Lost']
+    };
+
+    const sourceOptions = ['manual', 'csv', 'meta', 'api', 'website', 'referral', 'facebook', 'instagram', 'import'];
 
     useEffect(() => {
         if (!authLoading && !user) {
-            router.push('/login'); // Assuming login is at /login or /
+            router.push('/login');
         } else if (user && id) {
             fetchLead();
+            fetchTeam();
         }
     }, [user, authLoading, id]);
 
     const fetchLead = async () => {
         try {
             const response = await leadsAPI.getLead(id);
-            setLead(response.data.data);
+            const leadData = response.data.data;
+            setLead(leadData);
+            setQuickUpdateForm({
+                stage: leadData.stage || 'Screening',
+                status: leadData.status || 'Uncontacted',
+                assigned_to: leadData.assigned_to?._id || leadData.assigned_to || '',
+                source: leadData.source || 'manual'
+            });
         } catch (error) {
             console.error('Failed to fetch lead:', error);
-            // toast.error('Failed to load lead details');
-            // Mock data for demo if API fails
-            setLead({
-                id: id,
-                name: 'Michael Wilson',
-                phone: '910000000025',
-                email: 'michael.wilson@example.com',
-                status: 'new',
-                location: 'Mumbai',
-                budget_min: 5000000,
-                budget_max: 7500000,
-                lead_score: 10,
-                last_contact: null,
-                property_type: 'Residential'
-            });
+            toast.error('Failed to load lead details');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchTeam = async () => {
+        try {
+            const response = await teamAPI.getTeam();
+            setTeam(response.data.data || []);
+        } catch (error) {
+            console.error('Failed to fetch team:', error);
         }
     };
 
@@ -83,10 +107,36 @@ export default function LeadDetail() {
             await leadsAPI.addNote(id, noteContent);
             toast.success('Note added');
             setNoteContent('');
-            fetchLead(); // Refresh to show new note
+            fetchLead();
         } catch (error) {
             console.error('Failed to add note:', error);
             toast.error('Failed to add note');
+        }
+    };
+
+    const handleQuickUpdate = async () => {
+        setUpdating(true);
+        try {
+            // If user_id is changed, use assignLead, else updateLead
+            if (quickUpdateForm.assigned_to !== (lead.assigned_to?._id || lead.assigned_to)) {
+                await leadsAPI.assignLead(id, { user_id: quickUpdateForm.assigned_to || null });
+            }
+
+            // Update other fields
+            await leadsAPI.updateLead(id, {
+                stage: quickUpdateForm.stage,
+                status: quickUpdateForm.status,
+                source: quickUpdateForm.source
+            });
+
+            toast.success('Lead updated successfully');
+            setShowQuickUpdate(false);
+            fetchLead();
+        } catch (error) {
+            console.error('Failed to update lead:', error);
+            toast.error('Failed to update lead');
+        } finally {
+            setUpdating(false);
         }
     };
 
@@ -153,6 +203,14 @@ export default function LeadDetail() {
                     </button>
                     <div className="flex space-x-3">
                         <Button
+                            onClick={() => setShowQuickUpdate(true)}
+                            variant="primary"
+                            className="text-sm shadow-glow-sm"
+                        >
+                            <PaperAirplaneIcon className="h-4 w-4 mr-2" />
+                            Quick Update
+                        </Button>
+                        <Button
                             onClick={() => router.push(`/lms/leads/${id}/edit`)}
                             variant="outline"
                             className="text-sm"
@@ -162,7 +220,7 @@ export default function LeadDetail() {
                         </Button>
                         <Button
                             onClick={handleDelete}
-                            variant="danger" // Assuming danger variant exists or default to red styled button
+                            variant="danger"
                             className="bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20"
                         >
                             <TrashIcon className="h-4 w-4 mr-2" />
@@ -174,23 +232,52 @@ export default function LeadDetail() {
                 {/* Lead Profile Header */}
                 <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-soft">
                     <div className="px-6 py-6 border-b border-border/50 bg-[#161B22]">
-                        <div className="flex items-center">
-                            <div className="h-20 w-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-3xl font-bold font-display">
-                                {lead.name?.charAt(0)?.toUpperCase() || '?'}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                            <div className="flex items-center">
+                                <div className="h-20 w-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-3xl font-bold font-display">
+                                    {lead.name?.charAt(0)?.toUpperCase() || '?'}
+                                </div>
+                                <div className="ml-6">
+                                    <h1 className="text-2xl font-bold font-display text-white">{lead.name || 'Anonymous Lead'}</h1>
+                                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStageColor(lead.stage)}`}>
+                                            {lead.stage?.toUpperCase() || 'SCREENING'}
+                                        </span>
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(lead.status)}`}>
+                                            {lead.status?.toUpperCase() || 'UNCONTACTED'}
+                                        </span>
+                                        <span className="text-sm text-gray-400 flex items-center">
+                                            <TagIcon className="h-4 w-4 mr-1 text-gray-500" />
+                                            Score: <span className="text-white ml-1 font-mono">{lead.lead_score || 0}</span>
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="ml-6">
-                                <h1 className="text-2xl font-bold font-display text-white">{lead.name || 'Anonymous Lead'}</h1>
-                                <div className="mt-2 flex items-center space-x-4">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStageColor(lead.stage)}`}>
-                                        {lead.stage?.toUpperCase() || 'SCREENING'}
-                                    </span>
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(lead.status)}`}>
-                                        {lead.status?.toUpperCase() || 'UNCONTACTED'}
-                                    </span>
-                                    <span className="text-sm text-gray-400 flex items-center">
-                                        <TagIcon className="h-4 w-4 mr-1 text-gray-500" />
-                                        Score: <span className="text-white ml-1 font-mono">{lead.lead_score || 0}</span>
-                                    </span>
+
+                            {/* New Header Info Section */}
+                            <div className="flex flex-wrap gap-8 items-center bg-muted/20 p-4 rounded-xl border border-white/5">
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-1">Assigned To</p>
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-6 w-6 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+                                            <ShieldCheckIcon className="h-3.5 w-3.5 text-indigo-400" />
+                                        </div>
+                                        <span className="text-sm font-medium text-white">
+                                            {lead.assigned_to?.name || lead.assigned_to || 'Unassigned'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="w-px h-8 bg-border/50 hidden md:block"></div>
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-1">Lead Source</p>
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-6 w-6 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                                            <TagIcon className="h-3.5 w-3.5 text-emerald-400" />
+                                        </div>
+                                        <span className="text-sm font-medium text-white capitalize">
+                                            {lead.source || 'manual'}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -318,6 +405,103 @@ export default function LeadDetail() {
                         </div>
                     </div>
                 </div>
+
+                {/* Quick Update Modal */}
+                {showQuickUpdate && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto">
+                        <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
+                            <div className="fixed inset-0 transition-opacity" onClick={() => setShowQuickUpdate(false)}>
+                                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+                            </div>
+
+                            <div className="inline-block align-bottom bg-card border border-border/50 rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                                <div className="px-6 py-6">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-xl font-bold text-white">Quick Update</h3>
+                                        <button onClick={() => setShowQuickUpdate(false)} className="text-gray-400 hover:text-white transition-colors">
+                                            <XMarkIcon className="h-6 w-6" />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-5">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Lead Stage</label>
+                                                <select
+                                                    value={quickUpdateForm.stage}
+                                                    onChange={(e) => {
+                                                        const newStage = e.target.value;
+                                                        setQuickUpdateForm(prev => ({
+                                                            ...prev,
+                                                            stage: newStage,
+                                                            status: stageStatusMapping[newStage][0]
+                                                        }));
+                                                    }}
+                                                    className="w-full bg-[#0E1117] border border-border/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                                >
+                                                    {Object.keys(stageStatusMapping).map(stage => (
+                                                        <option key={stage} value={stage}>{stage}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Lead Status</label>
+                                                <select
+                                                    value={quickUpdateForm.status}
+                                                    onChange={(e) => setQuickUpdateForm(prev => ({ ...prev, status: e.target.value }))}
+                                                    className="w-full bg-[#0E1117] border border-border/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                                >
+                                                    {(stageStatusMapping[quickUpdateForm.stage] || []).map(status => (
+                                                        <option key={status} value={status}>{status}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Assign To Team Member</label>
+                                            <select
+                                                value={quickUpdateForm.assigned_to}
+                                                onChange={(e) => setQuickUpdateForm(prev => ({ ...prev, assigned_to: e.target.value }))}
+                                                className="w-full bg-[#0E1117] border border-border/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                            >
+                                                <option value="">Unassigned</option>
+                                                {team.map(member => (
+                                                    <option key={member.id} value={member.id}>{member.name} ({member.email})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Lead Source</label>
+                                            <div className="w-full bg-[#0E1117]/50 border border-border/30 rounded-xl px-4 py-3 text-gray-400 capitalize cursor-not-allowed">
+                                                {quickUpdateForm.source || 'manual'}
+                                            </div>
+                                            <p className="mt-1.5 text-[10px] text-gray-500 italic">Source cannot be manually updated</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-8 flex gap-3">
+                                        <Button
+                                            onClick={() => setShowQuickUpdate(false)}
+                                            variant="outline"
+                                            className="flex-1"
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleQuickUpdate}
+                                            disabled={updating}
+                                            className="flex-1 bg-primary text-black hover:bg-primary/90 shadow-glow-sm"
+                                        >
+                                            {updating ? 'Updating...' : 'Save Changes'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </Layout>
     );
@@ -326,7 +510,7 @@ export default function LeadDetail() {
 function DetailRow({ label, value, icon: Icon, isUppercase }) {
     return (
         <div className="flex items-center text-sm group">
-            <dt className="w-32 text-gray-500 group-hover:text-gray-400 transition-colors">{label}</dt>
+            <dt className="w-32 text-gray-500 group-hover:text-gray-400 transition-colors uppercase text-[10px] font-bold tracking-wider">{label}</dt>
             <dd className={`text-gray-300 font-medium flex items-center ${isUppercase ? 'uppercase' : ''}`}>
                 {Icon && <Icon className="h-4 w-4 mr-2 text-gray-600 group-hover:text-primary/70 transition-colors" />}
                 {value}

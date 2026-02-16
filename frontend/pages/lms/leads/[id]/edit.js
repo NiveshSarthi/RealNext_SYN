@@ -28,6 +28,8 @@ export default function EditLead() {
     const { id } = router.query;
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [lead, setLead] = useState(null);
+    const [team, setTeam] = useState([]);
     const [formData, setFormData] = useState({
         name: '',
         phone: '',
@@ -39,7 +41,8 @@ export default function EditLead() {
         budget_min: '',
         budget_max: '',
         type: 'residential',
-        notes: ''
+        notes: '',
+        assigned_to: ''
     });
 
     useEffect(() => {
@@ -47,46 +50,46 @@ export default function EditLead() {
             router.push('/login');
         } else if (user && id) {
             fetchLead();
+            fetchTeam();
         }
     }, [user, authLoading, id]);
 
     const fetchLead = async () => {
         try {
             const response = await leadsAPI.getLead(id);
-            const lead = response.data.data;
+            const leadData = response.data.data;
+            setLead(leadData);
             setFormData({
-                name: lead.name || '',
-                phone: lead.phone || '',
-                email: lead.email || '',
-                stage: lead.stage || 'Screening',
-                status: lead.status || 'Uncontacted',
-                source: lead.source || 'manual',
-                location: lead.location || '',
-                budget_min: lead.budget_min || '',
-                budget_max: lead.budget_max || '',
-                type: lead.type || 'residential',
-                notes: lead.notes || ''
+                name: leadData.name || '',
+                phone: leadData.phone || '',
+                email: leadData.email || '',
+                stage: leadData.stage || 'Screening',
+                status: leadData.status || 'Uncontacted',
+                source: leadData.source || 'manual',
+                location: leadData.location || '',
+                budget_min: leadData.budget_min || '',
+                budget_max: leadData.budget_max || '',
+                type: leadData.type || 'residential',
+                notes: leadData.notes || '',
+                assigned_to: leadData.assigned_to?._id || leadData.assigned_to || ''
             });
         } catch (error) {
             console.error('Failed to fetch lead:', error);
             toast.error('Failed to load lead details');
-            // Mock data for demo
-            setFormData({
-                name: 'Michael Wilson',
-                phone: '910000000025',
-                email: 'michael.wilson@example.com',
-                status: 'new',
-                source: 'manual',
-                location: 'Mumbai',
-                budget_min: 5000000,
-                budget_max: 7500000,
-                type: 'residential',
-                notes: ''
-            });
         } finally {
             setLoading(false);
         }
     };
+
+    const fetchTeam = async () => {
+        try {
+            const response = await leadsAPI.api.get('/api/team');
+            setTeam(response.data.data || []);
+        } catch (error) {
+            console.error('Failed to fetch team:', error);
+        }
+    };
+
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -101,18 +104,24 @@ export default function EditLead() {
         setSaving(true);
 
         try {
-            if (!formData.name || !formData.phone) {
-                toast.error('Name and Phone are required');
-                setSaving(false);
-                return;
+            // Basic Frontend Validation
+            if (!formData.name?.trim()) throw new Error('Full Name is required');
+            if (!formData.phone?.trim()) throw new Error('Phone Number is required');
+
+            // Email Validation
+            if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+                throw new Error('Please enter a valid email address (e.g., user@example.com)');
             }
 
+            console.log('Updating lead with data:', formData);
             await leadsAPI.updateLead(id, formData);
+
             toast.success('Lead updated successfully');
             router.push(`/lms/leads/${id}`);
         } catch (error) {
             console.error('Error updating lead:', error);
-            toast.error(error.response?.data?.message || 'Failed to update lead');
+            const message = error.response?.data?.message || error.message || 'Failed to update lead';
+            toast.error(message, { duration: 5000 });
         } finally {
             setSaving(false);
         }
@@ -265,6 +274,27 @@ export default function EditLead() {
                                             <option key={status} value={status}>{status}</option>
                                         ))}
                                     </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Assigned To</label>
+                                    <select
+                                        name="assigned_to"
+                                        value={formData.assigned_to || ''}
+                                        onChange={handleChange}
+                                        className="block w-full bg-[#0E1117] border border-border/50 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 sm:text-sm transition-all"
+                                    >
+                                        <option value="">Unassigned</option>
+                                        {team.map(member => (
+                                            <option key={member.id} value={member.id}>{member.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Lead Source</label>
+                                    <div className="block w-full bg-[#0E1117]/50 border border-border/30 rounded-lg py-2.5 px-3 text-gray-400 sm:text-sm capitalize cursor-not-allowed">
+                                        {formData.source || 'manual'}
+                                    </div>
+                                    <p className="mt-1 text-[10px] text-gray-500 italic">Source cannot be manually updated</p>
                                 </div>
                             </div>
                         </div>
