@@ -224,7 +224,7 @@ export const internalLeadsAPI = {
   deleteLead: (id) => api.delete(`/api/leads/${id}`),
   assignLead: (id, data) => api.put(`/api/leads/${id}/assign`, data),
   addNote: (id, content) => api.post(`/api/leads/${id}/notes`, { content }),
-  importLeads: (data) => api.post('/api/leads/import', data),
+  importLeads: (data) => api.post('/api/leads/import', data), // expects { leads: [...] }
   getStats: () => api.get('/api/leads/stats/overview'),
 };
 

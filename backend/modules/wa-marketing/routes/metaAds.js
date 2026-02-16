@@ -178,7 +178,7 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
                     continue;
                 }
 
-                let nextUrl = `${GRAPH_API_URL}/${form.form_id}/leads?access_token=${form.pageConnection.access_token}&fields=id,created_time,field_data&limit=100`;
+                let nextUrl = `${GRAPH_API_URL}/${form.form_id}/leads?access_token=${form.pageConnection.access_token}&fields=id,created_time,field_data,campaign_name,adset_name,ad_name&limit=100`;
 
                 while (nextUrl) {
                     const response = await axios.get(nextUrl);
@@ -213,10 +213,13 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
                                 source: 'Facebook Ads',
                                 status: 'new',
                                 stage: 'Screening',
+                                campaign_name: leadData.campaign_name,
                                 metadata: {
                                     facebook_lead_id: leadData.id,
                                     form_id: form.form_id,
                                     page_id: form.pageConnection.page_id,
+                                    adset_name: leadData.adset_name,
+                                    ad_name: leadData.ad_name,
                                     fetched_at: new Date(),
                                     facebook_form_data: leadData.field_data // Save all form answers
                                 },
@@ -366,7 +369,7 @@ router.post('/webhook', async (req, res) => {
                             const leadResponse = await axios.get(`${GRAPH_API_URL}/${leadgenId}`, {
                                 params: {
                                     access_token: pageConnection.access_token,
-                                    fields: 'id,created_time,field_data'
+                                    fields: 'id,created_time,field_data,campaign_name,adset_name,ad_name'
                                 }
                             });
 
@@ -405,10 +408,13 @@ router.post('/webhook', async (req, res) => {
                                 phone: phoneField,
                                 source: 'Facebook Ads',
                                 status: 'new',
+                                campaign_name: leadData.campaign_name,
                                 metadata: {
                                     facebook_lead_id: leadgenId,
                                     form_id: formId,
                                     page_id: pageId,
+                                    adset_name: leadData.adset_name,
+                                    ad_name: leadData.ad_name,
                                     webhook_received_at: new Date(),
                                     facebook_form_data: fieldData // Save all form answers
                                 }
