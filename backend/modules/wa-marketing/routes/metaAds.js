@@ -168,6 +168,162 @@ router.post('/webhook', async (req, res) => {
     }
 });
 
+/**
+ * @route GET /api/meta-ads/diagnostic
+ * @desc Diagnostic endpoint to troubleshoot Facebook integration
+ * @access Public (can include token in query)
+ */
+router.get('/diagnostic', async (req, res) => {
+    try {
+        const { token, page_id } = req.query;
+
+        if (!token) {
+            return res.json({
+                error: 'Please provide a token query parameter',
+                example: '/api/meta-ads/diagnostic?token=YOUR_TOKEN&page_id=OPTIONAL_PAGE_ID'
+            });
+        }
+
+        const diagnostic = {
+            timestamp: new Date(),
+            results: []
+        };
+
+        // Test 1: Token validity
+        try {
+            const tokenRes = await axios.get(`https://graph.facebook.com/me`, {
+                params: { access_token: token }
+            });
+            diagnostic.results.push({
+                test: 'Token Validity',
+                status: 'PASS',
+                message: `Token belongs to: ${tokenRes.data.name || 'Unknown User'}`,
+                data: { id: tokenRes.data.id, name: tokenRes.data.name }
+            });
+        } catch (err) {
+            diagnostic.results.push({
+                test: 'Token Validity',
+                status: 'FAIL',
+                error: err.response?.data?.error?.message || err.message
+            });
+            return res.json(diagnostic);
+        }
+
+        // Test 2: Get token permissions/scopes
+        try {
+            const scopeRes = await axios.get(`https://graph.facebook.com/me/permissions`, {
+                params: { access_token: token }
+            });
+            const permissions = scopeRes.data.data.map(p => p.permission);
+            
+            const requiredPerms = ['pages_read_engagement', 'pages_manage_metadata', 'pages_read_user_content', 'leads_retrieval'];
+            const missingPerms = requiredPerms.filter(p => !permissions.includes(p));
+
+            diagnostic.results.push({
+                test: 'Token Permissions',
+                status: missingPerms.length === 0 ? 'PASS' : 'WARNING',
+                allPermissions: permissions,
+                requiredPermissions: requiredPerms,
+                missingPermissions: missingPerms,
+                message: missingPerms.length > 0 
+                    ? `Missing permissions: ${missingPerms.join(', ')}`
+                    : 'All required permissions present'
+            });
+        } catch (err) {
+            diagnostic.results.push({
+                test: 'Token Permissions',
+                status: 'ERROR',
+                error: err.message
+            });
+        }
+
+        // Test 3: Get all pages accessible to this token
+        try {
+            const pagesRes = await axios.get(`https://graph.facebook.com/me/accounts`, {
+                params: { 
+                    access_token: token,
+                    fields: 'id,name,access_token'
+                }
+            });
+            
+            const pages = pagesRes.data.data || [];
+            diagnostic.results.push({
+                test: 'Pages Access',
+                status: pages.length > 0 ? 'PASS' : 'WARNING',
+                totalPages: pages.length,
+                pages: pages.map(p => ({ id: p.id, name: p.name }))
+            });
+
+            // Test 4: Get forms for each page (if provided or first page)
+            if (pages.length > 0) {
+                const targetPages = page_id 
+                    ? pages.filter(p => p.id === page_id) 
+                    : pages.slice(0, 1);
+
+                for (const page of targetPages) {
+                    try {
+                        const formsRes = await axios.get(`https://graph.facebook.com/${page.id}/leadgen_forms`, {
+                            params: {
+                                access_token: page.access_token,
+                                fields: 'id,name,status,leads_count',
+                                limit: 100
+                            }
+                        });
+
+                        const forms = formsRes.data.data || [];
+                        diagnostic.results.push({
+                            test: `Forms for Page: ${page.name}`,
+                            status: 'PASS',
+                            pageId: page.id,
+                            totalForms: forms.length,
+                            forms: forms.map(f => ({
+                                id: f.id,
+                                name: f.name,
+                                status: f.status,
+                                leads_count: f.leads_count
+                            }))
+                        });
+                    } catch (formErr) {
+                        diagnostic.results.push({
+                            test: `Forms for Page: ${page.name}`,
+                            status: 'ERROR',
+                            pageId: page.id,
+                            error: formErr.response?.data?.error?.message || formErr.message
+                        });
+                    }
+                }
+            }
+        } catch (err) {
+            diagnostic.results.push({
+                test: 'Pages Access',
+                status: 'ERROR',
+                error: err.response?.data?.error?.message || err.message
+            });
+        }
+
+        // Summary
+        const passCount = diagnostic.results.filter(r => r.status === 'PASS').length;
+        const failCount = diagnostic.results.filter(r => r.status === 'FAIL' || r.status === 'ERROR').length;
+
+        diagnostic.summary = {
+            totalTests: diagnostic.results.length,
+            passed: passCount,
+            issues: failCount,
+            recommendation: failCount === 0 
+                ? '✅ Integration looks good!' 
+                : '⚠️ Fix the issues above to complete setup'
+        };
+
+        res.json(diagnostic);
+    } catch (error) {
+        logger.error('[DIAGNOSTIC] Error:', error);
+        res.status(500).json({
+            error: 'Diagnostic failed',
+            message: error.message
+        });
+    }
+});
+
 // Middleware for Protected Routes
 router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
 
@@ -262,49 +418,106 @@ router.post('/sync-forms', requireFeature('meta_ads'), async (req, res, next) =>
             status: 'active'
         });
 
+        logger.info(`[SYNC-FORMS] Starting sync for ${pages.length} pages`);
+
         let newFormsCount = 0;
+        let updatedFormsCount = 0;
+        let totalFormsFound = 0;
+        let skippedForms = 0;
 
         for (const page of pages) {
             try {
+                logger.info(`[SYNC-FORMS] Syncing forms for page: ${page.page_name} (${page.page_id})`);
+                
                 let formsUrl = `${GRAPH_API_URL}/${page.page_id}/leadgen_forms?access_token=${page.access_token}&fields=id,name,status,leads_count&limit=100`;
+                let pageFormsCount = 0;
+                let pageNewCount = 0;
 
                 while (formsUrl) {
-                    const response = await axios.get(formsUrl);
-                    const forms = response.data.data || [];
-                    formsUrl = response.data.paging?.next;
+                    try {
+                        const response = await axios.get(formsUrl);
+                        const forms = response.data.data || [];
+                        formsUrl = response.data.paging?.next;
 
-                    for (const form of forms) {
-                        if (form.status === 'ACTIVE') {
-                            let savedForm = await FacebookLeadForm.findOne({
-                                client_id: req.client.id,
-                                form_id: form.id
-                            });
+                        logger.debug(`[SYNC-FORMS] Page ${page.page_name}: Found ${forms.length} forms in this batch`);
 
-                            if (!savedForm) {
-                                savedForm = await FacebookLeadForm.create({
+                        for (const form of forms) {
+                            try {
+                                totalFormsFound++;
+                                pageFormsCount++;
+
+                                // Log form details for debugging
+                                logger.debug(`[SYNC-FORMS] Processing form: ${form.name} (ID: ${form.id}, Status: ${form.status})`);
+
+                                // IMPORTANT: Don't filter by status - get ALL forms and let user decide visibility
+                                const isActive = form.status === 'ACTIVE' || form.status === 'active';
+
+                                let savedForm = await FacebookLeadForm.findOne({
                                     client_id: req.client.id,
-                                    form_id: form.id,
-                                    page_connection_id: page.id,
-                                    name: form.name,
-                                    status: 'active',
-                                    lead_count: form.leads_count
+                                    form_id: form.id
                                 });
-                                newFormsCount++;
-                            } else {
-                                // Update lead count for existing forms
-                                savedForm.lead_count = form.leads_count;
-                                await savedForm.save();
+
+                                if (!savedForm) {
+                                    savedForm = await FacebookLeadForm.create({
+                                        client_id: req.client.id,
+                                        form_id: form.id,
+                                        page_connection_id: page.id,
+                                        name: form.name,
+                                        status: isActive ? 'active' : 'inactive',
+                                        lead_count: form.leads_count || 0
+                                    });
+                                    newFormsCount++;
+                                    pageNewCount++;
+                                    logger.info(`[SYNC-FORMS] ✅ Created new form: ${form.name} (Status: ${form.status})`);
+                                } else {
+                                    // Update lead count and status for existing forms
+                                    const oldStatus = savedForm.status;
+                                    savedForm.lead_count = form.leads_count || 0;
+                                    savedForm.status = isActive ? 'active' : 'inactive';
+                                    
+                                    if (oldStatus !== savedForm.status) {
+                                        logger.info(`[SYNC-FORMS] Updated form status: ${form.name} (${oldStatus} → ${savedForm.status})`);
+                                    }
+                                    
+                                    await savedForm.save();
+                                    updatedFormsCount++;
+                                }
+                            } catch (formError) {
+                                logger.error(`[SYNC-FORMS] Error processing form ${form.id}: ${formError.message}`);
+                                skippedForms++;
                             }
                         }
+                    } catch (batchError) {
+                        logger.error(`[SYNC-FORMS] Error fetching forms batch for page ${page.page_id}: ${batchError.message}`);
+                        if (batchError.response?.data?.error) {
+                            logger.error(`[SYNC-FORMS] Facebook API Error:`, batchError.response.data.error);
+                        }
+                        break; // Stop pagination if error occurs
                     }
                 }
+
+                logger.info(`[SYNC-FORMS] ✅ Page ${page.page_name}: Synced ${pageFormsCount} forms (${pageNewCount} new)`);
+
             } catch (pageError) {
-                logger.error(`Failed to sync forms for page ${page.page_name}: ${pageError.message}`);
+                logger.error(`[SYNC-FORMS] ❌ Failed to sync forms for page ${page.page_name}: ${pageError.message}`);
+                if (pageError.response?.data?.error) {
+                    logger.error(`[SYNC-FORMS] Facebook API Error:`, pageError.response.data.error);
+                }
             }
         }
 
-        res.json({ success: true, new_forms: newFormsCount, message: 'Forms synced successfully' });
+        logger.info(`[SYNC-FORMS] 📊 Sync Summary: Total=${totalFormsFound}, New=${newFormsCount}, Updated=${updatedFormsCount}, Skipped=${skippedForms}`);
+
+        res.json({ 
+            success: true, 
+            new_forms: newFormsCount,
+            updated_forms: updatedFormsCount,
+            total_forms_found: totalFormsFound,
+            skipped_forms: skippedForms,
+            message: `Synced ${totalFormsFound} forms (${newFormsCount} new, ${updatedFormsCount} updated)` 
+        });
     } catch (error) {
+        logger.error(`[SYNC-FORMS] Fatal error:`, error);
         next(error);
     }
 });
@@ -317,96 +530,154 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
     try {
         ensureClient(req);
         const forms = await FacebookLeadForm.find({
-            client_id: req.client.id,
-            status: 'active'
+            client_id: req.client.id
         }).populate('pageConnection');
+
+        logger.info(`[FETCH-LEADS] Starting lead fetch for ${forms.length} forms`);
 
         let newLeadsCount = 0;
         let skippedCount = 0;
+        let processedLeads = 0;
+        let errorCount = 0;
+        let formProcessed = 0;
 
         for (const form of forms) {
             try {
-                if (!form.pageConnection || !form.pageConnection.access_token) continue;
-
-                // Skip if lead sync is disabled for this page
-                if (!form.pageConnection.is_lead_sync_enabled) {
-                    logger.info(`Skipping form ${form.name} - sync disabled for page ${form.pageConnection.page_name}`);
+                // Check if form and page are available
+                if (!form.pageConnection) {
+                    logger.warn(`[FETCH-LEADS] Form ${form.name} has no page connection`);
                     continue;
                 }
 
+                if (!form.pageConnection.access_token) {
+                    logger.warn(`[FETCH-LEADS] Page ${form.pageConnection.page_name} has no access token`);
+                    continue;
+                }
+
+                // Check if lead sync is enabled for this page
+                if (!form.pageConnection.is_lead_sync_enabled) {
+                    logger.debug(`[FETCH-LEADS] Skipping form ${form.name} - auto-sync disabled for page ${form.pageConnection.page_name}`);
+                    continue;
+                }
+
+                logger.info(`[FETCH-LEADS] Processing form: ${form.name} (ID: ${form.form_id})`);
+                formProcessed++;
+
                 let nextUrl = `${GRAPH_API_URL}/${form.form_id}/leads?access_token=${form.pageConnection.access_token}&fields=id,created_time,field_data,campaign_name,adset_name,ad_name&limit=100`;
+                let formLeadsProcessed = 0;
+                let formNewLeads = 0;
 
                 while (nextUrl) {
-                    const response = await axios.get(nextUrl);
-                    const leads = response.data.data || [];
+                    try {
+                        const response = await axios.get(nextUrl);
+                        const leads = response.data.data || [];
+                        nextUrl = response.data.paging?.next;
 
-                    // Update nextUrl for pagination
-                    nextUrl = response.data.paging?.next;
+                        logger.debug(`[FETCH-LEADS] Form ${form.name}: Processing ${leads.length} leads in this batch`);
 
-                    for (const leadData of leads) {
-                        // Normalize Field Data
-                        const emailField = leadData.field_data.find(f => f.name.includes('email'))?.values[0];
-                        const phoneField = leadData.field_data.find(f => f.name.includes('phone') || f.name.includes('number'))?.values[0];
-                        const nameField = leadData.field_data.find(f => f.name.includes('name') || f.name.includes('full_name'))?.values[0];
+                        for (const leadData of leads) {
+                            try {
+                                processedLeads++;
 
-                        if (!phoneField && !emailField) continue; // Skip empty leads
+                                // Normalize Field Data
+                                const emailField = leadData.field_data?.find(f => f.name?.includes('email'))?.values?.[0];
+                                const phoneField = leadData.field_data?.find(f => 
+                                    f.name?.includes('phone') || f.name?.includes('number')
+                                )?.values?.[0];
+                                const nameField = leadData.field_data?.find(f => 
+                                    f.name?.includes('name') || f.name?.includes('full_name')
+                                )?.values?.[0];
 
-                        // Check if lead exists (deduplication)
-                        const existingLead = await Lead.findOne({
-                            client_id: req.client.id,
-                            $or: [
-                                { phone: phoneField || 'N/A' },
-                                { email: emailField || 'N/A' }
-                            ]
-                        });
+                                // Skip if no contact info
+                                if (!phoneField && !emailField) {
+                                    logger.debug(`[FETCH-LEADS] Skipping lead ${leadData.id} - no email or phone`);
+                                    continue;
+                                }
 
-                        if (!existingLead) {
-                            await Lead.create({
-                                client_id: req.client.id,
-                                name: nameField || 'Facebook Lead',
-                                email: emailField,
-                                phone: phoneField,
-                                source: 'Facebook Ads',
-                                status: 'new',
-                                stage: 'Screening',
-                                campaign_name: leadData.campaign_name,
-                                metadata: {
-                                    facebook_lead_id: leadData.id,
-                                    form_id: form.form_id,
-                                    page_id: form.pageConnection.page_id,
-                                    adset_name: leadData.adset_name,
-                                    ad_name: leadData.ad_name,
-                                    fetched_at: new Date(),
-                                    facebook_form_data: leadData.field_data // Save all form answers
-                                },
-                                created_at: new Date(leadData.created_time)
-                            });
-                            newLeadsCount++;
-                        } else {
-                            // Update metadata for existing leads
-                            if (!existingLead.metadata?.facebook_form_data) {
-                                existingLead.metadata = existingLead.metadata || {};
-                                existingLead.metadata.facebook_form_data = leadData.field_data;
-                                existingLead.markModified('metadata');
-                                await existingLead.save();
-                                logger.info(`Updated metadata for lead ${existingLead.name}`);
+                                // Check if lead exists (deduplication)
+                                const existingLead = await Lead.findOne({
+                                    client_id: req.client.id,
+                                    $or: [
+                                        { email: emailField },
+                                        { phone: phoneField }
+                                    ]
+                                });
+
+                                if (!existingLead) {
+                                    await Lead.create({
+                                        client_id: req.client.id,
+                                        name: nameField || 'Facebook Lead',
+                                        email: emailField,
+                                        phone: phoneField,
+                                        source: 'Facebook Ads',
+                                        status: 'new',
+                                        stage: 'Screening',
+                                        campaign_name: leadData.campaign_name,
+                                        metadata: {
+                                            facebook_lead_id: leadData.id,
+                                            form_id: form.form_id,
+                                            page_id: form.pageConnection.page_id,
+                                            adset_name: leadData.adset_name,
+                                            ad_name: leadData.ad_name,
+                                            fetched_at: new Date(),
+                                            facebook_form_data: leadData.field_data || [] // Save all form answers
+                                        },
+                                        created_at: new Date(leadData.created_time)
+                                    });
+                                    newLeadsCount++;
+                                    formNewLeads++;
+                                    logger.debug(`[FETCH-LEADS] ✅ Created lead: ${nameField || 'Unknown'} (${emailField || phoneField})`);
+                                } else {
+                                    // Update metadata for existing leads if needed
+                                    if (!existingLead.metadata?.facebook_form_data) {
+                                        existingLead.metadata = existingLead.metadata || {};
+                                        existingLead.metadata.facebook_form_data = leadData.field_data || [];
+                                        existingLead.markModified('metadata');
+                                        await existingLead.save();
+                                        logger.debug(`[FETCH-LEADS] Updated metadata for existing lead: ${existingLead.name}`);
+                                    }
+                                    skippedCount++;
+                                }
+
+                                formLeadsProcessed++;
+                            } catch (leadError) {
+                                logger.error(`[FETCH-LEADS] Error processing individual lead: ${leadError.message}`);
+                                errorCount++;
                             }
-                            skippedCount++;
                         }
+                    } catch (batchError) {
+                        logger.error(`[FETCH-LEADS] Error fetching leads batch for form ${form.name}: ${batchError.message}`);
+                        if (batchError.response?.data?.error) {
+                            logger.error(`[FETCH-LEADS] Facebook API Error:`, batchError.response.data.error);
+                        }
+                        break; // Stop pagination if error and move to next form
                     }
                 }
+
+                logger.info(`[FETCH-LEADS] ✅ Form ${form.name}: Processed ${formLeadsProcessed} leads (${formNewLeads} new)`);
+
             } catch (formError) {
-                logger.error(`Failed to fetch leads from form ${form.name}: ${formError.message}`);
-                // Continue
+                logger.error(`[FETCH-LEADS] ❌ Failed to fetch leads from form ${form.name}: ${formError.message}`);
+                if (formError.response?.data?.error) {
+                    logger.error(`[FETCH-LEADS] Facebook API Error:`, formError.response.data.error);
+                }
+                errorCount++;
             }
         }
+
+        logger.info(`[FETCH-LEADS] 📊 Summary: Processed ${formProcessed} forms, ${processedLeads} total leads, ${newLeadsCount} new, ${skippedCount} duplicates, ${errorCount} errors`);
 
         res.json({
             success: true,
             newLeadsCreated: newLeadsCount,
-            duplicatesSkipped: skippedCount
+            duplicatesSkipped: skippedCount,
+            totalProcessed: processedLeads,
+            formsProcessed: formProcessed,
+            errors: errorCount,
+            message: `Fetched ${newLeadsCount} new leads, skipped ${skippedCount} duplicates`
         });
     } catch (error) {
+        logger.error(`[FETCH-LEADS] Fatal error:`, error);
         next(error);
     }
 });
