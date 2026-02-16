@@ -88,6 +88,13 @@ router.post('/',
                 location, tags, custom_fields, assigned_to, metadata
             } = req.body;
 
+            if (phone) {
+                const existingLead = await Lead.findOne({ client_id: req.client.id, phone });
+                if (existingLead) {
+                    throw ApiError.conflict(`Lead with phone number ${phone} already exists`);
+                }
+            }
+
             const lead = await Lead.create({
                 client_id: req.client.id,
                 name,
@@ -259,7 +266,7 @@ router.put('/:id',
     requireFeature('leads'),
     [
         validators.optionalString('name'),
-        validators.email().optional(),
+        validators.optionalEmail(),
         validators.phone(),
         validate
     ],
@@ -289,6 +296,14 @@ router.put('/:id',
             delete updateData.client_id; // Prevent client change
             delete updateData.id;
 
+            // Convert empty strings to null to avoid validation/casting errors
+            Object.keys(updateData).forEach(key => {
+                if (updateData[key] === '') {
+                    updateData[key] = null;
+                }
+            });
+
+            // Track status change
             // Track status change
             // Track status change
             if (updateData.status && updateData.status !== lead.status) {
@@ -298,7 +313,6 @@ router.put('/:id',
                 lead.metadata.status_history.push(history);
                 lead.markModified('metadata');
 
-                // Add to Activity Log
                 lead.activity_logs.push({
                     type: 'status_change',
                     content: `Changed status from ${lead.status} to ${updateData.status}`,
@@ -318,6 +332,24 @@ router.put('/:id',
                     user_id: req.user.id
                 });
             }
+
+            // Generic Field Tracking
+            const trackableFields = ['name', 'email', 'phone', 'campaign_name', 'source', 'budget_min', 'budget_max', 'notes'];
+            trackableFields.forEach(field => {
+                if (updateData[field] !== undefined && updateData[field] !== lead[field]) {
+                    // Handle numeric comparison specifically if needed, but strict equality is usually fine for these types
+                    // Just ensure we don't log if both are null/undefined
+                    if (!lead[field] && !updateData[field]) return;
+
+                    lead.activity_logs.push({
+                        type: 'field_update',
+                        content: `Updated ${field.replace('_', ' ')} from "${lead[field] || ''}" to "${updateData[field]}"`,
+                        old_value: lead[field] ? String(lead[field]) : '',
+                        new_value: String(updateData[field]),
+                        user_id: req.user.id
+                    });
+                }
+            });
 
             Object.assign(lead, updateData);
             await lead.save();
@@ -438,29 +470,87 @@ router.post('/import',
                 throw ApiError.badRequest('Cannot import more than 500 leads at once');
             }
 
-            // Map leads to include client_id
-            const leadsToCreate = leads.map(lead => ({
-                ...lead,
-                client_id: req.client.id,
-                source: lead.source || 'import',
-                status: lead.status || 'new'
-            }));
+            console.log(`[Import] Received ${leads.length} leads`); // DEBUG
 
-            const result = await Lead.insertMany(leadsToCreate, { ordered: false });
+            // Map leads to include client_id
+            const leadsToCreate = leads.map(lead => {
+                let status = lead.status || 'Uncontacted';
+                if (status.toLowerCase() === 'new') status = 'Uncontacted';
+
+                return {
+                    ...lead,
+                    client_id: req.client.id,
+                    source: lead.source || 'import',
+                    status: status
+                };
+            });
+
+            // Filter out duplicates within the import batch itself
+            const uniqueLeads = [];
+            const seenPhones = new Set();
+
+            for (const lead of leadsToCreate) {
+                if (lead.phone && seenPhones.has(lead.phone)) {
+                    continue; // Skip duplicate in same batch
+                }
+                if (lead.phone) seenPhones.add(lead.phone);
+                uniqueLeads.push(lead);
+            }
+
+            // Check against database for existing leads
+            const phonesToCheck = uniqueLeads.filter(l => l.phone).map(l => l.phone);
+            const existingleads = await Lead.find({
+                client_id: req.client.id,
+                phone: { $in: phonesToCheck }
+            }).select('phone');
+
+            const existingPhones = new Set(existingleads.map(l => l.phone));
+            const finalLeadsToInsert = uniqueLeads.filter(l => !l.phone || !existingPhones.has(l.phone));
+
+            const skippedCount = leads.length - finalLeadsToInsert.length;
+
+            console.log(`[Import] Processing leads: ${finalLeadsToInsert.length} (Skipped ${skippedCount} duplicates)`);
+
+            let result = [];
+            let errorCount = 0;
+
+            if (finalLeadsToInsert.length > 0) {
+                try {
+                    result = await Lead.insertMany(finalLeadsToInsert, { ordered: false });
+                } catch (e) {
+                    // Mongoose insertMany throws on error even if ordered: false,
+                    // but attaches successful docs to the error object.
+                    console.error('[Import] Partial or full failure:', e.message);
+                    if (e.insertedDocs) {
+                        result = e.insertedDocs;
+                        errorCount = e.writeErrors?.length || (finalLeadsToInsert.length - result.length);
+                        console.log(`[Import] Recovered ${result.length} successful inserts`);
+                    } else {
+                        throw e; // RETHROW if it's not a write error
+                    }
+                }
+            }
+
+            console.log(`[Import] Success: ${result.length}, Errors: ${errorCount}`);
 
             // Track usage
-            await incrementUsage(req, 'leads', result.length);
+            if (result.length > 0) {
+                await incrementUsage(req, 'leads', result.length);
+            }
 
             res.status(201).json({
                 success: true,
                 data: result,
                 imported: result.length,
-                total: leads.length
+                total: leads.length,
+                errors: errorCount
             });
         } catch (error) {
+            console.error('[Import] Fatal Error:', error);
             next(error);
         }
     }
+
 );
 
 /**

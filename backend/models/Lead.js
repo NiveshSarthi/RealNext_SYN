@@ -51,6 +51,14 @@ const leadSchema = new Schema({
         type: String,
         required: false
     },
+    campaign_name: {
+        type: String,
+        required: false
+    },
+    notes: {
+        type: String,
+        required: false
+    },
     ai_score: {
         type: Number,
         min: 0,
@@ -81,7 +89,7 @@ const leadSchema = new Schema({
     activity_logs: [{
         type: {
             type: String,
-            enum: ['status_change', 'stage_change', 'note', 'assignment', 'creation'],
+            enum: ['status_change', 'stage_change', 'note', 'assignment', 'creation', 'field_update'],
             required: true
         },
         content: {

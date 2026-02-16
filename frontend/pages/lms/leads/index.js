@@ -25,7 +25,8 @@ import {
   Sparkles,
   Facebook,
   Zap,
-  UserPlus
+  UserPlus,
+  Megaphone
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import {
@@ -34,6 +35,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/Dialog";
+
+import ImportLeadsModal from '../../../components/leads/ImportLeadsModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 
@@ -271,8 +274,20 @@ export default function Leads() {
 
   // Quick Update Modal State
   const [selectedLeadForUpdate, setSelectedLeadForUpdate] = useState(null);
+  const [quickUpdateForm, setQuickUpdateForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    campaign_name: '',
+    source: '',
+    budget_min: '',
+    budget_max: '',
+    notes: '',
+    stage: 'Screening',
+    status: 'Uncontacted'
+  });
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
-  const [quickUpdateStage, setQuickUpdateStage] = useState('');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [quickUpdateStatus, setQuickUpdateStatus] = useState('');
 
   const { user, loading: authLoading } = useAuth();
@@ -288,7 +303,7 @@ export default function Leads() {
     if (isSuperAdmin || isClientAdminOrManager) return true;
     // If assigned, only allow if assigned to current user
     if (lead.assigned_to) {
-      return (lead.assigned_to._id === user.id || lead.assigned_to === user.id);
+      return user && (lead.assigned_to._id === user.id || lead.assigned_to === user.id);
     }
     // If unassigned, allow all (or restriction policy can be applied here)
     return true;
@@ -366,13 +381,21 @@ export default function Leads() {
 
   const handleDelete = async (lead) => {
     if (!confirm(`Are you sure you want to delete lead "${lead.name || lead.phone}"?`)) return;
+
+    // Optimistic Update: Remove immediately from UI
+    setLeads(prev => prev.filter(l => l.id !== lead.id));
+
     try {
       await leadsAPI.deleteLead(lead.id);
       toast.success('Lead deleted');
-      fetchLeads();
+
+      // Silent refresh to keep stats and pagination in sync
+      fetchLeads(false);
       fetchStats();
     } catch (error) {
       toast.error('Failed to delete');
+      // Revert/Refetch if failed
+      fetchLeads(false);
     }
   };
 
@@ -415,17 +438,35 @@ export default function Leads() {
   const handleRowDoubleClick = (lead) => {
     if (!canEditLead(lead)) return;
     setSelectedLeadForUpdate(lead);
-    setQuickUpdateStage(lead.stage || 'Screening');
-    setQuickUpdateStatus(lead.status || 'Uncontacted');
+    setQuickUpdateForm({
+      name: lead.name || '',
+      phone: lead.phone || '',
+      email: lead.email || '',
+      campaign_name: lead.campaign_name || '',
+      source: lead.source || '',
+      budget_min: lead.budget_min || '',
+      budget_max: lead.budget_max || '',
+      notes: lead.notes || '',
+      stage: lead.stage || 'Screening',
+      status: lead.status || 'Uncontacted'
+    });
     setIsUpdateModalOpen(true);
   };
 
   const handleQuickUpdate = async () => {
     if (!selectedLeadForUpdate) return;
 
-    await handleStatusChange(selectedLeadForUpdate, quickUpdateStatus, quickUpdateStage);
-    setIsUpdateModalOpen(false);
-    setSelectedLeadForUpdate(null);
+    try {
+      await leadsAPI.updateLead(selectedLeadForUpdate.id, quickUpdateForm);
+      toast.success('Lead updated successfully');
+      fetchLeads(false);
+      fetchStats();
+      setIsUpdateModalOpen(false);
+      setSelectedLeadForUpdate(null);
+    } catch (error) {
+      toast.error('Failed to update lead');
+      console.error(error);
+    }
   };
 
   const stageStatusMapping = {
@@ -500,6 +541,13 @@ export default function Leads() {
               className="bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xl shadow-indigo-900/30 h-14 px-8 font-black uppercase tracking-widest rounded-2xl active:scale-95 transition-all text-sm border-0"
             >
               <Plus className="w-5 h-5 mr-3" /> Create Lead
+            </Button>
+            <Button
+              onClick={() => setIsImportModalOpen(true)}
+              variant="outline"
+              className="bg-[#161B22] border-white/10 hover:bg-white/5 text-white shadow-2xl h-14 px-8 font-black uppercase tracking-widest rounded-2xl active:scale-95 transition-all text-sm"
+            >
+              <Sparkles className="w-5 h-5 mr-3 text-indigo-400" /> Import
             </Button>
           </motion.div>
         </div>
@@ -606,12 +654,13 @@ export default function Leads() {
                   viewMode === 'table' ? (
                     <div className="bg-[#161B22]/60 backdrop-blur-xl border border-white/5 rounded-3xl overflow-hidden shadow-2xl">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full min-w-[1500px] text-left border-collapse">
                           <thead>
                             <tr className="border-b border-white/5 bg-[#0D1117]/50">
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Lead Info</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Contact Details</th>
-                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Location</th>
+                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Campaign</th>
+                              <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Assigned To</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Stages</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Status</th>
                               <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-right">Actions</th>
@@ -620,6 +669,8 @@ export default function Leads() {
                           <tbody className="divide-y divide-white/5">
                             {leads.map((lead, idx) => {
                               const isMetaLead = lead.source === 'Facebook Ads' || (lead.tags && lead.tags.includes('Meta'));
+                              const isImportLead = lead.source === 'import' || lead.source === 'referral';
+                              const isManualLead = lead.source === 'manual';
                               const canEdit = canEditLead(lead);
                               const statusColors = {
                                 'New': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -653,6 +704,16 @@ export default function Leads() {
                                               Meta
                                             </span>
                                           )}
+                                          {isImportLead && (
+                                            <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-400/5 px-1.5 py-0.5 rounded-full border border-emerald-400/20">
+                                              CSV
+                                            </span>
+                                          )}
+                                          {isManualLead && (
+                                            <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-orange-400 bg-orange-400/5 px-1.5 py-0.5 rounded-full border border-orange-400/20">
+                                              Manually
+                                            </span>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
@@ -674,16 +735,20 @@ export default function Leads() {
                                   <td className="px-6 py-4">
                                     <div className="flex flex-col gap-1">
                                       <div className="flex items-center text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
-                                        <MapPin className="h-3 w-3 mr-2 opacity-50" />
-                                        {lead.location || 'Location not set'}
+                                        <Megaphone className="h-3 w-3 mr-2 opacity-50" />
+                                        {lead.campaign_name || 'No Campaign'}
                                       </div>
-                                      {lead.assigned_to && (
-                                        <div className="flex items-center text-[10px] font-bold text-indigo-400 mt-1">
-                                          <Users className="h-3 w-3 mr-1" />
-                                          {lead.assigned_to.name}
-                                        </div>
-                                      )}
                                     </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    {lead.assigned_to ? (
+                                      <div className="flex items-center text-[10px] font-bold text-indigo-400">
+                                        <Users className="h-3 w-3 mr-1" />
+                                        {lead.assigned_to.name}
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-gray-600 italic">Unassigned</span>
+                                    )}
                                   </td>
                                   <td className="px-6 py-4 text-xs font-medium text-gray-400 group-hover:text-gray-200 transition-colors">
                                     <select
@@ -820,42 +885,113 @@ export default function Leads() {
         )}
       </div>
       <Dialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
-        <DialogContent className="sm:max-w-[425px] bg-[#161B22] border-[#1F2937] text-white">
+        <DialogContent className="sm:max-w-[600px] bg-[#161B22] border-[#1F2937] text-white">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Update Lead Status</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Quick Update Lead</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-6 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label className="text-right text-sm font-bold text-gray-400 uppercase tracking-widest">
-                Stage
-              </label>
-              <select
-                value={quickUpdateStage}
-                onChange={(e) => setQuickUpdateStage(e.target.value)}
-                className="col-span-3 flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-              >
-                {Object.keys(stageStatusMapping).map((stage) => (
-                  <option key={stage} value={stage} className="bg-[#161B22]">
-                    {stage}
-                  </option>
-                ))}
-              </select>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Name</label>
+                <input
+                  value={quickUpdateForm.name}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, name: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Phone</label>
+                <input
+                  value={quickUpdateForm.phone}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, phone: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label className="text-right text-sm font-bold text-gray-400 uppercase tracking-widest">
-                Status
-              </label>
-              <select
-                value={quickUpdateStatus}
-                onChange={(e) => setQuickUpdateStatus(e.target.value)}
-                className="col-span-3 flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-              >
-                {(stageStatusMapping[quickUpdateStage] || stageStatusMapping['Screening']).map((status) => (
-                  <option key={status} value={status} className="bg-[#161B22]">
-                    {status}
-                  </option>
-                ))}
-              </select>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Email</label>
+                <input
+                  value={quickUpdateForm.email}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, email: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Campaign</label>
+                <input
+                  value={quickUpdateForm.campaign_name}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, campaign_name: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Source</label>
+                <input
+                  value={quickUpdateForm.source}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, source: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Min Budget</label>
+                <input
+                  type="number"
+                  value={quickUpdateForm.budget_min}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, budget_min: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Max Budget</label>
+                <input
+                  type="number"
+                  value={quickUpdateForm.budget_max}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, budget_max: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Notes</label>
+              <textarea
+                value={quickUpdateForm.notes}
+                onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, notes: e.target.value })}
+                className="flex min-h-[80px] w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none"
+                placeholder="Add a quick note..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Stage</label>
+                <select
+                  value={quickUpdateForm.stage}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, stage: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                >
+                  {Object.keys(stageStatusMapping).map((stage) => (
+                    <option key={stage} value={stage} className="bg-[#161B22]">{stage}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Status</label>
+                <select
+                  value={quickUpdateForm.status}
+                  onChange={(e) => setQuickUpdateForm({ ...quickUpdateForm, status: e.target.value })}
+                  className="flex h-10 w-full rounded-xl border border-white/10 bg-[#0D1117] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                >
+                  {(stageStatusMapping[quickUpdateForm.stage] || stageStatusMapping['Screening']).map((status) => (
+                    <option key={status} value={status} className="bg-[#161B22]">{status}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
           <div className="flex justify-end gap-3 mt-2">
@@ -867,11 +1003,19 @@ export default function Leads() {
               Cancel
             </Button>
             <Button onClick={handleQuickUpdate} className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl">
-              Update Lead
+              Save Changes
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+      <ImportLeadsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => {
+          fetchLeads();
+          fetchStats();
+        }}
+      />
     </Layout>
   );
 }

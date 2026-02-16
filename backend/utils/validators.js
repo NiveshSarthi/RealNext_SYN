@@ -35,6 +35,10 @@ const validators = {
     email: (field = 'email') =>
         body(field).isEmail().normalizeEmail().withMessage('Invalid email address'),
 
+    // Optional email
+    optionalEmail: (field = 'email') =>
+        body(field).optional({ checkFalsy: true }).isEmail().normalizeEmail().withMessage('Invalid email address'),
+
     // Password validator
     password: (field = 'password') =>
         body(field)
@@ -72,7 +76,7 @@ const validators = {
 
     // Phone number
     phone: (field = 'phone') =>
-        body(field).optional().matches(/^[\d\s+()-]+$/).withMessage('Invalid phone number'),
+        body(field).optional({ checkFalsy: true }).matches(/^[\d\s+()-]+$/).withMessage('Invalid phone number'),
 
     // URL validator
     url: (field) =>
