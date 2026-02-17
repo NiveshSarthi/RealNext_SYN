@@ -611,6 +611,21 @@ export default function Leads() {
         {/* Management Toolbar */}
         <div className="bg-[#161B22]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-4 flex flex-col lg:flex-row justify-between items-center gap-6 shadow-2xl">
           <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
+            {/* Stage Filter - Prominent on main page */}
+            <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
+              <span className="px-3 flex items-center text-[10px] font-black uppercase tracking-widest text-gray-500">Stage:</span>
+              <select
+                value={stageFilter}
+                onChange={(e) => { setStageFilter(e.target.value); setStatusFilter('all'); setCurrentPage(1); }}
+                className="bg-transparent text-gray-300 text-xs font-black uppercase tracking-widest px-4 py-2 focus:outline-none cursor-pointer"
+              >
+                <option value="all">All Stages</option>
+                {Object.keys(stageStatusMapping).map(stage => (
+                  <option key={stage} value={stage} className="bg-[#161B22]">{stage}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Status Filter - Prominent on main page */}
             <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
               <span className="px-3 flex items-center text-[10px] font-black uppercase tracking-widest text-gray-500">Status:</span>
@@ -712,20 +727,7 @@ export default function Leads() {
 
                   {/* Filters Grid */}
                   <div className="space-y-6">
-                    {/* Stage Filter */}
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Stage</label>
-                      <select
-                        value={stageFilter}
-                        onChange={(e) => { setStageFilter(e.target.value); setStatusFilter('all'); setCurrentPage(1); }}
-                        className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
-                      >
-                        <option value="all">All Stages</option>
-                        {Object.keys(stageStatusMapping).map(stage => (
-                          <option key={stage} value={stage}>{stage}</option>
-                        ))}
-                      </select>
-                    </div>
+
 
                     {/* Form Name Filter */}
                     <div className="space-y-2">

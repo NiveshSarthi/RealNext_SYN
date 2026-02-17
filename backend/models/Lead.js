@@ -31,8 +31,10 @@ const leadSchema = new Schema({
         type: String,
         default: 'Uncontacted',
         enum: [
-            'Uncontacted', 'Not Interested', 'Not Responding', 'Dead', // Screening
-            'Hot', 'Warm', 'Cold', 'Lost' // Sourcing, Walk-in, Closure
+            'Uncontacted', 'Not Interested', 'Not Responding', 'Dead', 'Qualified', // Screening
+            'Hot', 'Warm', 'Cold', 'Lost', 'Visit expected', 'Schedule', 'Done', // Sourcing
+            'Token expected', 'Re-Walkin' // Walk-in
+            // Closure uses: 'Hot', 'Warm', 'Cold', 'Lost'
         ]
     },
     source: {
