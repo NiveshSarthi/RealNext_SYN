@@ -220,19 +220,9 @@ router.post('/webhook', async (req, res) => {
                                 continue;
                             }
 
-                            // Check for duplicates
-                            const existingLead = await Lead.findOne({
-                                client_id: pageConnection.client_id,
-                                $or: [
-                                    { phone: phoneField || 'N/A' },
-                                    { email: emailField || 'N/A' }
-                                ]
-                            });
-
-                            if (existingLead) {
-                                logger.info(`Lead ${leadgenId} already exists (${existingLead.name}), skipping`);
-                                continue;
-                            }
+                            // Note: We allow multiple leads from the same person across different forms/campaigns
+                            // This enables proper marketing attribution and multi-touch analysis
+                            // Only block exact Facebook lead ID duplicates (handled above)
 
                             // Create the lead
                             const newLead = await Lead.create({
@@ -1050,6 +1040,62 @@ router.post('/update-existing-forms', authenticate, async (req, res, next) => {
 
 router.get('/analytics', async (req, res) => {
     res.json({ success: true, data: { status: 'Real analytics not yet implemented, use fetched leads.' } });
+});
+
+/**
+ * @route POST /api/meta-ads/webhooks/register
+ * @desc Register webhooks for all connected pages
+ */
+router.post('/webhooks/register', requireFeature('meta_ads'), async (req, res) => {
+  try {
+    const pages = await FacebookPageConnection.find({
+      client_id: req.client.id,
+      is_lead_sync_enabled: true
+    });
+
+    const results = [];
+    for (const page of pages) {
+      try {
+        // Subscribe to page events
+        const subscribeResponse = await axios.post(`${GRAPH_API_URL}/${page.page_id}/subscribed_apps`, {
+          access_token: page.access_token,
+          subscribed_fields: 'leadgen'
+        });
+
+        results.push({
+          page_id: page.page_id,
+          page_name: page.page_name,
+          status: 'success',
+          response: subscribeResponse.data
+        });
+
+        logger.info(`✅ Webhook registered for page: ${page.page_name}`);
+
+      } catch (pageError) {
+        logger.error(`❌ Failed to register webhook for page ${page.page_name}:`, pageError.message);
+        results.push({
+          page_id: page.page_id,
+          page_name: page.page_name,
+          status: 'error',
+          error: pageError.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Webhook registration completed for ${pages.length} pages`,
+      results
+    });
+
+  } catch (error) {
+    logger.error('Webhook registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to register webhooks',
+      error: error.message
+    });
+  }
 });
 
 module.exports = router;

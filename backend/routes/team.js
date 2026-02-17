@@ -5,6 +5,7 @@ const { authenticate } = require('../middleware/auth');
 const { requireClientAccess } = require('../middleware/roles');
 const { enforceClientScope } = require('../middleware/scopeEnforcer');
 const { ApiError } = require('../middleware/errorHandler');
+const emailService = require('../services/emailService');
 const bcrypt = require('bcryptjs');
 const logger = require('../config/logger');
 
@@ -107,7 +108,7 @@ router.get('/', async (req, res, next) => {
  */
 router.post('/invite', async (req, res, next) => {
     try {
-        const { email, name, role, role_id, department } = req.body;
+        const { email, name, password, role, role_id, department } = req.body;
         const clientId = req.client.id;
 
         // Validate required fields
@@ -119,17 +120,39 @@ router.post('/invite', async (req, res, next) => {
         let user = await User.findOne({ email });
 
         if (!user) {
-            // Create new user with temporary password
-            const tempPassword = Math.random().toString(36).slice(-10);
+            // Create new user with provided password or temporary password
+            let userPassword = password;
+            if (!userPassword) {
+                // Generate temporary password if none provided
+                userPassword = Math.random().toString(36).slice(-10);
+                logger.info(`New user created: ${email} with temp password: ${userPassword}`);
+            }
+
             user = await User.create({
                 email,
                 name,
-                password_hash: tempPassword,
+                password_hash: userPassword,
                 status: 'active'
             });
 
-            // TODO: Send invitation email with temp password
-            logger.info(`New user created: ${email} with temp password: ${tempPassword}`);
+            // Send invitation email with credentials
+            try {
+                const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/login`;
+                const invitedBy = req.user?.name || req.user?.email || 'Administrator';
+
+                await emailService.sendTeamInvitation({
+                    email,
+                    name,
+                    password: userPassword,
+                    loginUrl,
+                    invitedBy
+                });
+
+                logger.info(`Team invitation email sent to ${email}`);
+            } catch (emailError) {
+                logger.error(`Failed to send invitation email to ${email}:`, emailError);
+                // Don't fail the invitation if email fails, but log it
+            }
         }
 
         // Check if user is already a team member
@@ -163,20 +186,33 @@ router.post('/invite', async (req, res, next) => {
                 select: 'name description'
             });
 
+        // Prepare response data
+        const responseData = {
+            id: newMember._id,
+            user_id: newMember.user_id?._id,
+            name: newMember.user_id?.name,
+            email: newMember.user_id?.email,
+            role: newMember.role,
+            role_id: newMember.role_id?._id,
+            custom_role: newMember.role_id,
+            department: newMember.department,
+            is_owner: newMember.is_owner
+        };
+
+        // Include password in response if no custom password was provided
+        // This allows admin to manually share credentials if email fails
+        if (!password) {
+            responseData.generated_password = userPassword;
+            responseData.email_sent = false;
+            responseData.message = 'Team member created successfully. Please share the generated password manually since email delivery is not configured.';
+        } else {
+            responseData.email_sent = true;
+            responseData.message = 'Team member invited successfully with custom password.';
+        }
+
         res.status(201).json({
             success: true,
-            data: {
-                id: newMember._id,
-                user_id: newMember.user_id?._id,
-                name: newMember.user_id?.name,
-                email: newMember.user_id?.email,
-                role: newMember.role,
-                role_id: newMember.role_id?._id,
-                custom_role: newMember.role_id,
-                department: newMember.department,
-                is_owner: newMember.is_owner
-            },
-            message: 'Team member invited successfully'
+            data: responseData
         });
     } catch (error) {
         next(error);

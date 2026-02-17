@@ -25,6 +25,7 @@ export default function TeamManagement() {
     const [inviteForm, setInviteForm] = useState({
         name: '',
         email: '',
+        password: '',
         role: 'user',
         role_id: null,
         department: ''
@@ -90,13 +91,29 @@ export default function TeamManagement() {
         e.preventDefault();
         try {
             const token = localStorage.getItem('access_token');
-            await axios.post(`${API_URL}/api/team/invite`, inviteForm, {
+            const response = await axios.post(`${API_URL}/api/team/invite`, inviteForm, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+
             setShowInviteModal(false);
-            setInviteForm({ name: '', email: '', role: 'user', role_id: null, department: '' });
+            setInviteForm({ name: '', email: '', password: '', role: 'user', role_id: null, department: '' });
             fetchTeamMembers();
-            toast.success('Team member invited successfully!');
+
+            // Show appropriate success message
+            if (response.data.data.generated_password) {
+                toast.success(`Team member created! Password: ${response.data.data.generated_password}`, {
+                    duration: 10000, // Show for 10 seconds
+                    action: {
+                        label: 'Copy',
+                        onClick: () => {
+                            navigator.clipboard.writeText(response.data.data.generated_password);
+                            toast.success('Password copied to clipboard!');
+                        }
+                    }
+                });
+            } else {
+                toast.success('Team member invited successfully!');
+            }
         } catch (error) {
             toast.error(error.response?.data?.error || 'Failed to invite member');
         }
@@ -326,6 +343,22 @@ export default function TeamManagement() {
                                 />
                             </div>
                             <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                                <input
+                                    type="password"
+                                    value={inviteForm.password}
+                                    onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
+                                    className="w-full px-4 py-2.5 bg-[#161B22] border border-border/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    placeholder="Leave empty for auto-generated password"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {inviteForm.password
+                                        ? "Custom password will be set for the user"
+                                        : "If left empty, a temporary password will be generated and shown to you"
+                                    }
+                                </p>
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
                                 <select
                                     value={inviteForm.role_id || ''}
@@ -364,7 +397,7 @@ export default function TeamManagement() {
                                     variant="primary"
                                     className="flex-1"
                                 >
-                                    Send Invite
+                                    {inviteForm.password ? 'Create Member' : 'Generate & Show Password'}
                                 </Button>
                             </div>
                         </form>

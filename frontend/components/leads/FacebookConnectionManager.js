@@ -28,12 +28,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function FacebookConnectionManager() {
     const [userToken, setUserToken] = useState('');
     const [expandedPages, setExpandedPages] = useState({});
-    const [isHydrated, setIsHydrated] = useState(false);
     const queryClient = useQueryClient();
-
-    useEffect(() => {
-        setIsHydrated(true);
-    }, []);
 
     // Fetch Connected Pages
     const { data: pages = [], isLoading, error } = useQuery({
@@ -128,6 +123,21 @@ export default function FacebookConnectionManager() {
         }
     });
 
+    // Register Webhooks Mutation
+    const registerWebhooksMutation = useMutation({
+        mutationFn: async () => {
+            const res = await metaAdsAPI.registerWebhooks();
+            return res.data;
+        },
+        onSuccess: async (data) => {
+            toast.success(`✅ Webhooks registered for ${data.results?.length || 0} pages`);
+            console.log('Webhook registration results:', data.results);
+        },
+        onError: (error) => {
+            toast.error(`Webhook registration failed: ${error.message}`);
+        }
+    });
+
     const handleConnectAccount = () => {
         if (!userToken) {
             toast.error('Please enter User Access Token');
@@ -136,14 +146,11 @@ export default function FacebookConnectionManager() {
         connectAccountMutation.mutate({ user_token: userToken });
     };
 
-    // Don't render animated content until hydrated to avoid hydration mismatch
-    if (!isHydrated) {
-        return <div className="space-y-8">Loading...</div>;
-    }
+
 
     return (
         <div className="space-y-8">
-            <Card className="bg-[#161B22]/60 backdrop-blur-xl border-[#1F2937] text-white shadow-2xl overflow-hidden relative" suppressHydrationWarning={true}>
+            <Card className="bg-[#161B22]/60 backdrop-blur-xl border-[#1F2937] text-white shadow-2xl overflow-hidden relative">
                 {/* Visual Accent */}
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
 
@@ -420,14 +427,52 @@ export default function FacebookConnectionManager() {
                 </CardContent>
             </Card>
 
+            {/* Webhook Registration Card */}
+            <div className="opacity-100">
+                <Card className="bg-[#161B22]/60 backdrop-blur-xl border-[#1F2937] text-white shadow-2xl overflow-hidden relative">
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600" />
+                    <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10">
+                                    <Zap className="w-6 h-6 text-emerald-400" />
+                                </div>
+                                <div>
+                                    <h4 className="text-lg font-bold text-white tracking-wide">Real-Time Webhook Setup</h4>
+                                    <p className="text-sm text-gray-400 mt-1">
+                                        Register webhooks for instant lead notifications from Facebook
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={() => registerWebhooksMutation.mutate()}
+                                disabled={registerWebhooksMutation.isPending}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-900/20 font-semibold px-6 py-2.5 rounded-xl transition-all active:scale-95"
+                            >
+                                {registerWebhooksMutation.isPending ? (
+                                    <div className="flex items-center gap-2">
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        <span>Registering...</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <Zap className="w-4 h-4" />
+                                        <span>Register Webhooks</span>
+                                    </div>
+                                )}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
             {/* Help Card */}
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                suppressHydrationWarning={true}
             >
-                <Card className="bg-gradient-to-r from-[#161B22] to-[#0D1117] border-[#1F2937] border shadow-xl" suppressHydrationWarning={true}>
+                <Card className="bg-gradient-to-r from-[#161B22] to-[#0D1117] border-[#1F2937] border shadow-xl">
                     <CardContent className="p-6 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/10">

@@ -240,20 +240,9 @@ async function syncLeadsForForm(form, pageConnection) {
         continue;
       }
 
-      // Check for duplicates
-      const existingByContact = await Lead.findOne({
-        client_id: form.client_id,
-        $or: [
-          { email: email },
-          { phone: phone }
-        ].filter(Boolean)
-      });
-
-      if (existingByContact) {
-        console.log(`            ⏭️  Skipping lead ${metaLead.id} - duplicate contact (${email || phone})`);
-        skipped++;
-        continue;
-      }
+      // Note: We allow multiple leads from the same person across different forms/campaigns
+      // This enables proper marketing attribution and multi-touch analysis
+      // Only block exact Facebook lead ID duplicates (handled above)
 
       // Create the lead
       const newLead = await Lead.create({

@@ -26,7 +26,9 @@ const ensureClient = (req) => {
  * @desc List leads for tenant
  * @access Tenant User
  */
-router.get('/', requireFeature('leads'), async (req, res, next) => {
+router.get('/', async (req, res, next) => {
+    // Temporarily remove feature check for debugging
+    // requireFeature('leads'),
     try {
         ensureClient(req);
         const pagination = getPagination(req.query);

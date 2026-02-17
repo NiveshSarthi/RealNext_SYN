@@ -60,6 +60,14 @@ const userSchema = new Schema({
     deleted_at: {
         type: Date,
         default: null
+    },
+    resetPasswordToken: {
+        type: String,
+        required: false
+    },
+    resetPasswordExpires: {
+        type: Date,
+        required: false
     }
 }, {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },

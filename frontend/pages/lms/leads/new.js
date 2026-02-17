@@ -80,7 +80,7 @@ export default function NewLead() {
 
             await leadsAPI.createLead(formData);
             toast.success('Lead created successfully');
-            router.push('/lms/leads');
+            router.push('/lms/leads?refresh=' + Date.now());
         } catch (error) {
             console.error('Error creating lead:', error);
             // Fallback for demo if API fails

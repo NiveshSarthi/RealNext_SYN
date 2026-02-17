@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const logger = require('../config/logger');
 const authService = require('../services/authService');
+const emailService = require('../services/emailService');
 const { authenticate } = require('../middleware/auth');
 const { authLimiter, passwordResetLimiter } = require('../middleware/rateLimiter');
 const { auditAction } = require('../middleware/auditLogger');
@@ -247,15 +248,40 @@ router.post('/forgot-password',
     [validators.email(), validate],
     async (req, res, next) => {
         try {
-            // TODO: Implement password reset email
-            // For now, just return success (don't reveal if email exists)
+            const { email } = req.body;
+            const { User } = require('../models');
 
+            // Check if user exists (don't reveal this in response)
+            const user = await User.findOne({ email: email.toLowerCase() });
+
+            if (user) {
+                // Generate reset token (simple approach - in production use JWT or crypto.randomBytes)
+                const resetToken = require('crypto').randomBytes(32).toString('hex');
+                const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
+
+                // Store reset token in user record (in production, use Redis or separate table)
+                user.resetPasswordToken = resetToken;
+                user.resetPasswordExpires = resetTokenExpiry;
+                await user.save();
+
+                // Send reset email
+                const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password?token=${resetToken}`;
+
+                await emailService.sendPasswordResetEmail(email, resetToken, resetUrl);
+            }
+
+            // Always return success (don't reveal if email exists)
             res.json({
                 success: true,
                 message: 'If the email exists, a reset link has been sent'
             });
         } catch (error) {
-            next(error);
+            logger.error('Password reset request error:', error);
+            // Still return success to prevent email enumeration
+            res.json({
+                success: true,
+                message: 'If the email exists, a reset link has been sent'
+            });
         }
     }
 );
@@ -273,7 +299,26 @@ router.post('/reset-password',
     ],
     async (req, res, next) => {
         try {
-            // TODO: Implement token verification and password reset
+            const { token, new_password } = req.body;
+            const { User } = require('../models');
+
+            // Find user with valid reset token
+            const user = await User.findOne({
+                resetPasswordToken: token,
+                resetPasswordExpires: { $gt: new Date() }
+            });
+
+            if (!user) {
+                throw ApiError.badRequest('Invalid or expired reset token');
+            }
+
+            // Update password
+            user.password_hash = new_password; // Will be hashed by pre-save hook
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpires = undefined;
+            await user.save();
+
+            logger.info(`Password reset successful for user: ${user.email}`);
 
             res.json({
                 success: true,

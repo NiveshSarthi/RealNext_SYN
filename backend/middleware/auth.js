@@ -45,6 +45,9 @@ const authenticate = async (req, res, next) => {
                 client_id: clientId
             }).populate({
                 path: 'client_id'
+            }).populate({
+                path: 'role_id',
+                select: 'name permissions'
             });
 
             if (clientUser && clientUser.client_id) {
@@ -52,6 +55,11 @@ const authenticate = async (req, res, next) => {
                 req.clientUser = clientUser.toObject({ virtuals: true });
                 req.client = clientUser.client_id.toObject({ virtuals: true });
                 req.user.client_role = clientUser.role;
+
+                // Merge permissions from role and direct permissions
+                const rolePermissions = clientUser.role_id?.permissions || [];
+                const directPermissions = clientUser.permissions || [];
+                req.clientUser.permissions = [...new Set([...rolePermissions, ...directPermissions])];
 
                 // BLOCK INACTIVE CLIENTS (Super Admins bypass this check)
                 if (req.client.status !== 'active' && !req.user.is_super_admin) {

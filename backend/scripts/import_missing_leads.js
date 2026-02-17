@@ -120,11 +120,9 @@ async function importMissingLeads() {
 
     // Get existing leads from DB for this form
     const existingLeads = await Lead.find({ 'metadata.form_id': form.form_id });
-    const existingEmails = new Set(existingLeads.map(l => l.email?.toLowerCase()).filter(Boolean));
     const existingLeadIds = new Set(existingLeads.map(l => l.metadata?.lead_id).filter(Boolean));
 
     console.log(`Existing leads in DB: ${existingLeads.length}`);
-    console.log(`Existing emails: ${existingEmails.size}`);
     console.log(`Existing lead_ids: ${existingLeadIds.size}`);
 
     let imported = 0;
@@ -155,12 +153,8 @@ async function importMissingLeads() {
       const phone = extractedFields.phone;
       const city = extractedFields.location;
 
-      // Skip if email already exists (potential duplicate)
-      if (email && existingEmails.has(email.toLowerCase())) {
-        console.log(`⏭️  Skipping lead ${metaLead.id} - email ${email} already exists`);
-        skipped++;
-        continue;
-      }
+      // Note: We allow multiple leads from the same person across different forms/campaigns
+      // This enables proper marketing attribution and multi-touch analysis
 
       // Find a system user for activity logs (first user of the client)
       const ClientUser = require('../models/ClientUser');

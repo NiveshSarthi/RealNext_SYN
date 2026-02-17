@@ -118,9 +118,9 @@ app.use(express.json({ limit: '10mb' }));
 
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
-
-app.use('/api/', rateLimiter);
+// Rate limiting - Use more generous API limiter
+const { apiLimiter } = require('./middleware/rateLimiter');
+app.use('/api/', apiLimiter);
 
 // Health check endpoint
 let dbStatus = 'unknown';

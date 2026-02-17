@@ -47,6 +47,22 @@ api.interceptors.response.use(
   async (error) => {
     console.log('[API Interceptor] Response error:', error.response?.status, error.config?.url);
     const originalRequest = error.config;
+
+    // Handle rate limiting (429)
+    if (error.response?.status === 429) {
+      console.warn('[API Interceptor] Rate limit exceeded');
+      // Show user-friendly message for rate limiting
+      if (typeof window !== 'undefined') {
+        // Use a toast notification if available, otherwise alert
+        if (window.toast) {
+          window.toast.error('Too many requests. Please wait a moment before trying again.');
+        } else {
+          alert('Too many requests. Please wait a moment before trying again.');
+        }
+      }
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       console.log('[API Interceptor] 401 error, attempting token refresh...');
       originalRequest._retry = true;
