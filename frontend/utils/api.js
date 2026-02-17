@@ -347,7 +347,20 @@ export const catalogAPI = {
   deleteItem: (id) => api.delete(`/api/catalog/${id}`),
   findMatches: (requirements) => api.post('/api/catalog/match', { requirements }),
   shareMatches: (phone, requirements) => api.post('/api/catalog/share', { phone, requirements }),
-  bulkImport: (items) => api.post('/api/catalog/bulk-import', { items }),
+  bulkImport: (formData) => api.post('/api/catalog/bulk-import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  downloadTemplate: () => {
+    // Direct download using full API URL since template doesn't require authentication
+    const link = document.createElement('a');
+    link.href = `${API_BASE_URL}/api/catalog/template`;
+    link.setAttribute('download', 'property_catalog_template.csv');
+    link.setAttribute('target', '_blank'); // Open in new tab if download fails
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return Promise.resolve();
+  },
   syncToWhatsApp: (id) => api.post(`/api/catalog/${id}/sync`),
   getStats: () => api.get('/api/catalog/stats/overview'),
 };

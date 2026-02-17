@@ -1,0 +1,4 @@
+name,description,category,price,currency,bhk,area,image_url
+"Test Apartment 1","Test Location 1","Apartment",10000000,INR,2,1200,"https://example.com/image1.jpg"
+"Test Villa 1","Test Location 2","Villa",25000000,INR,4,3000,"https://example.com/image2.jpg"
+"Test Plot 1","Test Location 3","Plot",5000000,INR,,1000,"https://example.com/image3.jpg"
