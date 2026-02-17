@@ -26,7 +26,8 @@ import {
   Facebook,
   Zap,
   UserPlus,
-  Megaphone
+  Megaphone,
+  X
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import {
@@ -263,9 +264,20 @@ export default function Leads() {
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [formNameFilter, setFormNameFilter] = useState('all');
+  const [campaignFilter, setCampaignFilter] = useState('all');
+  const [assignedFilter, setAssignedFilter] = useState('all');
+  const [budgetMinFilter, setBudgetMinFilter] = useState('');
+  const [budgetMaxFilter, setBudgetMaxFilter] = useState('');
+  const [aiScoreMinFilter, setAiScoreMinFilter] = useState('');
+  const [aiScoreMaxFilter, setAiScoreMaxFilter] = useState('');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [viewMode, setViewMode] = useState('table');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Assignment State
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -317,7 +329,7 @@ export default function Leads() {
       fetchStats();
       fetchTeamMembers();
     }
-  }, [user, authLoading, searchTerm, stageFilter, statusFilter, currentPage]);
+  }, [user, authLoading, searchTerm, stageFilter, statusFilter, sourceFilter, formNameFilter, campaignFilter, assignedFilter, budgetMinFilter, budgetMaxFilter, aiScoreMinFilter, aiScoreMaxFilter, startDateFilter, endDateFilter, currentPage]);
 
   const fetchTeamMembers = async () => {
     try {
@@ -364,7 +376,17 @@ export default function Leads() {
         limit: 12,
         search: searchTerm,
         stage: stageFilter === 'all' ? '' : stageFilter,
-        status: statusFilter === 'all' ? '' : statusFilter
+        status: statusFilter === 'all' ? '' : statusFilter,
+        source: sourceFilter === 'all' ? '' : sourceFilter,
+        form_name: formNameFilter === 'all' ? '' : formNameFilter,
+        campaign_name: campaignFilter === 'all' ? '' : campaignFilter,
+        assigned_to: assignedFilter === 'all' ? '' : assignedFilter,
+        budget_min: budgetMinFilter || '',
+        budget_max: budgetMaxFilter || '',
+        ai_score_min: aiScoreMinFilter || '',
+        ai_score_max: aiScoreMaxFilter || '',
+        start_date: startDateFilter || '',
+        end_date: endDateFilter || ''
       };
 
       const response = await leadsAPI.getLeads(params);
@@ -564,22 +586,7 @@ export default function Leads() {
         {/* Management Toolbar */}
         <div className="bg-[#161B22]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-4 flex flex-col lg:flex-row justify-between items-center gap-6 shadow-2xl">
           <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
-            {/* Stage Filter */}
-            <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
-              <span className="px-3 flex items-center text-[10px] font-black uppercase tracking-widest text-gray-500">Stage:</span>
-              <select
-                value={stageFilter}
-                onChange={(e) => { setStageFilter(e.target.value); setStatusFilter('all'); setCurrentPage(1); }}
-                className="bg-transparent text-gray-300 text-xs font-black uppercase tracking-widest px-4 py-2 focus:outline-none cursor-pointer"
-              >
-                <option value="all">All Stages</option>
-                {Object.keys(stageStatusMapping).map(stage => (
-                  <option key={stage} value={stage} className="bg-[#161B22]">{stage}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Status Filter */}
+            {/* Status Filter - Prominent on main page */}
             <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
               <span className="px-3 flex items-center text-[10px] font-black uppercase tracking-widest text-gray-500">Status:</span>
               <select
@@ -603,7 +610,7 @@ export default function Leads() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600" />
               <input
                 type="text"
-                placeholder="Search leads..."
+                placeholder="Search by name, email, phone, location, form, campaign, notes..."
                 className="w-full pl-12 pr-6 py-4 bg-[#0E1117]/80 border border-white/5 rounded-2xl text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-all shadow-inner"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -623,11 +630,215 @@ export default function Leads() {
                 <LayoutGrid className="h-5 w-5" />
               </button>
             </div>
-            <Button variant="outline" className="h-14 w-14 p-0 rounded-2xl border-white/5 bg-[#0E1117]/80 hover:bg-white/5">
-              <Filter className="h-5 w-5 text-gray-500" />
+            <Button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              variant="outline"
+              className={`h-14 px-6 rounded-2xl border-white/5 bg-[#0E1117]/80 hover:bg-white/5 ${showAdvancedFilters ? 'bg-indigo-600/20 border-indigo-500/30' : ''}`}
+            >
+              <Filter className="h-5 w-5 mr-2 text-gray-500" />
+              <span className="text-xs font-black uppercase tracking-widest">Advanced</span>
             </Button>
           </div>
         </div>
+
+        {/* Advanced Filters Sidebar */}
+        <AnimatePresence>
+          {showAdvancedFilters && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+                onClick={() => setShowAdvancedFilters(false)}
+              />
+
+              {/* Sidebar */}
+              <motion.div
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'tween', duration: 0.3 }}
+                className="fixed top-0 right-0 h-full w-full max-w-md bg-[#161B22]/95 backdrop-blur-xl border-l border-white/10 shadow-2xl z-50 overflow-y-auto"
+              >
+                <div className="p-6">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-black text-white">Advanced Filters</h3>
+                    <button
+                      onClick={() => setShowAdvancedFilters(false)}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                    >
+                      <X className="h-5 w-5 text-gray-400" />
+                    </button>
+                  </div>
+
+                  {/* Filters Grid */}
+                  <div className="space-y-6">
+                    {/* Stage Filter */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Stage</label>
+                      <select
+                        value={stageFilter}
+                        onChange={(e) => { setStageFilter(e.target.value); setStatusFilter('all'); setCurrentPage(1); }}
+                        className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
+                      >
+                        <option value="all">All Stages</option>
+                        {Object.keys(stageStatusMapping).map(stage => (
+                          <option key={stage} value={stage}>{stage}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Form Name Filter */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Form Name</label>
+                      <select
+                        value={formNameFilter}
+                        onChange={(e) => { setFormNameFilter(e.target.value); setCurrentPage(1); }}
+                        className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
+                      >
+                        <option value="all">All Forms</option>
+                        <option value="Navraj-copy-copy">Navraj-copy-copy</option>
+                        <option value="BUILDER FLOOR_sept-copy">BUILDER FLOOR_sept-copy</option>
+                        <option value="BUILDER FLOOR_sept">BUILDER FLOOR_sept</option>
+                        <option value="Amolik Concordia sector 97 Faridabad">Amolik Concordia sector 97 Faridabad</option>
+                        <option value="Navraj">Navraj</option>
+                        <option value="Navraj-copy">Navraj-copy</option>
+                        <option value="NAVRAJ-copy">NAVRAJ-copy</option>
+                        <option value="NAVRAJ">NAVRAJ</option>
+                      </select>
+                    </div>
+
+                    {/* Campaign Filter */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Campaign</label>
+                      <input
+                        type="text"
+                        placeholder="Campaign name..."
+                        value={campaignFilter}
+                        onChange={(e) => { setCampaignFilter(e.target.value); setCurrentPage(1); }}
+                        className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-all"
+                      />
+                    </div>
+
+                    {/* Assigned To Filter */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Assigned To</label>
+                      <select
+                        value={assignedFilter}
+                        onChange={(e) => { setAssignedFilter(e.target.value); setCurrentPage(1); }}
+                        className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
+                      >
+                        <option value="all">All Members</option>
+                        {teamMembers.map(member => (
+                          <option key={member.id} value={member.id}>{member.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Budget Range */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Budget Range</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          placeholder="Min"
+                          value={budgetMinFilter}
+                          onChange={(e) => { setBudgetMinFilter(e.target.value); setCurrentPage(1); }}
+                          className="flex-1 bg-[#0E1117]/80 border border-white/5 rounded-xl px-3 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-all"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Max"
+                          value={budgetMaxFilter}
+                          onChange={(e) => { setBudgetMaxFilter(e.target.value); setCurrentPage(1); }}
+                          className="flex-1 bg-[#0E1117]/80 border border-white/5 rounded-xl px-3 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* AI Score Range */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">AI Score Range</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          placeholder="Min"
+                          min="0"
+                          max="100"
+                          value={aiScoreMinFilter}
+                          onChange={(e) => { setAiScoreMinFilter(e.target.value); setCurrentPage(1); }}
+                          className="flex-1 bg-[#0E1117]/80 border border-white/5 rounded-xl px-3 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-all"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Max"
+                          min="0"
+                          max="100"
+                          value={aiScoreMaxFilter}
+                          onChange={(e) => { setAiScoreMaxFilter(e.target.value); setCurrentPage(1); }}
+                          className="flex-1 bg-[#0E1117]/80 border border-white/5 rounded-xl px-3 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Date Range */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Date Range</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          value={startDateFilter}
+                          onChange={(e) => { setStartDateFilter(e.target.value); setCurrentPage(1); }}
+                          className="flex-1 bg-[#0E1117]/80 border border-white/5 rounded-xl px-3 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
+                        />
+                        <input
+                          type="date"
+                          value={endDateFilter}
+                          onChange={(e) => { setEndDateFilter(e.target.value); setCurrentPage(1); }}
+                          className="flex-1 bg-[#0E1117]/80 border border-white/5 rounded-xl px-3 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-4">
+                      <Button
+                        onClick={() => {
+                          setStageFilter('all');
+                          setFormNameFilter('all');
+                          setCampaignFilter('all');
+                          setAssignedFilter('all');
+                          setSourceFilter('all');
+                          setBudgetMinFilter('');
+                          setBudgetMaxFilter('');
+                          setAiScoreMinFilter('');
+                          setAiScoreMaxFilter('');
+                          setStartDateFilter('');
+                          setEndDateFilter('');
+                          setStatusFilter('all');
+                          setCurrentPage(1);
+                        }}
+                        variant="outline"
+                        className="flex-1 bg-red-500/10 border-red-500/20 hover:bg-red-500/20 text-red-400"
+                      >
+                        Clear All
+                      </Button>
+                      <Button
+                        onClick={() => setShowAdvancedFilters(false)}
+                        className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white"
+                      >
+                        Apply Filters
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Main Content Area */}
         <div className="relative">

@@ -33,11 +33,18 @@ router.get('/', requireFeature('leads'), async (req, res, next) => {
         const sorting = getSorting(req.query, ['name', 'email', 'status', 'created_at', 'ai_score'], 'created_at');
 
         // Build filters
-        const searchFilter = buildSearchFilter(req.query.search, ['name', 'email', 'phone', 'location']);
+        const searchFilter = buildSearchFilter(req.query.search, ['name', 'email', 'phone', 'location', 'form_name', 'campaign_name', 'notes']);
         const statusFilter = req.query.status ? { status: req.query.status } : null;
         const stageFilter = req.query.stage ? { stage: req.query.stage } : null;
         const sourceFilter = req.query.source ? { source: req.query.source } : null;
         const assignedFilter = req.query.assigned_to ? { assigned_to: req.query.assigned_to } : null;
+        const formNameFilter = req.query.form_name ? { form_name: req.query.form_name } : null;
+        const campaignFilter = req.query.campaign_name ? { campaign_name: req.query.campaign_name } : null;
+        const tagsFilter = req.query.tags ? { tags: { $in: Array.isArray(req.query.tags) ? req.query.tags : [req.query.tags] } } : null;
+        const budgetMinFilter = req.query.budget_min ? { budget_min: { $gte: parseInt(req.query.budget_min) } } : null;
+        const budgetMaxFilter = req.query.budget_max ? { budget_max: { $lte: parseInt(req.query.budget_max) } } : null;
+        const aiScoreMinFilter = req.query.ai_score_min ? { ai_score: { $gte: parseInt(req.query.ai_score_min) } } : null;
+        const aiScoreMaxFilter = req.query.ai_score_max ? { ai_score: { $lte: parseInt(req.query.ai_score_max) } } : null;
         const dateFilter = buildDateRangeFilter('created_at', req.query.start_date, req.query.end_date);
 
         const where = mergeFilters(
@@ -47,6 +54,13 @@ router.get('/', requireFeature('leads'), async (req, res, next) => {
             stageFilter,
             sourceFilter,
             assignedFilter,
+            formNameFilter,
+            campaignFilter,
+            tagsFilter,
+            budgetMinFilter,
+            budgetMaxFilter,
+            aiScoreMinFilter,
+            aiScoreMaxFilter,
             dateFilter
         );
 

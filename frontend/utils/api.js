@@ -414,6 +414,7 @@ export const metaAdsAPI = {
   fetchLeads: () => api.post('/api/meta-ads/fetch-leads'),
   togglePageSync: (pageId, data) => api.patch(`/api/meta-ads/pages/${pageId}/toggle-sync`, data),
   updateExistingForms: () => api.post('/api/meta-ads/update-existing-forms'),
+  registerWebhooks: () => api.post('/api/meta-ads/webhooks/register'),
 };
 
 // Real Estate API

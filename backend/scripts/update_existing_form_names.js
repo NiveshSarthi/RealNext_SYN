@@ -7,9 +7,7 @@ async function updateExistingFormNames() {
         console.log('🔄 Updating existing leads with form names...\n');
 
         // Connect to MongoDB
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://root:Cjmqv@72.61.248.175:5443/?authSource=admin', {
-            dbName: 'realnext'
-        });
+        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost/realnext');
 
         console.log('✅ Connected to MongoDB\n');
 
@@ -45,8 +43,11 @@ async function updateExistingFormNames() {
                     continue;
                 }
 
-                // Find the form
-                const form = await FacebookLeadForm.findOne({ form_id: formId });
+                // Find the form (with client isolation)
+                const form = await FacebookLeadForm.findOne({
+                    form_id: formId,
+                    client_id: lead.client_id
+                });
 
                 if (!form) {
                     console.log(`⏭️  Skipping "${lead.name}" - Form ${formId} not found`);
@@ -56,6 +57,12 @@ async function updateExistingFormNames() {
 
                 // Update lead with form name
                 lead.form_name = form.name;
+
+                // Fix invalid status values
+                if (lead.status === 'new') {
+                    lead.status = 'Uncontacted'; // Default valid status
+                }
+
                 await lead.save();
 
                 console.log(`✅ Updated "${lead.name}" → form_name: "${form.name}"`);

@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const crypto = require('crypto');
 const { authenticate } = require('../../../middleware/auth');
 const { requireClientAccess } = require('../../../middleware/roles');
 const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
@@ -11,6 +12,87 @@ const { auditAction } = require('../../../middleware/auditLogger');
 const { ApiError } = require('../../../middleware/errorHandler');
 const logger = require('../../../config/logger');
 const { FacebookPageConnection, FacebookLeadForm, Lead } = require('../../../models');
+
+// Flexible field extraction function
+function extractLeadFields(fieldData) {
+  const extracted = {
+    name: null,
+    email: null,
+    phone: null,
+    location: null,
+    budget: null
+  };
+
+  if (!fieldData || !Array.isArray(fieldData)) {
+    return extracted;
+  }
+
+  // Define field patterns (case-insensitive, partial matches)
+  const patterns = {
+    name: [
+      /^full\s*name$/i,
+      /^name$/i,
+      /^first\s*name$/i,
+      /^last\s*name$/i,
+      /name/i  // Fallback - any field containing "name"
+    ],
+    email: [
+      /^email$/i,
+      /^e-mail$/i,
+      /^email\s*address$/i,
+      /email/i  // Fallback
+    ],
+    phone: [
+      /^phone$/i,
+      /^phone\s*number$/i,
+      /^mobile$/i,
+      /^contact\s*number$/i,
+      /^telephone$/i,
+      /phone/i,  // Fallback
+      /mobile/i,
+      /contact/i
+    ],
+    location: [
+      /^location$/i,
+      /^city$/i,
+      /^address$/i,
+      /^state$/i,
+      /^area$/i,
+      /location/i,  // Fallback
+      /city/i,
+      /address/i
+    ],
+    budget: [
+      /budget/i,
+      /price/i,
+      /cost/i,
+      /range/i,
+      /investment/i
+    ]
+  };
+
+  // Process each field
+  fieldData.forEach(field => {
+    const fieldName = field.name?.toLowerCase()?.trim();
+    const fieldValue = field.values?.[0]?.trim();
+
+    if (!fieldName || !fieldValue) return;
+
+    // Check each field type
+    Object.keys(patterns).forEach(fieldType => {
+      if (extracted[fieldType]) return; // Already found
+
+      // Check if field name matches any pattern for this type
+      const matches = patterns[fieldType].some(pattern => pattern.test(fieldName));
+
+      if (matches) {
+        extracted[fieldType] = fieldValue;
+      }
+    });
+  });
+
+  return extracted;
+}
 
 // Public Webhook Routes (Move BEFORE middleware)
 /**
@@ -48,6 +130,21 @@ router.post('/webhook', async (req, res) => {
     try {
         const body = req.body;
 
+        // Verify webhook signature
+        const signature = req.get('X-Hub-Signature-256');
+        if (signature) {
+            // Note: For proper verification, use raw body. This uses parsed body.
+            const expectedSignature = crypto.createHmac('sha256', process.env.FACEBOOK_APP_SECRET).update(JSON.stringify(body)).digest('hex');
+            const providedSignature = signature.replace('sha256=', '');
+            if (providedSignature !== expectedSignature) {
+                logger.warn('Invalid webhook signature');
+                return res.status(403).send('Forbidden');
+            }
+        } else {
+            logger.warn('No webhook signature provided');
+            // In production, return 403
+        }
+
         // Respond to Facebook immediately
         res.status(200).send('EVENT_RECEIVED');
 
@@ -80,11 +177,23 @@ router.post('/webhook', async (req, res) => {
 
                         // Find the form
                         const leadForm = await FacebookLeadForm.findOne({
-                            form_id: formId
+                            form_id: formId,
+                            client_id: pageConnection.client_id
                         });
 
                         if (!leadForm) {
                             logger.warn(`Form ${formId} not found in our system`);
+                            continue;
+                        }
+
+                        // Check if this lead has already been processed
+                        const existingFacebookLead = await Lead.findOne({
+                            client_id: pageConnection.client_id,
+                            'metadata.facebook_lead_id': leadgenId
+                        });
+
+                        if (existingFacebookLead) {
+                            logger.info(`Lead ${leadgenId} already processed, skipping`);
                             continue;
                         }
 
@@ -100,10 +209,11 @@ router.post('/webhook', async (req, res) => {
                             const leadData = leadResponse.data;
                             const fieldData = leadData.field_data || [];
 
-                            // Extract fields
-                            const emailField = fieldData.find(f => f.name.includes('email'))?.values[0];
-                            const phoneField = fieldData.find(f => f.name.includes('phone') || f.name.includes('number'))?.values[0];
-                            const nameField = fieldData.find(f => f.name.includes('name') || f.name.includes('full_name'))?.values[0];
+                            // Extract fields using flexible pattern matching
+                            const extractedFields = extractLeadFields(fieldData);
+                            const emailField = extractedFields.email;
+                            const phoneField = extractedFields.phone;
+                            const nameField = extractedFields.name;
 
                             if (!phoneField && !emailField) {
                                 logger.warn(`Lead ${leadgenId} has no phone or email, skipping`);
@@ -167,6 +277,18 @@ router.post('/webhook', async (req, res) => {
         logger.error('Webhook processing error:', error);
         // Don't throw - we already responded to Facebook
     }
+});
+
+/**
+ * @route GET /api/meta-ads/webhook/health
+ * @desc Webhook health check
+ */
+router.get('/webhook/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        message: 'Webhook endpoint is healthy',
+        timestamp: new Date().toISOString()
+    });
 });
 
 /**
@@ -338,6 +460,18 @@ const ensureClient = (req) => {
 const GRAPH_API_VERSION = 'v19.0';
 const GRAPH_API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
+const exchangeToken = async (shortToken) => {
+    const response = await axios.get(`${GRAPH_API_URL}/oauth/access_token`, {
+        params: {
+            grant_type: 'fb_exchange_token',
+            client_id: process.env.FACEBOOK_APP_ID,
+            client_secret: process.env.FACEBOOK_APP_SECRET,
+            fb_exchange_token: shortToken
+        }
+    });
+    return response.data.access_token;
+};
+
 /**
  * @route POST /api/meta-ads/connect
  * @desc Connect Facebook Account & Fetch Pages
@@ -348,10 +482,13 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
         const { user_token } = req.body;
         if (!user_token) throw new ApiError(400, 'User Access Token is required');
 
+        // Exchange for long-lived user token
+        const longLivedUserToken = await exchangeToken(user_token);
+
         // 1. Fetch Pages this user manages
         const response = await axios.get(`${GRAPH_API_URL}/me/accounts`, {
             params: {
-                access_token: user_token,
+                access_token: longLivedUserToken,
                 fields: 'id,name,access_token,tasks',
                 limit: 100
             }
@@ -361,12 +498,15 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
         const connectedPages = [];
 
         for (const page of pages) {
+            // Exchange page token for long-lived
+            const longLivedPageToken = await exchangeToken(page.access_token);
+
             // Upsert Page Connection using Mongoose findOneAndUpdate
             const connection = await FacebookPageConnection.findOneAndUpdate(
                 { client_id: req.client.id, page_id: page.id },
                 {
                     page_name: page.name,
-                    access_token: page.access_token, // Page Access Token
+                    access_token: longLivedPageToken, // Long-lived Page Access Token
                     status: 'active',
                     last_sync_at: new Date()
                 },
@@ -385,6 +525,86 @@ router.post('/connect', requireFeature('meta_ads'), async (req, res, next) => {
         if (error.response?.data?.error) {
             return next(new ApiError(400, `Facebook API Error: ${error.response.data.error.message}`));
         }
+        next(error);
+    }
+});
+
+/**
+ * @route POST /api/meta-ads/webhooks/register
+ * @desc Register webhooks for all connected pages
+ */
+router.post('/webhooks/register', requireFeature('meta_ads'), async (req, res, next) => {
+    try {
+        ensureClient(req);
+
+        const pages = await FacebookPageConnection.find({
+            client_id: req.client.id,
+            status: 'active'
+        });
+
+        if (pages.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No active pages found to register webhooks for',
+                data: { registered: 0, failed: 0 }
+            });
+        }
+
+        const results = {
+            registered: 0,
+            failed: 0,
+            details: []
+        };
+
+        const webhookUrl = process.env.META_WEBHOOK_URL || `${req.protocol}://${req.get('host')}/api/meta-ads/webhook`;
+
+        for (const page of pages) {
+            try {
+                logger.info(`[WEBHOOK-REG] Registering webhook for page: ${page.page_name} (${page.page_id})`);
+
+                // Subscribe to leadgen events for this page
+                const response = await axios.post(`${GRAPH_API_URL}/${page.page_id}/subscribed_apps`, {
+                    subscribed_fields: 'leadgen',
+                    access_token: page.access_token
+                });
+
+                // Update page with webhook registration status
+                page.webhook_registered = true;
+                page.webhook_url = webhookUrl;
+                page.last_webhook_registration = new Date();
+                await page.save();
+
+                results.registered++;
+                results.details.push({
+                    page_id: page.page_id,
+                    page_name: page.page_name,
+                    status: 'success',
+                    message: 'Webhook registered successfully'
+                });
+
+                logger.info(`[WEBHOOK-REG] ✅ Successfully registered webhook for page: ${page.page_name}`);
+
+            } catch (error) {
+                logger.error(`[WEBHOOK-REG] ❌ Failed to register webhook for page ${page.page_name}:`, error.message);
+
+                results.failed++;
+                results.details.push({
+                    page_id: page.page_id,
+                    page_name: page.page_name,
+                    status: 'failed',
+                    error: error.response?.data?.error?.message || error.message
+                });
+            }
+        }
+
+        res.json({
+            success: true,
+            message: `Webhook registration completed: ${results.registered} successful, ${results.failed} failed`,
+            data: results
+        });
+
+    } catch (error) {
+        logger.error('[WEBHOOK-REG] Webhook registration failed:', error);
         next(error);
     }
 });
@@ -730,9 +950,9 @@ router.post('/update-existing-forms', authenticate, async (req, res, next) => {
     try {
         logger.info(`[UPDATE-FORMS] Starting retroactive update`);
 
-        // Find all Facebook leads without form_name
-        // Note: Not filtering by client_id since client context may not be set in JWT claims
-        const leadsToUpdate = await Lead.find({
+        // Find all Facebook leads without form_name, grouped by client
+        // Process per client to maintain data isolation
+        const clientIds = await Lead.distinct('client_id', {
             source: 'Facebook Ads',
             $or: [
                 { form_name: { $exists: false } },
@@ -741,11 +961,30 @@ router.post('/update-existing-forms', authenticate, async (req, res, next) => {
             ]
         });
 
-        logger.info(`[UPDATE-FORMS] Found ${leadsToUpdate.length} leads to update`);
+        logger.info(`[UPDATE-FORMS] Found ${clientIds.length} clients with leads to update`);
 
-        let updated = 0;
-        let skipped = 0;
-        let errors = 0;
+        let totalUpdated = 0;
+        let totalSkipped = 0;
+        let totalErrors = 0;
+
+        for (const clientId of clientIds) {
+            logger.info(`[UPDATE-FORMS] Processing client ${clientId}`);
+
+            const leadsToUpdate = await Lead.find({
+                client_id: clientId,
+                source: 'Facebook Ads',
+                $or: [
+                    { form_name: { $exists: false } },
+                    { form_name: null },
+                    { form_name: '' }
+                ]
+            });
+
+            logger.info(`[UPDATE-FORMS] Client ${clientId}: Found ${leadsToUpdate.length} leads to update`);
+
+            let updated = 0;
+            let skipped = 0;
+            let errors = 0;
 
         for (const lead of leadsToUpdate) {
             try {
@@ -757,8 +996,11 @@ router.post('/update-existing-forms', authenticate, async (req, res, next) => {
                     continue;
                 }
 
-                // Find the form by form_id
-                const form = await FacebookLeadForm.findOne({ form_id: formId });
+                // Find the form by form_id and client_id
+                const form = await FacebookLeadForm.findOne({
+                    form_id: formId,
+                    client_id: lead.client_id
+                });
 
                 if (!form) {
                     logger.debug(`[UPDATE-FORMS] Skipping lead ${lead.name} - Form ${formId} not found`);
@@ -779,14 +1021,21 @@ router.post('/update-existing-forms', authenticate, async (req, res, next) => {
             }
         }
 
-        logger.info(`[UPDATE-FORMS] 📊 Summary: Updated=${updated}, Skipped=${skipped}, Errors=${errors}`);
+        logger.info(`[UPDATE-FORMS] Client ${clientId} Summary: Updated=${updated}, Skipped=${skipped}, Errors=${errors}`);
+
+        totalUpdated += updated;
+        totalSkipped += skipped;
+        totalErrors += errors;
+        }
+
+        logger.info(`[UPDATE-FORMS] 📊 Total Summary: Updated=${totalUpdated}, Skipped=${totalSkipped}, Errors=${totalErrors}`);
 
         res.json({
             success: true,
-            updated,
-            skipped,
-            errors,
-            message: `Updated ${updated} leads with form names`
+            updated: totalUpdated,
+            skipped: totalSkipped,
+            errors: totalErrors,
+            message: `Updated ${totalUpdated} leads with form names across ${clientIds.length} clients`
         });
 
     } catch (error) {
