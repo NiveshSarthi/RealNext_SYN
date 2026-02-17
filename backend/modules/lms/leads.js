@@ -30,9 +30,14 @@ router.get('/', async (req, res, next) => {
     // Temporarily remove feature check for debugging
     // requireFeature('leads'),
     try {
+        console.log('[LEADS-API] GET /api/leads called');
+        console.log('[LEADS-API] User:', req.user?.email, 'Client:', req.client?.id);
+
         ensureClient(req);
         const pagination = getPagination(req.query);
         const sorting = getSorting(req.query, ['name', 'email', 'status', 'created_at', 'ai_score'], 'created_at');
+
+        console.log('[LEADS-API] Pagination:', pagination, 'Query params:', req.query);
 
         // Build filters
         const searchFilter = buildSearchFilter(req.query.search, ['name', 'email', 'phone', 'location', 'form_name', 'campaign_name', 'notes']);
@@ -76,6 +81,8 @@ router.get('/', async (req, res, next) => {
             .skip(pagination.offset);
 
         const count = await Lead.countDocuments(where);
+
+        console.log('[LEADS-API] Found', count, 'leads, returning', leads.length, 'records');
 
         res.json({
             success: true,

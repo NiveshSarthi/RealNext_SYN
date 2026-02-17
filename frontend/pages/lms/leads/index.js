@@ -323,9 +323,12 @@ export default function Leads() {
   };
 
   useEffect(() => {
+    console.log('[LEADS-FRONTEND] useEffect triggered - user:', user, 'authLoading:', authLoading);
     if (!authLoading && !user) {
+      console.log('[LEADS-FRONTEND] No user, redirecting to login');
       router.push('/');
     } else if (user) {
+      console.log('[LEADS-FRONTEND] User authenticated, fetching data');
       fetchLeads();
       fetchStats();
       fetchTeamMembers();
@@ -387,16 +390,20 @@ export default function Leads() {
         ai_score_min: aiScoreMinFilter || '',
         ai_score_max: aiScoreMaxFilter || '',
         start_date: startDateFilter || '',
-        end_date: endDateFilter || '',
-        tags: tagsFilter || '',
-        location: locationFilter || '',
-        last_contact_start_date: lastContactStartDateFilter || '',
-        last_contact_end_date: lastContactEndDateFilter || '',
-        facebook_lead_id: facebookLeadIdFilter || ''
+        end_date: endDateFilter || ''
+        // TODO: Add back when filters are implemented
+        // tags: tagsFilter || '',
+        // location: locationFilter || '',
+        // last_contact_start_date: lastContactStartDateFilter || '',
+        // last_contact_end_date: lastContactEndDateFilter || '',
+        // facebook_lead_id: facebookLeadIdFilter || ''
       };
 
+      console.log('[LEADS-FRONTEND] Fetching leads with params:', params);
       const response = await leadsAPI.getLeads(params);
+      console.log('[LEADS-FRONTEND] API Response:', response);
       const data = response.data;
+      console.log('[LEADS-FRONTEND] Setting leads data:', data.data || []);
       setLeads(data.data || []);
       setTotalPages(data.pagination?.totalPages || Math.ceil((data.total || 0) / 12));
     } catch (error) {
