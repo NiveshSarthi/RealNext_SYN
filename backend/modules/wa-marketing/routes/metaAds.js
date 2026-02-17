@@ -821,7 +821,7 @@ router.post('/fetch-leads', requireFeature('meta_ads'), async (req, res, next) =
                                         email: emailField,
                                         phone: phoneField,
                                         source: 'Facebook Ads',
-                                        status: 'new',
+                                        status: 'Uncontacted',
                                         stage: 'Screening',
                                         campaign_name: leadData.campaign_name,
                                         form_name: form.name,

@@ -341,6 +341,26 @@ export default function Leads() {
     }
   }, [user, authLoading, searchTerm, stageFilter, statusFilter, sourceFilter, formNameFilter, campaignFilter, assignedFilter, budgetMinFilter, budgetMaxFilter, aiScoreMinFilter, aiScoreMaxFilter, startDateFilter, endDateFilter, currentPage, router.query.refresh]);
 
+  // Auto-refresh leads every 30 seconds for real-time updates
+  useEffect(() => {
+    if (!user || authLoading) return;
+
+    const interval = setInterval(() => {
+      // Only auto-refresh if user is not actively interacting (no modals open)
+      if (!showAdvancedFilters && !isAssignModalOpen && !isUpdateModalOpen && !isImportModalOpen) {
+        console.log('[LEADS-FRONTEND] Auto-refreshing leads data');
+        fetchLeads(false).catch(error => {
+          console.error('[LEADS-FRONTEND] Auto-refresh failed:', error);
+        });
+        fetchStats().catch(error => {
+          console.error('[LEADS-FRONTEND] Auto-refresh stats failed:', error);
+        });
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [user, authLoading, showAdvancedFilters, isAssignModalOpen, isUpdateModalOpen, isImportModalOpen]);
+
   const fetchTeamMembers = async () => {
     try {
       const res = await teamAPI.getTeam();
