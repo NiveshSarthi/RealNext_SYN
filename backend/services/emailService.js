@@ -4,204 +4,280 @@ const logger = require('../config/logger');
 const APP_NAME = process.env.FROM_NAME || 'RealNext';
 const APP_URL = process.env.FRONTEND_URL || 'https://realnext.in';
 
-/**
- * Email Service — Handles all SMTP email sending
- */
 class EmailService {
-    constructor() {
-        this.transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.gmail.com',
-            port: parseInt(process.env.SMTP_PORT) || 587,
-            secure: process.env.SMTP_SECURE === 'true',
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS
-            }
-        });
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
 
-        this.transporter.verify((error) => {
-            if (error) {
-                logger.error('SMTP Configuration Error:', error.message);
-            } else {
-                logger.info('SMTP Server ready to send emails');
-            }
-        });
-    }
+    this.transporter.verify((error) => {
+      if (error) logger.error('SMTP Error:', error.message);
+      else logger.info('SMTP Server ready');
+    });
+  }
 
-    from() {
-        return `"${APP_NAME}" <${process.env.SMTP_USER}>`;
-    }
+  from() {
+    return `"${APP_NAME}" <${process.env.SMTP_USER}>`;
+  }
 
-    // ─── Send methods ──────────────────────────────────────────────────────
+  async sendTeamInvitation(data) {
+    const { email, name, password, loginUrl, invitedBy } = data;
+    const info = await this.transporter.sendMail({
+      from: this.from(),
+      to: email,
+      subject: `You're invited to join ${APP_NAME}`,
+      html: this.invitationTemplate({ name, email, password, loginUrl: loginUrl || `${APP_URL}/auth/login`, invitedBy })
+    });
+    logger.info(`Invitation email sent to ${email}: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  }
 
-    async sendTeamInvitation(data) {
-        const { email, name, password, loginUrl, invitedBy } = data;
-        const info = await this.transporter.sendMail({
-            from: this.from(),
-            to: email,
-            subject: `You've been invited to join ${APP_NAME}`,
-            html: this.invitationTemplate({ name, email, password, loginUrl: loginUrl || `${APP_URL}/auth/login`, invitedBy })
-        });
-        logger.info(`Invitation email sent to ${email}: ${info.messageId}`);
-        return { success: true, messageId: info.messageId };
-    }
+  async sendPasswordResetEmail(email, resetToken, resetUrl) {
+    const info = await this.transporter.sendMail({
+      from: this.from(),
+      to: email,
+      subject: `Reset your ${APP_NAME} password`,
+      html: this.passwordResetTemplate({ email, resetUrl })
+    });
+    logger.info(`Password reset email sent to ${email}: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  }
 
-    async sendPasswordResetEmail(email, resetToken, resetUrl) {
-        const info = await this.transporter.sendMail({
-            from: this.from(),
-            to: email,
-            subject: `Reset your ${APP_NAME} password`,
-            html: this.passwordResetTemplate({ email, resetUrl })
-        });
-        logger.info(`Password reset email sent to ${email}: ${info.messageId}`);
-        return { success: true, messageId: info.messageId };
-    }
+  async sendWelcomeEmail(email, name) {
+    const info = await this.transporter.sendMail({
+      from: this.from(),
+      to: email,
+      subject: `Welcome to ${APP_NAME}!`,
+      html: this.welcomeTemplate({ name })
+    });
+    logger.info(`Welcome email sent to ${email}: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  }
 
-    async sendWelcomeEmail(email, name) {
-        const info = await this.transporter.sendMail({
-            from: this.from(),
-            to: email,
-            subject: `Welcome to ${APP_NAME}!`,
-            html: this.welcomeTemplate({ name })
-        });
-        logger.info(`Welcome email sent to ${email}: ${info.messageId}`);
-        return { success: true, messageId: info.messageId };
-    }
-
-    // ─── Templates ─────────────────────────────────────────────────────────
-
-    baseLayout(content, title = APP_NAME) {
-        return `<!DOCTYPE html>
-<html lang="en">
+  // ─── Base layout ─────────────────────────────────────────────────────────
+  baseLayout(content, previewText = '') {
+    const year = new Date().getFullYear();
+    return `<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${title}</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#0D1117; color:#E6EDF3; }
-  .email-wrapper { max-width:600px; margin:0 auto; background:#0D1117; }
-  .header { background: linear-gradient(135deg, #F97316 0%, #EA580C 100%); padding:40px 32px; text-align:center; }
-  .header-logo { font-size:28px; font-weight:800; color:#fff; letter-spacing:-0.5px; }
-  .header-sub { font-size:14px; color:rgba(255,255,255,0.85); margin-top:8px; }
-  .body { background:#161B22; padding:40px 32px; border:1px solid #30363D; }
-  .greeting { font-size:22px; font-weight:700; color:#E6EDF3; margin-bottom:16px; }
-  .text { font-size:15px; color:#8B949E; line-height:1.7; margin-bottom:20px; }
-  .card { background:#0D1117; border:1px solid #30363D; border-radius:10px; padding:24px; margin:24px 0; }
-  .card-title { font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:1px; color:#F97316; margin-bottom:16px; }
-  .field { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #21262D; }
-  .field:last-child { border-bottom:none; }
-  .field-label { font-size:13px; color:#8B949E; }
-  .field-value { font-size:14px; color:#E6EDF3; font-weight:600; font-family:monospace; word-break:break-all; max-width:300px; text-align:right; }
-  .btn { display:inline-block; background:#F97316; color:#fff !important; text-decoration:none; padding:14px 32px; border-radius:8px; font-size:15px; font-weight:700; margin:24px 0; transition:opacity 0.2s; }
-  .notice { background:#1C2128; border-left:3px solid #F97316; border-radius:6px; padding:14px 18px; margin:20px 0; }
-  .notice p { font-size:13px; color:#8B949E; line-height:1.6; }
-  .footer { background:#0D1117; padding:24px 32px; text-align:center; border:1px solid #30363D; border-top:none; }
-  .footer p { font-size:12px; color:#484F58; line-height:1.6; }
-  .footer a { color:#F97316; text-decoration:none; }
-</style>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<title>${APP_NAME}</title>
+${previewText ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${previewText}&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</div>` : ''}
 </head>
-<body>
-<div class="email-wrapper">
-  <div class="header">
-    <div class="header-logo">RealNext</div>
-    <div class="header-sub">${title}</div>
-  </div>
-  <div class="body">
+<body style="margin:0;padding:0;background-color:#F4F6F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F6F9;min-height:100vh;">
+<tr><td align="center" style="padding:40px 16px;">
+<table role="presentation" width="100%" style="max-width:560px;" cellpadding="0" cellspacing="0" border="0">
+
+  <!-- Header bar -->
+  <tr><td style="background:#FFFFFF;border-radius:12px 12px 0 0;padding:0;overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#1A1D23 0%,#252931 100%);padding:28px 40px;text-align:center;">
+      <!-- Logo mark -->
+      <div style="display:inline-block;background:#F97316;border-radius:10px;width:44px;height:44px;line-height:44px;text-align:center;margin-bottom:12px;">
+        <span style="font-size:22px;font-weight:900;color:#ffffff;font-family:Georgia,serif;">R</span>
+      </div>
+      <div style="font-size:22px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+        RealNext
+      </div>
+      <div style="font-size:12px;color:#6B7280;margin-top:4px;letter-spacing:0.5px;text-transform:uppercase;">
+        Real Estate Intelligence Platform
+      </div>
+    </div>
+  </td></tr>
+
+  <!-- Orange accent line -->
+  <tr><td style="background:#F97316;height:3px;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+  <!-- Body -->
+  <tr><td style="background:#FFFFFF;padding:40px 40px 32px;">
     ${content}
-  </div>
-  <div class="footer">
-    <p>This email was sent by ${APP_NAME} · <a href="${APP_URL}">${APP_URL}</a></p>
-    <p style="margin-top:8px">If you didn't expect this email, you can safely ignore it.</p>
-    <p style="margin-top:8px">© ${new Date().getFullYear()} RealNext. All rights reserved.</p>
-  </div>
-</div>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background:#F8FAFC;border:1px solid #E5E7EB;border-top:none;border-radius:0 0 12px 12px;padding:24px 40px;text-align:center;">
+    <p style="font-size:12px;color:#9CA3AF;margin:0 0 8px;">
+      Sent by <strong style="color:#6B7280;">${APP_NAME}</strong> &bull; <a href="${APP_URL}" style="color:#F97316;text-decoration:none;">${APP_URL}</a>
+    </p>
+    <p style="font-size:11px;color:#D1D5DB;margin:0;">
+      If you didn't expect this email, you can safely ignore it. &copy; ${year} RealNext. All rights reserved.
+    </p>
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
 </body>
 </html>`;
-    }
+  }
 
-    invitationTemplate({ name, email, password, loginUrl, invitedBy }) {
-        const isExisting = !password || password.includes('existing password');
-        const credRows = isExisting
-            ? `<div class="field"><span class="field-label">Email</span><span class="field-value">${email}</span></div>
-               <div class="field"><span class="field-label">Password</span><span class="field-value">Your existing password</span></div>`
-            : `<div class="field"><span class="field-label">Email</span><span class="field-value">${email}</span></div>
-               <div class="field"><span class="field-label">Password</span><span class="field-value">${password}</span></div>`;
+  // ─── Invitation template ──────────────────────────────────────────────────
+  invitationTemplate({ name, email, password, loginUrl, invitedBy }) {
+    const isExisting = !password || password.includes('existing');
+    const firstName = (name || 'there').split(' ')[0];
 
-        const content = `
-<h1 class="greeting">Hello ${name}! 👋</h1>
-<p class="text">
-  You've been invited by <strong style="color:#E6EDF3">${invitedBy}</strong> to join the <strong style="color:#E6EDF3">RealNext Portal</strong>. 
-  Your account is ready — use the credentials below to sign in.
-</p>
+    const credBlock = isExisting
+      ? this.credRow('Email', email) + this.credRow('Password', 'Your existing password')
+      : this.credRow('Email', email) + this.credRow('Password', password, true);
 
-<div class="card">
-  <div class="card-title">🔑 Your Login Credentials</div>
-  ${credRows}
-</div>
+    const content = `
+      <!-- Greeting -->
+      <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 8px;letter-spacing:-0.3px;">
+        Hello, ${firstName}! 👋
+      </h1>
+      <p style="font-size:15px;color:#6B7280;line-height:1.65;margin:0 0 28px;">
+        <strong style="color:#374151;">${invitedBy || 'Your administrator'}</strong> has invited you to join the <strong style="color:#374151;">RealNext Portal</strong>. Your account is active and ready to use.
+      </p>
 
-<p style="text-align:center">
-  <a href="${loginUrl}" class="btn">Login to RealNext →</a>
-</p>
+      <!-- Credentials card -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="background:#F9FAFB;border:1.5px solid #E5E7EB;border-radius:10px;overflow:hidden;margin:0 0 28px;">
+        <tr>
+          <td style="background:#1A1D23;padding:12px 20px;">
+            <span style="font-size:11px;font-weight:700;color:#F97316;text-transform:uppercase;letter-spacing:1px;">
+              🔑 &nbsp;Login Credentials
+            </span>
+          </td>
+        </tr>
+        ${credBlock}
+      </table>
 
-${!isExisting ? `<div class="notice">
-  <p>⚠️ <strong style="color:#E6EDF3">Security tip:</strong> Please change your password after your first login via <strong>Settings → Account → Change Password</strong>.</p>
-</div>` : ''}
+      <!-- CTA Button -->
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 28px;">
+        <tr>
+          <td style="border-radius:8px;background:#F97316;box-shadow:0 4px 14px rgba(249,115,22,0.35);">
+            <a href="${loginUrl}" target="_blank"
+              style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">
+              Login to RealNext &rarr;
+            </a>
+          </td>
+        </tr>
+      </table>
 
-<p class="text">If you have any questions, contact your administrator: <a href="mailto:${invitedBy}" style="color:#F97316">${invitedBy}</a></p>`;
+      ${!isExisting ? `
+      <!-- Security tip -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;margin:0 0 24px;">
+        <tr>
+          <td style="padding:14px 18px;">
+            <p style="font-size:13px;color:#92400E;margin:0;line-height:1.55;">
+              ⚠️ &nbsp;<strong>Security reminder:</strong> Please change your password after your first login via <em>Settings → Account</em>.
+            </p>
+          </td>
+        </tr>
+      </table>` : ''}
 
-        return this.baseLayout(content, "You've been invited to join the team");
-    }
+      <!-- Help text -->
+      <p style="font-size:13px;color:#9CA3AF;margin:0;text-align:center;">
+        Questions? Reply to this email or contact
+        <a href="mailto:${invitedBy}" style="color:#F97316;text-decoration:none;">${invitedBy || 'your administrator'}</a>.
+      </p>`;
 
-    passwordResetTemplate({ email, resetUrl }) {
-        const content = `
-<h1 class="greeting">Reset your password</h1>
-<p class="text">We received a request to reset the password for your RealNext account associated with <strong style="color:#E6EDF3">${email}</strong>.</p>
+    return this.baseLayout(content, `${firstName}, you've been invited to join RealNext`);
+  }
 
-<p style="text-align:center">
-  <a href="${resetUrl}" class="btn">Reset Password →</a>
-</p>
+  credRow(label, value, highlight = false) {
+    return `<tr>
+          <td style="padding:14px 20px;border-bottom:1px solid #E5E7EB;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td style="font-size:12px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.5px;width:80px;">${label}</td>
+              <td style="font-size:14px;color:${highlight ? '#DC6803' : '#111827'};font-weight:${highlight ? '700' : '500'};font-family:${highlight ? 'Courier New,monospace' : 'inherit'};text-align:right;word-break:break-all;">
+                ${value}
+              </td>
+            </tr></table>
+          </td>
+        </tr>`;
+  }
 
-<div class="notice">
-  <p>⏱ <strong style="color:#E6EDF3">This link expires in 1 hour.</strong> If you didn't request a password reset, please ignore this email — your account is safe.</p>
-</div>
+  // ─── Password reset template ──────────────────────────────────────────────
+  passwordResetTemplate({ email, resetUrl }) {
+    const content = `
+      <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 8px;">Reset Your Password</h1>
+      <p style="font-size:15px;color:#6B7280;line-height:1.65;margin:0 0 28px;">
+        We received a password reset request for <strong style="color:#374151;">${email}</strong>. Click the button below to choose a new password.
+      </p>
 
-<p class="text" style="font-size:13px">Or copy this link into your browser:</p>
-<p style="background:#0D1117;border:1px solid #30363D;padding:12px 16px;border-radius:6px;font-size:12px;color:#8B949E;word-break:break-all;font-family:monospace">${resetUrl}</p>`;
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 28px;">
+        <tr>
+          <td style="border-radius:8px;background:#F97316;box-shadow:0 4px 14px rgba(249,115,22,0.35);">
+            <a href="${resetUrl}" target="_blank"
+              style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">
+              Reset Password &rarr;
+            </a>
+          </td>
+        </tr>
+      </table>
 
-        return this.baseLayout(content, 'Password Reset Request');
-    }
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;margin:0 0 24px;">
+        <tr><td style="padding:14px 18px;">
+          <p style="font-size:13px;color:#991B1B;margin:0;line-height:1.55;">
+            ⏱ &nbsp;<strong>This link expires in 1 hour.</strong> If you didn't request this, you can safely ignore this email.
+          </p>
+        </td></tr>
+      </table>
 
-    welcomeTemplate({ name }) {
-        const content = `
-<h1 class="greeting">Welcome to RealNext, ${name}! 🎉</h1>
-<p class="text">Your account has been created. Here's what you can do now:</p>
+      <p style="font-size:12px;color:#9CA3AF;margin:0;">Or paste this link in your browser:</p>
+      <p style="font-size:12px;color:#6B7280;background:#F3F4F6;border-radius:6px;padding:10px 14px;margin:8px 0 0;word-break:break-all;font-family:Courier New,monospace;">${resetUrl}</p>`;
 
-<div class="card">
-  <div class="card-title">✨ Get Started</div>
-  <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
-    ${[
-                ['📊', 'View your analytics dashboard', 'Track leads and campaign performance'],
-                ['📋', 'Manage your leads', 'Add, assign and follow up on leads'],
-                ['📢', 'Create campaigns', 'Send WhatsApp messages to your audience'],
-                ['🏠', 'Browse inventory', 'Access your property catalog'],
-            ].map(([icon, title, sub]) => `
-    <div style="display:flex;align-items:flex-start;gap:12px">
-      <span style="font-size:20px">${icon}</span>
-      <div>
-        <p style="font-size:14px;font-weight:600;color:#E6EDF3">${title}</p>
-        <p style="font-size:13px;color:#8B949E">${sub}</p>
-      </div>
-    </div>`).join('')}
-  </div>
-</div>
+    return this.baseLayout(content, 'Password reset request for your RealNext account');
+  }
 
-<p style="text-align:center">
-  <a href="${APP_URL}/dashboard" class="btn">Open Dashboard →</a>
-</p>`;
+  // ─── Welcome template ─────────────────────────────────────────────────────
+  welcomeTemplate({ name }) {
+    const firstName = (name || 'there').split(' ')[0];
+    const features = [
+      ['📊', 'Analytics Dashboard', 'Track lead performance and campaign ROI'],
+      ['👥', 'Lead Management', 'Add, assign and nurture leads through the pipeline'],
+      ['📢', 'WA Campaigns', 'Send WhatsApp broadcasts and drip sequences'],
+      ['🏠', 'Property Inventory', 'Manage your property catalog and sync to WhatsApp'],
+    ];
 
-        return this.baseLayout(content, 'Welcome to RealNext!');
-    }
+    const featureRows = features.map(([icon, title, sub]) => `
+          <tr><td style="padding:10px 20px;border-bottom:1px solid #E5E7EB;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td style="font-size:20px;width:36px;vertical-align:top;padding-top:2px;">${icon}</td>
+              <td style="padding-left:12px;">
+                <p style="font-size:14px;font-weight:600;color:#111827;margin:0;">${title}</p>
+                <p style="font-size:12px;color:#6B7280;margin:2px 0 0;">${sub}</p>
+              </td>
+            </tr></table>
+          </td></tr>`).join('');
+
+    const content = `
+      <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 8px;">Welcome, ${firstName}! 🎉</h1>
+      <p style="font-size:15px;color:#6B7280;line-height:1.65;margin:0 0 28px;">
+        Your RealNext account is ready. Here's what you can do:
+      </p>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="background:#F9FAFB;border:1.5px solid #E5E7EB;border-radius:10px;overflow:hidden;margin:0 0 28px;">
+        <tr><td style="background:#1A1D23;padding:12px 20px;">
+          <span style="font-size:11px;font-weight:700;color:#F97316;text-transform:uppercase;letter-spacing:1px;">✨ &nbsp;Features Available</span>
+        </td></tr>
+        ${featureRows}
+      </table>
+
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+        <tr>
+          <td style="border-radius:8px;background:#F97316;box-shadow:0 4px 14px rgba(249,115,22,0.35);">
+            <a href="${APP_URL}/dashboard" target="_blank"
+              style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">
+              Open Dashboard &rarr;
+            </a>
+          </td>
+        </tr>
+      </table>`;
+
+    return this.baseLayout(content, `Welcome to RealNext, ${firstName}!`);
+  }
 }
 
 module.exports = new EmailService();
