@@ -6,7 +6,7 @@ const filePath = path.join(__dirname, 'logs', 'combined.log');
 try {
     const stats = fs.statSync(filePath);
     const fileSize = stats.size;
-    const bufferSize = Math.min(5000, fileSize);
+    const bufferSize = Math.min(20000, fileSize);
     const buffer = Buffer.alloc(bufferSize);
 
     const fd = fs.openSync(filePath, 'r');

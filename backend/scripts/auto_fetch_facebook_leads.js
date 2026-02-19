@@ -80,6 +80,7 @@ function extractLeadFields(fieldData) {
 async function autoFetchFacebookLeads() {
   const timeout = 90 * 1000; // 90 seconds timeout (reasonable for 2-minute intervals)
   const startTime = Date.now();
+  let didConnect = false;
 
   try {
     // console.log('🔄 [AUTO-FETCH] Starting Facebook leads fetch...');
@@ -88,11 +89,12 @@ async function autoFetchFacebookLeads() {
     if (mongoose.connection.readyState !== 1) {
       // console.log('🔌 [AUTO-FETCH] Connecting to database...');
       await Promise.race([
-        mongoose.connect('mongodb://root:CjmqvpwJAzemm4CcpcpCohYym9kp9wh8pDPnR6A8aTSP8sAjcXBi8x6ayEU3DfbV@72.61.248.175:5448/?directConnection=true'),
+        mongoose.connect(process.env.MONGODB_URI),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Database connection timeout')), 15000)
         )
       ]);
+      didConnect = true;
     }
 
     // Get all pages with lead sync enabled
@@ -264,8 +266,9 @@ async function autoFetchFacebookLeads() {
   } catch (error) {
     console.error('❌ [AUTO-FETCH] Fatal error:', error.message);
   } finally {
-    // Only disconnect if we connected in this function
-    if (mongoose.connection.readyState === 1) {
+    // Only disconnect if we connected locally in this function
+    if (didConnect && mongoose.connection.readyState === 1) {
+      console.log('🔌 [AUTO-FETCH] Disconnecting from database (standalone mode)...');
       await mongoose.disconnect();
     }
   }

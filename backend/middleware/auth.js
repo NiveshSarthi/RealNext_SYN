@@ -93,12 +93,19 @@ const authenticate = async (req, res, next) => {
 
                     // Extract enabled features
                     if (subscription.plan_id?.planFeatures) {
-                        subscription.plan_id.planFeatures.forEach(pf => {
-                            if (pf.is_enabled && pf.feature_id?.is_enabled) {
-                                req.features[pf.feature_id.code] = true;
-                                req.featureLimits[pf.feature_id.code] = pf.limits || {};
-                            }
-                        });
+                        try {
+                            subscription.plan_id.planFeatures.forEach(pf => {
+                                if (pf.is_enabled && pf.feature_id?.is_enabled) {
+                                    if (pf.feature_id.code) {
+                                        req.features[pf.feature_id.code] = true;
+                                        req.featureLimits[pf.feature_id.code] = pf.limits || {};
+                                    }
+                                }
+                            });
+                        } catch (err) {
+                            console.error(`[AUTH] Error processing features: ${err.message}`);
+                            // Continue without crashing, features will be empty or partial
+                        }
                     }
                 }
 
@@ -119,6 +126,7 @@ const authenticate = async (req, res, next) => {
 
         next();
     } catch (error) {
+        logger.error('[AUTH ERROR]', error);
         if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
             return next(ApiError.unauthorized(error.message));
         }
