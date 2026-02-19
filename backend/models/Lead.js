@@ -132,6 +132,8 @@ const leadSchema = new Schema({
 // Indexes
 leadSchema.index({ client_id: 1, status: 1 });
 leadSchema.index({ client_id: 1, created_at: -1 });
+// Prevent duplicate Facebook leads
+leadSchema.index({ client_id: 1, 'metadata.facebook_lead_id': 1 }, { unique: true, sparse: true });
 
 // Virtual for ID
 leadSchema.virtual('id').get(function () {

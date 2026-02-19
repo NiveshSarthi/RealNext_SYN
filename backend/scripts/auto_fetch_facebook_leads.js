@@ -207,36 +207,44 @@ async function autoFetchFacebookLeads() {
               }
 
               // Create new lead
-              const newLead = await Lead.create({
-                client_id: page.client_id,
-                name: extractedFields.name || 'Facebook Lead',
-                email: extractedFields.email,
-                phone: extractedFields.phone,
-                location: extractedFields.location,
-                source: 'Facebook Ads',
-                status: 'Uncontacted',
-                stage: 'Screening',
-                campaign_name: fbLead.campaign_name,
-                form_name: form.name,
-                metadata: {
-                  facebook_lead_id: fbLead.id,
-                  form_id: form.form_id,
-                  page_id: page.page_id,
-                  adset_name: fbLead.adset_name,
-                  ad_name: fbLead.ad_name,
-                  created_time: fbLead.created_time,
-                  field_data: fieldData,
-                  auto_fetched_at: new Date()
-                },
-                activity_logs: [{
-                  type: 'creation',
-                  content: 'Lead auto-fetched from Facebook',
-                  user_id: null, // System
-                  created_at: new Date()
-                }]
-              });
-
-              console.log(`✅ [AUTO-FETCH] Created lead: ${newLead.name} (${newLead.email || newLead.phone})`);
+              let newLead;
+              try {
+                newLead = await Lead.create({
+                  client_id: page.client_id,
+                  name: extractedFields.name || 'Facebook Lead',
+                  email: extractedFields.email,
+                  phone: extractedFields.phone,
+                  location: extractedFields.location,
+                  source: 'Facebook Ads',
+                  status: 'Uncontacted',
+                  stage: 'Screening',
+                  campaign_name: fbLead.campaign_name,
+                  form_name: form.name,
+                  metadata: {
+                    facebook_lead_id: fbLead.id,
+                    form_id: form.form_id,
+                    page_id: page.page_id,
+                    adset_name: fbLead.adset_name,
+                    ad_name: fbLead.ad_name,
+                    created_time: fbLead.created_time,
+                    field_data: fieldData,
+                    auto_fetched_at: new Date()
+                  },
+                  activity_logs: [{
+                    type: 'creation',
+                    content: 'Lead auto-fetched from Facebook',
+                    user_id: null, // System
+                    created_at: new Date()
+                  }]
+                });
+                console.log(`✅ [AUTO-FETCH] Created lead: ${newLead.name} (${newLead.email || newLead.phone})`);
+              } catch (createError) {
+                if (createError.code === 11000) {
+                  console.log(`⚠️ [AUTO-FETCH] Duplicate lead blocked by DB index: ${fbLead.id}`);
+                  continue;
+                }
+                throw createError;
+              }
               totalLeadsFetched++;
 
               // Update form lead count
