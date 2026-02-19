@@ -19,9 +19,6 @@ const { ApiError } = require('../middleware/errorHandler');
 router.post('/login', authLimiter, async (req, res, next) => {
     const start = Date.now();
     try {
-        console.log(`[AUTH-DEBUG] Login request received for email: ${req.body.email}`);
-        logger.info(`[AUTH-DEBUG] Login request received for email: ${req.body.email}`);
-
         const { email, password } = req.body;
         const result = await authService.login(email, password, req);
 

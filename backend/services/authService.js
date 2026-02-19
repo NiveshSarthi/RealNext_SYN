@@ -274,9 +274,15 @@ class AuthService {
             if (subscription) {
                 context.subscription = subscription.toObject({ virtuals: true });
                 context.planCode = subscription.plan_id?.code;
-                context.features = subscription.plan_id?.planFeatures
-                    ?.filter(pf => pf.feature_id?.is_enabled)
-                    .map(pf => pf.feature_id.code) || [];
+
+                try {
+                    context.features = subscription.plan_id?.planFeatures
+                        ?.filter(pf => pf.feature_id?.is_enabled)
+                        .map(pf => pf.feature_id.code) || [];
+                } catch (err) {
+                    console.error(`[AUTH] Error processing features: ${err.message}`);
+                    context.features = [];
+                }
             }
         }
 
