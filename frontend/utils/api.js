@@ -313,7 +313,7 @@ export const networkAPI = {
 
 // Analytics API
 export const analyticsAPI = {
-  getDashboard: () => api.get('/api/analytics/dashboard'),
+  getDashboard: (params) => api.get('/api/analytics/dashboard', { params }),
   getOverview: () => api.get('/api/analytics/overview'),
   getConversationAnalytics: (params) => api.get('/api/analytics/conversations', { params }),
   getMessageAnalytics: (params) => api.get('/api/analytics/messages', { params }),
