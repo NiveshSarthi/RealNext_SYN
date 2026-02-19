@@ -11,6 +11,7 @@ const fs = require('fs');
 
 // Initialize App
 const app = express();
+app.set('trust proxy', 1); // Enable proxy trust for rate limiter
 const PORT = process.env.PORT || 5001;
 
 // Middleware
