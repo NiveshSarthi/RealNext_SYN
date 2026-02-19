@@ -70,25 +70,31 @@ class EmailService {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
 <title>${APP_NAME}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 ${previewText ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${previewText}&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;</div>` : ''}
 </head>
-<body style="margin:0;padding:0;background-color:#F4F6F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+<body style="margin:0;padding:0;background-color:#F4F6F9;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F6F9;min-height:100vh;">
 <tr><td align="center" style="padding:40px 16px;">
 <table role="presentation" width="100%" style="max-width:560px;" cellpadding="0" cellspacing="0" border="0">
 
-  <!-- Header bar -->
+  <!-- Header — matches portal logo exactly -->
   <tr><td style="background:#FFFFFF;border-radius:12px 12px 0 0;padding:0;overflow:hidden;">
-    <div style="background:linear-gradient(135deg,#1A1D23 0%,#252931 100%);padding:28px 40px;text-align:center;">
-      <!-- Logo mark -->
-      <div style="display:inline-block;background:#F97316;border-radius:10px;width:44px;height:44px;line-height:44px;text-align:center;margin-bottom:12px;">
-        <span style="font-size:22px;font-weight:900;color:#ffffff;font-family:Georgia,serif;">R</span>
+    <div style="background:#0E1117;padding:32px 40px;text-align:center;">
+
+      <!-- Orange R box — exact portal style -->
+      <div style="display:inline-block;background:#F97316;border-radius:12px;width:48px;height:48px;line-height:48px;text-align:center;margin-bottom:14px;vertical-align:middle;">
+        <span style="font-size:26px;font-weight:800;color:#ffffff;font-family:'Inter',-apple-system,sans-serif;line-height:48px;display:inline-block;">R</span>
       </div>
-      <div style="font-size:22px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+
+      <!-- RealNext wordmark — Inter 800 matching portal sidebar logo -->
+      <div style="font-size:26px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.2;margin-bottom:6px;">
         RealNext
       </div>
-      <div style="font-size:12px;color:#6B7280;margin-top:4px;letter-spacing:0.5px;text-transform:uppercase;">
-        Real Estate Intelligence Platform
+
+      <!-- Tagline — matches portal subtitle -->
+      <div style="font-size:10px;font-weight:600;color:#4B5563;letter-spacing:2px;text-transform:uppercase;font-family:'Inter',-apple-system,sans-serif;">
+        REAL ESTATE INTELLIGENCE PLATFORM
       </div>
     </div>
   </td></tr>
@@ -103,10 +109,10 @@ ${previewText ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:
 
   <!-- Footer -->
   <tr><td style="background:#F8FAFC;border:1px solid #E5E7EB;border-top:none;border-radius:0 0 12px 12px;padding:24px 40px;text-align:center;">
-    <p style="font-size:12px;color:#9CA3AF;margin:0 0 8px;">
+    <p style="font-size:12px;color:#9CA3AF;margin:0 0 8px;font-family:'Inter',sans-serif;">
       Sent by <strong style="color:#6B7280;">${APP_NAME}</strong> &bull; <a href="${APP_URL}" style="color:#F97316;text-decoration:none;">${APP_URL}</a>
     </p>
-    <p style="font-size:11px;color:#D1D5DB;margin:0;">
+    <p style="font-size:11px;color:#D1D5DB;margin:0;font-family:'Inter',sans-serif;">
       If you didn't expect this email, you can safely ignore it. &copy; ${year} RealNext. All rights reserved.
     </p>
   </td></tr>
