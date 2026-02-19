@@ -113,7 +113,7 @@ const leadSchema = new Schema({
         user_id: {
             type: Schema.Types.ObjectId,
             ref: 'User',
-            required: true
+            required: false
         },
         created_at: {
             type: Date,

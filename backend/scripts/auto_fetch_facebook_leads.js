@@ -108,21 +108,8 @@ async function autoFetchFacebookLeads() {
       return;
     }
 
-    // Pre-fetch a system user (Client Owner) for activity logs
-    // In a real multi-tenant system, we might look this up per client
-    const { User } = require('../models');
-    let systemUserId = null;
+    // Pre-fetch a system user (Client Owner) for activity logs - REMOVED
 
-    // Helper to get system user per client
-    const getSystemUser = async (clientId) => {
-      try {
-        // Find owner or any admin for this client
-        const user = await User.findOne({ client_id: clientId, role: { $in: ['owner', 'admin'] } });
-        return user ? user._id : null;
-      } catch (e) {
-        return null;
-      }
-    };
 
     let totalLeadsFetched = 0;
 
@@ -217,13 +204,6 @@ async function autoFetchFacebookLeads() {
                 continue;
               }
 
-              // Get valid user ID for activity log
-              const systemUserId = await getSystemUser(page.client_id);
-              if (!systemUserId) {
-                console.error(`❌ [AUTO-FETCH] Could not find system user for client ${page.client_id}`);
-                continue;
-              }
-
               // Create new lead
               const newLead = await Lead.create({
                 client_id: page.client_id,
@@ -249,7 +229,7 @@ async function autoFetchFacebookLeads() {
                 activity_logs: [{
                   type: 'creation',
                   content: 'Lead auto-fetched from Facebook',
-                  user_id: systemUserId, // System/Owner
+                  user_id: null, // System
                   created_at: new Date()
                 }]
               });
