@@ -9,8 +9,57 @@ const emailService = require('../services/emailService');
 const bcrypt = require('bcryptjs');
 const logger = require('../config/logger');
 
-// Middleware
+/**
+ * @route  GET /api/team/test-email?to=email@example.com
+ * @desc   Test SMTP connection and send a test email (admin only — requires auth)
+ * @access Private
+ */
+router.get('/test-email', authenticate, async (req, res) => {
+    const to = req.query.to || req.user?.email;
+    const results = { smtpConfig: {}, verifyOk: false, sendOk: false };
+
+    results.smtpConfig = {
+        host: process.env.SMTP_HOST || '(not set)',
+        port: process.env.SMTP_PORT || '587 (default)',
+        user: process.env.SMTP_USER || '(not set)',
+        passLength: process.env.SMTP_PASS ? process.env.SMTP_PASS.length : 0,
+        secure: process.env.SMTP_SECURE,
+        fromName: process.env.FROM_NAME,
+        frontendUrl: process.env.FRONTEND_URL,
+        nodeEnv: process.env.NODE_ENV,
+    };
+
+    try {
+        // Step 1 — verify connection
+        await emailService.transporter.verify();
+        results.verifyOk = true;
+    } catch (e) {
+        results.verifyError = e.message;
+        return res.json({ success: false, step: 'verify', ...results });
+    }
+
+    try {
+        // Step 2 — send test email
+        const info = await emailService.transporter.sendMail({
+            from: `"${process.env.FROM_NAME || 'RealNext'}" <${process.env.SMTP_USER}>`,
+            to,
+            subject: 'SMTP Test — RealNext Live Server',
+            html: `<p>SMTP is working correctly on the live server (${process.env.NODE_ENV}).<br>Sent at: ${new Date().toISOString()}</p>`
+        });
+        results.sendOk = true;
+        results.messageId = info.messageId;
+        results.accepted = info.accepted;
+        return res.json({ success: true, to, ...results });
+    } catch (e) {
+        results.sendError = e.message;
+        results.sendCode = e.code;
+        return res.json({ success: false, step: 'send', ...results });
+    }
+});
+
+// Middleware — applied to all routes below this line
 router.use(authenticate, requireClientAccess, enforceClientScope);
+
 
 /**
  * @route GET /api/team
