@@ -66,7 +66,7 @@ const startServer = async () => {
   try {
     const cron = require('node-cron');
     cron.schedule('*/2 * * * *', async () => {
-      console.log('[CRON] Running Facebook leads auto-fetch...');
+      // console.log('[CRON] Running Facebook leads auto-fetch...');
       try {
         // Check if script exists before requiring
         if (fs.existsSync('./scripts/auto_fetch_facebook_leads.js')) {

@@ -82,11 +82,11 @@ async function autoFetchFacebookLeads() {
   const startTime = Date.now();
 
   try {
-    console.log('🔄 [AUTO-FETCH] Starting Facebook leads fetch...');
+    // console.log('🔄 [AUTO-FETCH] Starting Facebook leads fetch...');
 
     // Check if mongoose is already connected
     if (mongoose.connection.readyState !== 1) {
-      console.log('🔌 [AUTO-FETCH] Connecting to database...');
+      // console.log('🔌 [AUTO-FETCH] Connecting to database...');
       await Promise.race([
         mongoose.connect('mongodb://root:CjmqvpwJAzemm4CcpcpCohYym9kp9wh8pDPnR6A8aTSP8sAjcXBi8x6ayEU3DfbV@72.61.248.175:5448/?directConnection=true'),
         new Promise((_, reject) =>
@@ -101,10 +101,10 @@ async function autoFetchFacebookLeads() {
       status: 'active'
     });
 
-    console.log(`📊 [AUTO-FETCH] Found ${enabledPages.length} pages with lead sync enabled`);
+    // console.log(`📊 [AUTO-FETCH] Found ${enabledPages.length} pages with lead sync enabled`);
 
     if (enabledPages.length === 0) {
-      console.log('ℹ️ [AUTO-FETCH] No pages have lead sync enabled');
+      // console.log('ℹ️ [AUTO-FETCH] No pages have lead sync enabled');
       return;
     }
 
@@ -115,7 +115,7 @@ async function autoFetchFacebookLeads() {
 
     for (const page of enabledPages) {
       try {
-        console.log(`🔍 [AUTO-FETCH] Checking page: ${page.page_name}`);
+        // console.log(`🔍 [AUTO-FETCH] Checking page: ${page.page_name}`);
 
         // Get all forms for this page
         const forms = await FacebookLeadForm.find({
@@ -123,13 +123,13 @@ async function autoFetchFacebookLeads() {
           page_connection_id: page._id
         });
 
-        console.log(`📋 [AUTO-FETCH] Found ${forms.length} forms for ${page.page_name}`);
+        // console.log(`📋 [AUTO-FETCH] Found ${forms.length} forms for ${page.page_name}`);
 
         for (const form of forms) {
           try {
             // Check if we're approaching timeout
             if (Date.now() - startTime > timeout - 30000) { // 30 second buffer
-              console.log(`⏰ [AUTO-FETCH] Approaching timeout, skipping remaining forms for ${page.page_name}`);
+              // console.log(`⏰ [AUTO-FETCH] Approaching timeout, skipping remaining forms for ${page.page_name}`);
               break;
             }
 
@@ -174,7 +174,7 @@ async function autoFetchFacebookLeads() {
             if (!response) continue; // Skip this form if all retries failed
 
             const leads = response.data.data || [];
-            console.log(`📥 [AUTO-FETCH] Fetched ${leads.length} leads from form: ${form.name}`);
+            // console.log(`📥 [AUTO-FETCH] Fetched ${leads.length} leads from form: ${form.name}`);
 
             for (const fbLead of leads) {
               // Check if lead already exists
@@ -189,7 +189,7 @@ async function autoFetchFacebookLeads() {
                 const existingTime = existingLead.created_at;
 
                 if (fbTime > existingTime) {
-                  console.log(`🔄 [AUTO-FETCH] Updating existing lead: ${existingLead.name}`);
+                  // console.log(`🔄 [AUTO-FETCH] Updating existing lead: ${existingLead.name}`);
                   // Update logic here if needed
                 }
                 continue;
@@ -200,7 +200,7 @@ async function autoFetchFacebookLeads() {
               const extractedFields = extractLeadFields(fieldData);
 
               if (!extractedFields.phone && !extractedFields.email) {
-                console.log(`⚠️ [AUTO-FETCH] Skipping lead ${fbLead.id} - no phone or email`);
+                // console.log(`⚠️ [AUTO-FETCH] Skipping lead ${fbLead.id} - no phone or email`);
                 continue;
               }
 
@@ -257,7 +257,9 @@ async function autoFetchFacebookLeads() {
       }
     }
 
-    console.log(`🎉 [AUTO-FETCH] Completed! Fetched ${totalLeadsFetched} new leads total`);
+    if (totalLeadsFetched > 0) {
+      console.log(`🎉 [AUTO-FETCH] Completed! Fetched ${totalLeadsFetched} new leads total`);
+    }
 
   } catch (error) {
     console.error('❌ [AUTO-FETCH] Fatal error:', error.message);
