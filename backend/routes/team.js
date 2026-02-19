@@ -116,16 +116,21 @@ router.post('/invite', async (req, res, next) => {
             throw ApiError.badRequest('Email and name are required');
         }
 
+        // Hoist these so they're accessible throughout the function
+        let userPassword = password || null;
+        let emailSent = false;
+        let emailError = null;
+        let isNewUser = false;
+
         // Check if user already exists
         let user = await User.findOne({ email });
 
         if (!user) {
-            // Create new user with provided password or temporary password
-            let userPassword = password;
+            isNewUser = true;
+            // Generate temporary password if none provided
             if (!userPassword) {
-                // Generate temporary password if none provided
-                userPassword = Math.random().toString(36).slice(-10);
-                logger.info(`New user created: ${email} with temp password: ${userPassword}`);
+                userPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4);
+                logger.info(`Generating temp password for new user: ${email}`);
             }
 
             user = await User.create({
@@ -134,25 +139,6 @@ router.post('/invite', async (req, res, next) => {
                 password_hash: userPassword,
                 status: 'active'
             });
-
-            // Send invitation email with credentials
-            try {
-                const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/login`;
-                const invitedBy = req.user?.name || req.user?.email || 'Administrator';
-
-                await emailService.sendTeamInvitation({
-                    email,
-                    name,
-                    password: userPassword,
-                    loginUrl,
-                    invitedBy
-                });
-
-                logger.info(`Team invitation email sent to ${email}`);
-            } catch (emailError) {
-                logger.error(`Failed to send invitation email to ${email}:`, emailError);
-                // Don't fail the invitation if email fails, but log it
-            }
         }
 
         // Check if user is already a team member
@@ -175,6 +161,28 @@ router.post('/invite', async (req, res, next) => {
             is_owner: false
         });
 
+        // Send invitation email (for new users with credentials, or for existing users being added)
+        try {
+            const loginUrl = `${process.env.FRONTEND_URL || 'https://realnext.in'}/auth/login`;
+            const invitedBy = req.user?.name || req.user?.email || 'Administrator';
+
+            await emailService.sendTeamInvitation({
+                email,
+                name,
+                // Only expose plain-text password for new accounts (existing users already know theirs)
+                password: isNewUser ? userPassword : '(your existing password)',
+                loginUrl,
+                invitedBy
+            });
+
+            emailSent = true;
+            logger.info(`Team invitation email sent to ${email}`);
+        } catch (err) {
+            emailError = err.message;
+            logger.error(`Failed to send invitation email to ${email}:`, err);
+            // Don't fail the invitation — just report it
+        }
+
         // Fetch the created member with associations
         const newMember = await ClientUser.findById(clientUser._id)
             .populate({
@@ -186,7 +194,7 @@ router.post('/invite', async (req, res, next) => {
                 select: 'name description'
             });
 
-        // Prepare response data
+        // Build response
         const responseData = {
             id: newMember._id,
             user_id: newMember.user_id?._id,
@@ -196,18 +204,25 @@ router.post('/invite', async (req, res, next) => {
             role_id: newMember.role_id?._id,
             custom_role: newMember.role_id,
             department: newMember.department,
-            is_owner: newMember.is_owner
+            is_owner: newMember.is_owner,
+            email_sent: emailSent,
         };
 
-        // Include password in response if no custom password was provided
-        // This allows admin to manually share credentials if email fails
-        if (!password) {
+        if (!emailSent) {
+            responseData.email_error = emailError || 'Email delivery failed';
+        }
+
+        // For new users with auto-generated passwords, include in response
+        // so admin can share manually if email failed
+        if (isNewUser && !password) {
             responseData.generated_password = userPassword;
-            responseData.email_sent = false;
-            responseData.message = 'Team member created successfully. Please share the generated password manually since email delivery is not configured.';
+            responseData.message = emailSent
+                ? `Invitation sent to ${email}. Login credentials have been emailed.`
+                : `Team member created. Email failed — please share password manually: ${userPassword}`;
         } else {
-            responseData.email_sent = true;
-            responseData.message = 'Team member invited successfully with custom password.';
+            responseData.message = emailSent
+                ? `Invitation sent to ${email}.`
+                : `Team member added. Invitation email could not be delivered.`;
         }
 
         res.status(201).json({
