@@ -1,52 +1,90 @@
-// Start server
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+const path = require('path');
+const fs = require('fs');
+
+// Initialize App
+const app = express();
 const PORT = process.env.PORT || 5001;
 
-const startServer = async () => {
-  // Start listening continuously
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(compression());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan('dev'));
+
+// Logger Mock (since we don't know where logger is defined, simple console wrapper)
+const logger = {
+  info: (msg) => console.log(`[INFO] ${msg}`),
+  error: (msg, err) => console.error(`[ERROR] ${msg}`, err)
+};
+global.logger = logger; // Make it global if other modules expect it
+
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10000 // limit each IP to 10000 requests per windowMs
+});
+app.use(limiter);
+
+// Database Connection
+const connectDB = async () => {
   try {
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`CRITICAL: Server listening on PORT ${PORT}`);
-      logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
-    });
+    const conn = await mongoose.connect(process.env.MONGODB_URI);
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    console.error(`Error: ${error.message}`);
     process.exit(1);
   }
+};
 
-  // Connect to DB asynchronously
+// Routes
+app.use('/api', require('./routes/index'));
+
+// Access Public folder
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Basic Route
+app.get('/', (req, res) => {
+  res.send('API is running...');
+});
+
+// Start Server
+const startServer = async () => {
+  await connectDB();
+
+  // Cron Jobs (restored from previous file view)
   try {
-    dbStatus = 'connecting';
-    await testConnection();
-    dbStatus = 'connected';
-    console.log(`CRITICAL: Connected to database: ${mongoose.connection.name}`);
-
-    // Start Facebook leads auto-fetch cron job
-    console.log('🔄 Starting Facebook leads auto-fetch cron job...');
     const cron = require('node-cron');
-
-    // Lock to prevent overlapping runs
-    let isRunning = false;
-
-    // Run every 2 minutes (more reasonable for API limits)
     cron.schedule('*/2 * * * *', async () => {
-      if (isRunning) {
-        console.log('[CRON] Facebook leads auto-fetch already running, skipping...');
-        return;
-      }
-
+      console.log('[CRON] Running Facebook leads auto-fetch...');
       try {
-        isRunning = true;
-        console.log('[CRON] Running Facebook leads auto-fetch...');
-        const { autoFetchFacebookLeads } = require('./scripts/auto_fetch_facebook_leads');
-        await autoFetchFacebookLeads();
-        console.log('[CRON] Facebook leads auto-fetch completed successfully');
-      } catch (error) {
-        console.error('[CRON] Facebook leads auto-fetch failed:', error.message);
-      } finally {
-        isRunning = false;
+        // Check if script exists before requiring
+        if (fs.existsSync('./scripts/auto_fetch_facebook_leads.js')) {
+          const { autoFetchFacebookLeads } = require('./scripts/auto_fetch_facebook_leads');
+          await autoFetchFacebookLeads();
+        }
+      } catch (e) {
+        console.error('[CRON] Error:', e.message);
       }
     });
+  } catch (e) {
+    console.log('Cron setup failed or node-cron not found');
+  }
 
-    console.log('✅ Facebook leads auto-fetch cron job started (runs every 2 minutes)');
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+    // Write debug file
+    try { fs.writeFileSync('debug_startup.txt', `Started at ${new Date().toISOString()} on port ${PORT}\n`); } catch (e) { }
+  });
+};
 
-    // NOTE: Seeding is handled if SYNC_DB is true
+startServer();

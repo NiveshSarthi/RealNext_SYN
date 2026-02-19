@@ -25,6 +25,7 @@ router.use('/leads', require('../modules/lms/leads'));
 router.use('/campaigns', require('../modules/wa-marketing/routes/campaigns'));
 router.use('/templates', require('../modules/wa-marketing/routes/templates'));
 router.use('/workflows', require('../modules/wa-marketing/routes/workflows'));
+router.use('/flows', require('../modules/wa-marketing/routes/flows'));
 router.use('/analytics', require('./analytics'));
 router.use('/network', require('./network'));
 router.use('/quick-replies', require('../modules/wa-marketing/routes/quickReplies'));
