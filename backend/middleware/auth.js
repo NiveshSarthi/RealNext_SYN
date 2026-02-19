@@ -147,4 +147,14 @@ const optionalAuth = async (req, res, next) => {
     return authenticate(req, res, next);
 };
 
-module.exports = { authenticate, optionalAuth };
+/**
+ * Require super admin privileges — must be used after authenticate
+ */
+const requireSuperAdmin = (req, res, next) => {
+    if (!req.user?.is_super_admin) {
+        return next(ApiError.forbidden('Super admin access required'));
+    }
+    next();
+};
+
+module.exports = { authenticate, optionalAuth, requireSuperAdmin };

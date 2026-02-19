@@ -5,13 +5,13 @@ let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 // Auto-upgrade to HTTPS if the page is loaded over HTTPS
 if (typeof window !== 'undefined' && window.location.protocol === 'https:' && API_BASE_URL.startsWith('http:')) {
   API_BASE_URL = API_BASE_URL.replace('http:', 'https:');
-  console.log('🔒 Upgraded API URL to HTTPS:', API_BASE_URL);
 }
 
 const WA_API_BASE_URL = `${API_BASE_URL}/api/external-proxy`;
+// WA credentials loaded from env vars — never hardcode in source
 const WA_CREDENTIALS = {
-  email: 'Syndicate@niveshsarthi.com',
-  password: 'Syndicate@123'
+  email: process.env.NEXT_PUBLIC_WA_EMAIL || '',
+  password: process.env.NEXT_PUBLIC_WA_PASSWORD || ''
 };
 
 // ----------------------------------------------------------------------
@@ -28,13 +28,8 @@ api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('access_token');
-      console.log('[API Interceptor] Request to:', config.url);
-      console.log('[API Interceptor] Token exists:', !!token);
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log('[API Interceptor] Authorization header set');
-      } else {
-        console.warn('[API Interceptor] No token found in localStorage');
       }
     }
     return config;

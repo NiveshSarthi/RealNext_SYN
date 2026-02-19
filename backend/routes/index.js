@@ -71,8 +71,9 @@ router.get('/', (req, res) => {
 // External API Proxy
 router.use('/external-proxy', require('./externalProxy'));
 
-// Debug routes
-router.get('/debug/db', (req, res) => {
+// Debug routes — PROTECTED (super admin only)
+const { authenticate, requireSuperAdmin } = require('../middleware/auth');
+router.get('/debug/db', authenticate, requireSuperAdmin, (req, res) => {
     const mongoose = require('mongoose');
     res.json({
         primary_connection: mongoose.connection.name,
