@@ -249,6 +249,75 @@ router.get('/stats/overview', requireFeature('leads'), async (req, res, next) =>
 });
 
 /**
+ * @route GET /api/leads/filters
+ * @desc Get unique filter values (forms, campaigns, sources, etc.)
+ * @access Tenant User
+ */
+router.get('/filters', requireFeature('leads'), async (req, res, next) => {
+    try {
+        ensureClient(req);
+        const clientId = new mongoose.Types.ObjectId(req.client.id);
+
+        const [
+            formNames,
+            campaignNames,
+            sources,
+            stages, // Although usually static, good to know what's in DB
+            statuses,
+            budgetRange,
+            aiScoreRange,
+            assignedUsers // Get users who are actually assigned to leads
+        ] = await Promise.all([
+            Lead.distinct('form_name', { client_id: clientId }),
+            Lead.distinct('campaign_name', { client_id: clientId }),
+            Lead.distinct('source', { client_id: clientId }),
+            Lead.distinct('stage', { client_id: clientId }),
+            Lead.distinct('status', { client_id: clientId }),
+            Lead.aggregate([
+                { $match: { client_id: clientId } },
+                {
+                    $group: {
+                        _id: null,
+                        min: { $min: "$budget_min" },
+                        max: { $max: "$budget_max" }
+                    }
+                }
+            ]),
+            Lead.aggregate([
+                { $match: { client_id: clientId } },
+                {
+                    $group: {
+                        _id: null,
+                        min: { $min: "$ai_score" },
+                        max: { $max: "$ai_score" }
+                    }
+                }
+            ]),
+            Lead.distinct('assigned_to', { client_id: clientId })
+        ]);
+
+        // Fetch User details for assigned_to IDs
+        const users = await User.find({ _id: { $in: assignedUsers } }).select('name email');
+
+        res.json({
+            success: true,
+            data: {
+                form_names: formNames.filter(Boolean).sort(),
+                campaign_names: campaignNames.filter(Boolean).sort(),
+                sources: sources.filter(Boolean).sort(),
+                stages: stages.filter(Boolean).sort(),
+                statuses: statuses.filter(Boolean).sort(),
+                budget_range: budgetRange[0] || { min: 0, max: 0 },
+                ai_score_range: aiScoreRange[0] || { min: 0, max: 100 },
+                assigned_users: users
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
  * @route GET /api/leads/:id
  * @desc Get lead details
  * @access Tenant User

@@ -307,6 +307,18 @@ export default function Leads() {
   });
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  // Dynamic Filter Options
+  const [filterOptions, setFilterOptions] = useState({
+    form_names: [],
+    campaign_names: [],
+    sources: [],
+    stages: [],
+    statuses: [],
+    assigned_users: [],
+    budget_range: { min: 0, max: 0 },
+    ai_score_range: { min: 0, max: 100 }
+  });
+
   const [quickUpdateStatus, setQuickUpdateStatus] = useState('');
 
   const { user, loading: authLoading } = useAuth();
@@ -340,6 +352,24 @@ export default function Leads() {
       fetchTeamMembers();
     }
   }, [user, authLoading, searchTerm, stageFilter, statusFilter, sourceFilter, formNameFilter, campaignFilter, assignedFilter, budgetMinFilter, budgetMaxFilter, aiScoreMinFilter, aiScoreMaxFilter, startDateFilter, endDateFilter, currentPage, router.query.refresh]);
+
+  // Fetch Filters when Advanced Menu is opened
+  useEffect(() => {
+    if (showAdvancedFilters) {
+      fetchFilters();
+    }
+  }, [showAdvancedFilters]);
+
+  const fetchFilters = async () => {
+    try {
+      const res = await leadsAPI.getFilters();
+      if (res.data?.success) {
+        setFilterOptions(res.data.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch filters", err);
+    }
+  };
 
   // Auto-refresh leads every 30 seconds for real-time updates
   useEffect(() => {
@@ -758,27 +788,25 @@ export default function Leads() {
                         className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
                       >
                         <option value="all">All Forms</option>
-                        <option value="Navraj-copy-copy">Navraj-copy-copy</option>
-                        <option value="BUILDER FLOOR_sept-copy">BUILDER FLOOR_sept-copy</option>
-                        <option value="BUILDER FLOOR_sept">BUILDER FLOOR_sept</option>
-                        <option value="Amolik Concordia sector 97 Faridabad">Amolik Concordia sector 97 Faridabad</option>
-                        <option value="Navraj">Navraj</option>
-                        <option value="Navraj-copy">Navraj-copy</option>
-                        <option value="NAVRAJ-copy">NAVRAJ-copy</option>
-                        <option value="NAVRAJ">NAVRAJ</option>
+                        {filterOptions.form_names.map(name => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
                       </select>
                     </div>
 
                     {/* Campaign Filter */}
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Campaign</label>
-                      <input
-                        type="text"
-                        placeholder="Campaign name..."
+                      <select
                         value={campaignFilter}
                         onChange={(e) => { setCampaignFilter(e.target.value); setCurrentPage(1); }}
-                        className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-all"
-                      />
+                        className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
+                      >
+                        <option value="all">All Campaigns</option>
+                        {filterOptions.campaign_names.map(name => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* Assigned To Filter */}
@@ -790,9 +818,15 @@ export default function Leads() {
                         className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
                       >
                         <option value="all">All Members</option>
-                        {teamMembers.map(member => (
-                          <option key={member.id} value={member.id}>{member.name}</option>
-                        ))}
+                        {filterOptions.assigned_users.length > 0 ? (
+                          filterOptions.assigned_users.map(user => (
+                            <option key={user._id} value={user._id}>{user.name} ({user.email})</option>
+                          ))
+                        ) : (
+                          teamMembers.map(member => (
+                            <option key={member.id} value={member.id}>{member.name}</option>
+                          ))
+                        )}
                       </select>
                     </div>
 

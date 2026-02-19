@@ -143,8 +143,14 @@ export default function NewCampaign() {
     const handleSubmit = async () => {
         setLoading(true);
         try {
-            // Find selected template to get its name
-            const selectedTemplate = templates.find(t => t.id === formData.templateId);
+            // Find selected template to get its name (check both _id and id for compatibility)
+            const selectedTemplate = templates.find(t => (t._id || t.id) === formData.templateId);
+
+            if (!selectedTemplate) {
+                toast.error('Selected template not found. Please re-select a template.');
+                setLoading(false);
+                return;
+            }
 
             // 1. Prepare Contact IDs
             let contactIds = [];
@@ -188,11 +194,14 @@ export default function NewCampaign() {
             router.push('/wa-marketing/campaigns');
         } catch (error) {
             console.error('Failed to create campaign:', error);
-            const errorMessage = error.response?.data?.message ||
-                (error.response?.data?.error) ||
+            // Extract most specific error message from backend
+            const data = error.response?.data;
+            const errorMessage = data?.error ||
+                data?.message ||
+                (data?.details?.map(d => d.message).join(', ')) ||
                 error.message ||
                 'Failed to create campaign';
-            toast.error(errorMessage);
+            toast.error(errorMessage, { duration: 6000 });
         } finally {
             setLoading(false);
         }
@@ -298,19 +307,22 @@ export default function NewCampaign() {
                                             const newValues = {};
                                             variables.forEach(v => newValues[v] = '');
 
+                                            // Use _id (MongoDB) or id (external), prioritizing _id
+                                            const tId = template._id || template.id;
+
                                             setFormData({
                                                 ...formData,
-                                                templateId: template.id,
+                                                templateId: tId,
                                                 variableValues: newValues,
                                                 detectedVariables: variables
                                             });
                                         }}
-                                        className={`cursor-pointer rounded-xl border-2 p-6 transition-all duration-300 ${formData.templateId === template.id ? 'border-primary bg-primary/10 shadow-glow-sm' : 'border-white/5 bg-[#0E1117] hover:border-white/20'
+                                        className={`cursor-pointer rounded-xl border-2 p-6 transition-all duration-300 ${formData.templateId === (template._id || template.id) ? 'border-primary bg-primary/10 shadow-glow-sm' : 'border-white/5 bg-[#0E1117] hover:border-white/20'
                                             }`}
                                     >
                                         <div className="flex items-center justify-between mb-3">
                                             <h3 className="font-bold text-white font-display">{template.name}</h3>
-                                            {formData.templateId === template.id && <CheckCircleIcon className="h-6 w-6 text-primary" />}
+                                            {formData.templateId === (template._id || template.id) && <CheckCircleIcon className="h-6 w-6 text-primary" />}
                                         </div>
                                         <div className="inline-block px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-white/5 text-gray-400 mb-3">
                                             {template.category} | {template.language}

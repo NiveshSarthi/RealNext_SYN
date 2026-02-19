@@ -242,6 +242,7 @@ export const internalLeadsAPI = {
   addNote: (id, content) => api.post(`/api/leads/${id}/notes`, { content }),
   importLeads: (data) => api.post('/api/leads/import', data), // expects { leads: [...] }
   getStats: () => api.get('/api/leads/stats/overview'),
+  getFilters: () => api.get('/api/leads/filters'),
 };
 
 // Aliasing contactsAPI to leadsAPI for backward compatibility
