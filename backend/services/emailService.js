@@ -1,259 +1,207 @@
 const nodemailer = require('nodemailer');
 const logger = require('../config/logger');
 
+const APP_NAME = process.env.FROM_NAME || 'RealNext';
+const APP_URL = process.env.FRONTEND_URL || 'https://realnext.in';
+
 /**
- * Email Service
- * Handles SMTP email sending for the application
+ * Email Service — Handles all SMTP email sending
  */
 class EmailService {
     constructor() {
         this.transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST || 'smtp.gmail.com',
             port: parseInt(process.env.SMTP_PORT) || 587,
-            secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+            secure: process.env.SMTP_SECURE === 'true',
             auth: {
                 user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS
             }
         });
 
-        // Verify connection configuration
-        this.transporter.verify((error, success) => {
+        this.transporter.verify((error) => {
             if (error) {
-                logger.error('SMTP Configuration Error:', error);
+                logger.error('SMTP Configuration Error:', error.message);
             } else {
-                logger.info('SMTP Server is ready to send emails');
+                logger.info('SMTP Server ready to send emails');
             }
         });
     }
 
-    /**
-     * Send team member invitation email
-     */
-    async sendTeamInvitation(invitationData) {
-        const { email, name, password, loginUrl, invitedBy } = invitationData;
-
-        const mailOptions = {
-            from: `"${process.env.FROM_NAME || 'Syndicate CP Portal'}" <${process.env.SMTP_USER}>`,
-            to: email,
-            subject: 'Welcome to Syndicate CP Portal - Your Account Details',
-            html: this.getInvitationEmailTemplate(name, email, password, loginUrl, invitedBy)
-        };
-
-        try {
-            const info = await this.transporter.sendMail(mailOptions);
-            logger.info(`Team invitation email sent to ${email}: ${info.messageId}`);
-            return { success: true, messageId: info.messageId };
-        } catch (error) {
-            logger.error(`Failed to send team invitation email to ${email}:`, error);
-            throw error;
-        }
+    from() {
+        return `"${APP_NAME}" <${process.env.SMTP_USER}>`;
     }
 
-    /**
-     * Send password reset email
-     */
+    // ─── Send methods ──────────────────────────────────────────────────────
+
+    async sendTeamInvitation(data) {
+        const { email, name, password, loginUrl, invitedBy } = data;
+        const info = await this.transporter.sendMail({
+            from: this.from(),
+            to: email,
+            subject: `You've been invited to join ${APP_NAME}`,
+            html: this.invitationTemplate({ name, email, password, loginUrl: loginUrl || `${APP_URL}/auth/login`, invitedBy })
+        });
+        logger.info(`Invitation email sent to ${email}: ${info.messageId}`);
+        return { success: true, messageId: info.messageId };
+    }
+
     async sendPasswordResetEmail(email, resetToken, resetUrl) {
-        const mailOptions = {
-            from: `"${process.env.FROM_NAME || 'Syndicate CP Portal'}" <${process.env.SMTP_USER}>`,
+        const info = await this.transporter.sendMail({
+            from: this.from(),
             to: email,
-            subject: 'Password Reset - Syndicate CP Portal',
-            html: this.getPasswordResetEmailTemplate(email, resetUrl)
-        };
-
-        try {
-            const info = await this.transporter.sendMail(mailOptions);
-            logger.info(`Password reset email sent to ${email}: ${info.messageId}`);
-            return { success: true, messageId: info.messageId };
-        } catch (error) {
-            logger.error(`Failed to send password reset email to ${email}:`, error);
-            throw error;
-        }
+            subject: `Reset your ${APP_NAME} password`,
+            html: this.passwordResetTemplate({ email, resetUrl })
+        });
+        logger.info(`Password reset email sent to ${email}: ${info.messageId}`);
+        return { success: true, messageId: info.messageId };
     }
 
-    /**
-     * Send welcome email for new registrations
-     */
     async sendWelcomeEmail(email, name) {
-        const mailOptions = {
-            from: `"${process.env.FROM_NAME || 'Syndicate CP Portal'}" <${process.env.SMTP_USER}>`,
+        const info = await this.transporter.sendMail({
+            from: this.from(),
             to: email,
-            subject: 'Welcome to Syndicate CP Portal!',
-            html: this.getWelcomeEmailTemplate(name)
-        };
-
-        try {
-            const info = await this.transporter.sendMail(mailOptions);
-            logger.info(`Welcome email sent to ${email}: ${info.messageId}`);
-            return { success: true, messageId: info.messageId };
-        } catch (error) {
-            logger.error(`Failed to send welcome email to ${email}:`, error);
-            throw error;
-        }
+            subject: `Welcome to ${APP_NAME}!`,
+            html: this.welcomeTemplate({ name })
+        });
+        logger.info(`Welcome email sent to ${email}: ${info.messageId}`);
+        return { success: true, messageId: info.messageId };
     }
 
-    /**
-     * HTML template for team invitation email
-     */
-    getInvitationEmailTemplate(name, email, password, loginUrl, invitedBy) {
-        return `
-<!DOCTYPE html>
+    // ─── Templates ─────────────────────────────────────────────────────────
+
+    baseLayout(content, title = APP_NAME) {
+        return `<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Syndicate CP Portal</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-        .credentials { background: #fff; padding: 20px; border: 1px solid #ddd; border-radius: 5px; margin: 20px 0; }
-        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-        .warning { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 5px; margin: 20px 0; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#0D1117; color:#E6EDF3; }
+  .email-wrapper { max-width:600px; margin:0 auto; background:#0D1117; }
+  .header { background: linear-gradient(135deg, #F97316 0%, #EA580C 100%); padding:40px 32px; text-align:center; }
+  .header-logo { font-size:28px; font-weight:800; color:#fff; letter-spacing:-0.5px; }
+  .header-sub { font-size:14px; color:rgba(255,255,255,0.85); margin-top:8px; }
+  .body { background:#161B22; padding:40px 32px; border:1px solid #30363D; }
+  .greeting { font-size:22px; font-weight:700; color:#E6EDF3; margin-bottom:16px; }
+  .text { font-size:15px; color:#8B949E; line-height:1.7; margin-bottom:20px; }
+  .card { background:#0D1117; border:1px solid #30363D; border-radius:10px; padding:24px; margin:24px 0; }
+  .card-title { font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:1px; color:#F97316; margin-bottom:16px; }
+  .field { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #21262D; }
+  .field:last-child { border-bottom:none; }
+  .field-label { font-size:13px; color:#8B949E; }
+  .field-value { font-size:14px; color:#E6EDF3; font-weight:600; font-family:monospace; word-break:break-all; max-width:300px; text-align:right; }
+  .btn { display:inline-block; background:#F97316; color:#fff !important; text-decoration:none; padding:14px 32px; border-radius:8px; font-size:15px; font-weight:700; margin:24px 0; transition:opacity 0.2s; }
+  .notice { background:#1C2128; border-left:3px solid #F97316; border-radius:6px; padding:14px 18px; margin:20px 0; }
+  .notice p { font-size:13px; color:#8B949E; line-height:1.6; }
+  .footer { background:#0D1117; padding:24px 32px; text-align:center; border:1px solid #30363D; border-top:none; }
+  .footer p { font-size:12px; color:#484F58; line-height:1.6; }
+  .footer a { color:#F97316; text-decoration:none; }
+</style>
 </head>
 <body>
-    <div class="header">
-        <h1>Welcome to Syndicate CP Portal!</h1>
-        <p>You've been invited to join our team</p>
-    </div>
-
-    <div class="content">
-        <h2>Hello ${name}!</h2>
-
-        <p>You have been invited to join the Syndicate CP Portal team. Your account has been created and you can now access the platform.</p>
-
-        <div class="credentials">
-            <h3>Your Login Credentials:</h3>
-            <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Password:</strong> ${password}</p>
-        </div>
-
-        <div class="warning">
-            <strong>⚠️ Security Notice:</strong> Please change your password after your first login for security purposes.
-        </div>
-
-        <p style="text-align: center;">
-            <a href="${loginUrl || 'https://portal.synditech.com/login'}" class="button">Login to Your Account</a>
-        </p>
-
-        <p>If you have any questions or need assistance, please contact your administrator: ${invitedBy || 'support@synditech.com'}</p>
-
-        <p>Best regards,<br>The Syndicate CP Portal Team</p>
-    </div>
-
-    <div class="footer">
-        <p>This email was sent to ${email}. If you didn't expect this invitation, please ignore this email.</p>
-        <p>&copy; 2024 Syndicate CP Portal. All rights reserved.</p>
-    </div>
+<div class="email-wrapper">
+  <div class="header">
+    <div class="header-logo">RealNext</div>
+    <div class="header-sub">${title}</div>
+  </div>
+  <div class="body">
+    ${content}
+  </div>
+  <div class="footer">
+    <p>This email was sent by ${APP_NAME} · <a href="${APP_URL}">${APP_URL}</a></p>
+    <p style="margin-top:8px">If you didn't expect this email, you can safely ignore it.</p>
+    <p style="margin-top:8px">© ${new Date().getFullYear()} RealNext. All rights reserved.</p>
+  </div>
+</div>
 </body>
 </html>`;
     }
 
-    /**
-     * HTML template for password reset email
-     */
-    getPasswordResetEmailTemplate(email, resetUrl) {
-        return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Reset - Syndicate CP Portal</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-        .warning { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 5px; margin: 20px 0; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>Password Reset Request</h1>
-        <p>Syndicate CP Portal</p>
-    </div>
+    invitationTemplate({ name, email, password, loginUrl, invitedBy }) {
+        const isExisting = !password || password.includes('existing password');
+        const credRows = isExisting
+            ? `<div class="field"><span class="field-label">Email</span><span class="field-value">${email}</span></div>
+               <div class="field"><span class="field-label">Password</span><span class="field-value">Your existing password</span></div>`
+            : `<div class="field"><span class="field-label">Email</span><span class="field-value">${email}</span></div>
+               <div class="field"><span class="field-label">Password</span><span class="field-value">${password}</span></div>`;
 
-    <div class="content">
-        <h2>Reset Your Password</h2>
+        const content = `
+<h1 class="greeting">Hello ${name}! 👋</h1>
+<p class="text">
+  You've been invited by <strong style="color:#E6EDF3">${invitedBy}</strong> to join the <strong style="color:#E6EDF3">RealNext Portal</strong>. 
+  Your account is ready — use the credentials below to sign in.
+</p>
 
-        <p>You have requested to reset your password for your Syndicate CP Portal account.</p>
+<div class="card">
+  <div class="card-title">🔑 Your Login Credentials</div>
+  ${credRows}
+</div>
 
-        <p style="text-align: center;">
-            <a href="${resetUrl}" class="button">Reset Password</a>
-        </p>
+<p style="text-align:center">
+  <a href="${loginUrl}" class="btn">Login to RealNext →</a>
+</p>
 
-        <div class="warning">
-            <strong>⚠️ Security Notice:</strong> This link will expire in 1 hour. If you didn't request this password reset, please ignore this email.
-        </div>
+${!isExisting ? `<div class="notice">
+  <p>⚠️ <strong style="color:#E6EDF3">Security tip:</strong> Please change your password after your first login via <strong>Settings → Account → Change Password</strong>.</p>
+</div>` : ''}
 
-        <p>If the button above doesn't work, you can copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 3px;">${resetUrl}</p>
+<p class="text">If you have any questions, contact your administrator: <a href="mailto:${invitedBy}" style="color:#F97316">${invitedBy}</a></p>`;
 
-        <p>Best regards,<br>The Syndicate CP Portal Team</p>
-    </div>
-
-    <div class="footer">
-        <p>This email was sent to ${email}. If you have any questions, please contact support.</p>
-        <p>&copy; 2024 Syndicate CP Portal. All rights reserved.</p>
-    </div>
-</body>
-</html>`;
+        return this.baseLayout(content, "You've been invited to join the team");
     }
 
-    /**
-     * HTML template for welcome email
-     */
-    getWelcomeEmailTemplate(name) {
-        return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Syndicate CP Portal</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>Welcome to Syndicate CP Portal!</h1>
-        <p>Your account has been created successfully</p>
-    </div>
+    passwordResetTemplate({ email, resetUrl }) {
+        const content = `
+<h1 class="greeting">Reset your password</h1>
+<p class="text">We received a request to reset the password for your RealNext account associated with <strong style="color:#E6EDF3">${email}</strong>.</p>
 
-    <div class="content">
-        <h2>Hello ${name}!</h2>
+<p style="text-align:center">
+  <a href="${resetUrl}" class="btn">Reset Password →</a>
+</p>
 
-        <p>Welcome to Syndicate CP Portal! Your account has been successfully created and you can now start using our platform.</p>
+<div class="notice">
+  <p>⏱ <strong style="color:#E6EDF3">This link expires in 1 hour.</strong> If you didn't request a password reset, please ignore this email — your account is safe.</p>
+</div>
 
-        <p>You can now:</p>
-        <ul>
-            <li>Access your personalized dashboard</li>
-            <li>Manage your campaigns and leads</li>
-            <li>Collaborate with your team</li>
-            <li>Track your performance metrics</li>
-        </ul>
+<p class="text" style="font-size:13px">Or copy this link into your browser:</p>
+<p style="background:#0D1117;border:1px solid #30363D;padding:12px 16px;border-radius:6px;font-size:12px;color:#8B949E;word-break:break-all;font-family:monospace">${resetUrl}</p>`;
 
-        <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
+        return this.baseLayout(content, 'Password Reset Request');
+    }
 
-        <p>Best regards,<br>The Syndicate CP Portal Team</p>
-    </div>
+    welcomeTemplate({ name }) {
+        const content = `
+<h1 class="greeting">Welcome to RealNext, ${name}! 🎉</h1>
+<p class="text">Your account has been created. Here's what you can do now:</p>
 
-    <div class="footer">
-        <p>&copy; 2024 Syndicate CP Portal. All rights reserved.</p>
-    </div>
-</body>
-</html>`;
+<div class="card">
+  <div class="card-title">✨ Get Started</div>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
+    ${[
+                ['📊', 'View your analytics dashboard', 'Track leads and campaign performance'],
+                ['📋', 'Manage your leads', 'Add, assign and follow up on leads'],
+                ['📢', 'Create campaigns', 'Send WhatsApp messages to your audience'],
+                ['🏠', 'Browse inventory', 'Access your property catalog'],
+            ].map(([icon, title, sub]) => `
+    <div style="display:flex;align-items:flex-start;gap:12px">
+      <span style="font-size:20px">${icon}</span>
+      <div>
+        <p style="font-size:14px;font-weight:600;color:#E6EDF3">${title}</p>
+        <p style="font-size:13px;color:#8B949E">${sub}</p>
+      </div>
+    </div>`).join('')}
+  </div>
+</div>
+
+<p style="text-align:center">
+  <a href="${APP_URL}/dashboard" class="btn">Open Dashboard →</a>
+</p>`;
+
+        return this.baseLayout(content, 'Welcome to RealNext!');
     }
 }
 
-// Export singleton instance
 module.exports = new EmailService();
