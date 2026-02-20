@@ -2,19 +2,14 @@ const axios = require('axios');
 const https = require('https');
 const logger = require('../config/logger');
 
-// Custom HTTPS agent to handle SSL compatibility issues with external API
-// The external server uses TLS settings that Node.js rejects by default
-const crypto = require('crypto');
-
-// Allow legacy SSL connections (fixes SSL alert number 40 / handshake failure)
+// Allow legacy SSL connections - required for the external WFB API
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const httpsAgent = new https.Agent({
-    rejectUnauthorized: false,
-    minVersion: 'TLSv1'
+    rejectUnauthorized: false
 });
 
-const WA_API_URL = process.env.WHATSAPP_API_URL || 'https://ckk4swcsssos844w0ccos4og.72.61.248.175.sslip.io';
+const WA_API_URL = process.env.WHATSAPP_API_URL || 'https://wfb.backend.niveshsarthi.com';
 // API base includes /api/v1 prefix as per API documentation
 const WA_API_BASE = `${WA_API_URL}/api/v1`;
 // Credentials hardcoded as per frontend/utils/api.js for now, ideally in env
