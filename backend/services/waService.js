@@ -1,5 +1,13 @@
 const axios = require('axios');
+const https = require('https');
 const logger = require('../config/logger');
+
+// Custom HTTPS agent to handle SSL compatibility issues with external API
+// The external server uses TLS settings that Node.js rejects by default
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: false, // Allow self-signed or incompatible certs
+    minVersion: 'TLSv1'
+});
 
 const WA_API_URL = process.env.WHATSAPP_API_URL || 'https://wfb.backend.niveshsarthi.com';
 // Credentials hardcoded as per frontend/utils/api.js for now, ideally in env
@@ -15,7 +23,8 @@ class WaService {
         this.api = axios.create({
             baseURL: WA_API_URL,
             headers: { 'Content-Type': 'application/json' },
-            timeout: 60000
+            timeout: 60000,
+            httpsAgent // Use custom agent for all requests
         });
 
         // Add interceptor to inject token
@@ -42,7 +51,7 @@ class WaService {
     async login() {
         try {
             logger.info('Authenticating with External WhatsApp API...');
-            const response = await axios.post(`${WA_API_URL}/auth/login`, WA_CREDENTIALS);
+            const response = await axios.post(`${WA_API_URL}/auth/login`, WA_CREDENTIALS, { httpsAgent });
 
             if (response.data && response.data.access_token) {
                 this.token = response.data.access_token;
