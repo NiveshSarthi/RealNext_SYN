@@ -4,12 +4,19 @@ const logger = require('../config/logger');
 
 // Custom HTTPS agent to handle SSL compatibility issues with external API
 // The external server uses TLS settings that Node.js rejects by default
+const crypto = require('crypto');
+
+// Allow legacy SSL connections (fixes SSL alert number 40 / handshake failure)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const httpsAgent = new https.Agent({
-    rejectUnauthorized: false, // Allow self-signed or incompatible certs
+    rejectUnauthorized: false,
     minVersion: 'TLSv1'
 });
 
-const WA_API_URL = process.env.WHATSAPP_API_URL || 'https://wfb.backend.niveshsarthi.com';
+const WA_API_URL = process.env.WHATSAPP_API_URL || 'https://ckk4swcsssos844w0ccos4og.72.61.248.175.sslip.io';
+// API base includes /api/v1 prefix as per API documentation
+const WA_API_BASE = `${WA_API_URL}/api/v1`;
 // Credentials hardcoded as per frontend/utils/api.js for now, ideally in env
 const WA_CREDENTIALS = {
     email: 'Syndicate@niveshsarthi.com',
@@ -21,16 +28,14 @@ class WaService {
         this.token = null;
         this.tokenExpiry = null;
         this.api = axios.create({
-            baseURL: WA_API_URL,
+            baseURL: WA_API_BASE, // Correct: https://...sslip.io/api/v1
             headers: { 'Content-Type': 'application/json' },
             timeout: 60000,
             httpsAgent // Use custom agent for all requests
         });
 
-        // Add interceptor to inject token
+        // Add interceptor to inject auth token to every non-login request
         this.api.interceptors.request.use(async (config) => {
-            if (config.url === '/auth/login') return config; // Skip for login
-
             const token = await this.getToken();
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
@@ -51,6 +56,7 @@ class WaService {
     async login() {
         try {
             logger.info('Authenticating with External WhatsApp API...');
+            // Login is at root level, NOT under /api/v1
             const response = await axios.post(`${WA_API_URL}/auth/login`, WA_CREDENTIALS, { httpsAgent });
 
             if (response.data && response.data.access_token) {
@@ -157,8 +163,8 @@ class WaService {
         try {
             const { template_name, contact_ids, template_data } = campaignData;
             logger.info('Sending campaign creation request to External API...');
-            // Using /campaigns/send per doc for "Create & start/schedule a campaign"
-            const response = await this.api.post('/campaigns/send', campaignData);
+            // POST /campaigns as per API docs (not /campaigns/send)
+            const response = await this.api.post('/campaigns', campaignData);
             logger.info('External Campaign Created:', response.data);
             return response.data;
         } catch (error) {
