@@ -32,6 +32,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+// Explicitly handle all OPTIONS preflight requests before any route logic
+app.options('*', cors());
 app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
