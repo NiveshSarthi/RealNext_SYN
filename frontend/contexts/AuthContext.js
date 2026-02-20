@@ -197,15 +197,11 @@ export function AuthProvider({ children, router }) {
       const now = Math.floor(Date.now() / 1000);
       const secondsRemaining = payload.exp - now;
 
-      console.log(`[SessionCheck] Exp: ${payload.exp}, Now: ${now}, Left: ${secondsRemaining}s`);
-
       // Warning threshold: 5 minutes (300 seconds)
       if (secondsRemaining <= 300 && secondsRemaining > 0) {
-        console.log('[SessionCheck] Triggering Warning');
         setShowWarning(true);
         setTimeLeft(secondsRemaining);
       } else if (secondsRemaining <= 0) {
-        console.log('[SessionCheck] Token Expired => Logout');
         // Expired
         logout();
       } else {
