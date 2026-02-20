@@ -14,14 +14,12 @@ const app = express();
 app.set('trust proxy', 1); // Enable proxy trust for rate limiter
 const PORT = process.env.PORT || 5001;
 
-// Middleware
-app.use(helmet());
-// CORS — allow only whitelisted origins
+// CORS — must be applied BEFORE helmet to avoid header stripping
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://localhost:3000'];
 
-app.use(cors({
+const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (curl, Postman, server-to-server)
     if (!origin) return callback(null, true);
@@ -31,9 +29,17 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+// Handle ALL OPTIONS preflight requests first — before any other middleware
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
+
+// Helmet — disable crossOriginResourcePolicy to allow cross-origin API access
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+  crossOriginEmbedderPolicy: false
 }));
-// Explicitly handle all OPTIONS preflight requests before any route logic
-app.options('*', cors());
 app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
