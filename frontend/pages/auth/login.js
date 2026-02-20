@@ -92,6 +92,7 @@ export default function Login() {
                   name="email"
                   type="email"
                   required
+                  autoComplete="email"
                   className="w-full bg-[#0E1117] border border-white/10 rounded-lg px-4 py-3 pl-11 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                   placeholder="name@company.com"
                   value={formData.email}
@@ -115,6 +116,7 @@ export default function Login() {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   required
+                  autoComplete="current-password"
                   className="w-full bg-[#0E1117] border border-white/10 rounded-lg px-4 py-3 pr-12 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                   placeholder="••••••••"
                   value={formData.password}

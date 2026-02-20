@@ -36,10 +36,8 @@ export default function Document() {
         <meta name="theme-color" content="#3b82f6" />
         <meta name="msapplication-TileColor" content="#3b82f6" />
 
-        {/* Security headers */}
+        {/* Security headers — note: X-Frame-Options and X-XSS-Protection must be set via HTTP headers (done in next.config.js), not meta tags */}
         <meta httpEquiv="X-Content-Type-Options" content="nosniff" />
-        <meta httpEquiv="X-Frame-Options" content="DENY" />
-        <meta httpEquiv="X-XSS-Protection" content="1; mode=block" />
         <meta httpEquiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
 
         {/* Preload critical resources */}
@@ -47,7 +45,12 @@ export default function Document() {
           rel="preload"
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
           as="style"
-          onLoad="this.onload=null;this.rel='stylesheet'"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+          crossOrigin="anonymous"
         />
         <noscript>
           <link
