@@ -1,55 +1,55 @@
 const express = require('express');
 const router = express.Router();
-const Flow = require('../models/Flow');
-// We need auth middleware. Assuming it's available in backend/middleware/auth
-// Adjust path if necessary based on folder structure.
-// Given: backend/middleware/auth.js and we are in backend/modules/wa-marketing/routes/flows.js
-// Path to middleware: ../../../middleware/auth
+// Remove Flow model dependency as we are switching to external API
+// const Flow = require('../models/Flow');
+const waService = require('../../../services/waService');
 const { authenticate } = require('../../../middleware/auth');
+const logger = require('../../../config/logger');
 
 // 1. List flows
 router.get('/', authenticate, async (req, res) => {
     try {
-        const flows = await Flow.find({ client_id: req.client.id })
-            .sort({ updated_at: -1 })
-            .select('id name description is_active updated_at created_at');
+        // Proxy to External API
+        const flows = await waService.getFlows();
+        // Assuming external API returns the list or { data: list }
+        // Adjust if necessary depending on actual external response structure
+        // If flows is { data: [...] }, return flows.data
+        const flowList = Array.isArray(flows) ? flows : (flows.data || []);
 
-        res.json(flows);
+        res.json(flowList);
     } catch (error) {
-        console.error('Error fetching flows:', error);
-        res.status(500).json({ message: 'Server error fetching flows' });
+        console.error('Error fetching flows:', error.message);
+        res.status(500).json({ message: 'Server error fetching flows from external service' });
     }
 });
 
 // 2. Create flow
 router.post('/', authenticate, async (req, res) => {
     try {
-        require('fs').writeFileSync('debug_flow_context.txt', `User: ${JSON.stringify(req.user, null, 2)}\nClient: ${JSON.stringify(req.client, null, 2)}\nBody: ${JSON.stringify(req.body, null, 2)}\n`);
-        const { name, description } = req.body;
+        const { name, categories, clone_flow_id } = req.body;
 
         if (!name) {
             return res.status(400).json({ message: 'Name is required' });
         }
 
-        const newFlow = new Flow({
-            client_id: req.client.id,
+        // Construct payload for external API
+        // The doc doesn't specify payload for /flows POST exactly, assuming standard fields
+        const payload = {
             name,
-            description,
-            created_by: req.user.id,
-            Message_Blocks: [],
-            Message_Routes: []
-        });
+            categories: categories || ['other'],
+            clone_flow_id // Optional
+        };
 
-        const savedFlow = await newFlow.save();
+        const newFlow = await waService.createFlow(payload);
 
         res.status(201).json({
             status: 'success',
             message: 'Flow created successfully',
-            flow_id: savedFlow.id
+            flow_id: newFlow.id || newFlow._id,
+            data: newFlow
         });
     } catch (error) {
-        console.error('Error creating flow:', error);
-        require('fs').writeFileSync('debug_flow_error.txt', `Error: ${error.message}\nStack: ${error.stack}\n`);
+        console.error('Error creating flow:', error.message);
         res.status(500).json({ message: `Server error creating flow: ${error.message}` });
     }
 });
@@ -57,30 +57,24 @@ router.post('/', authenticate, async (req, res) => {
 // 3. Get single flow
 router.get('/:id', authenticate, async (req, res) => {
     try {
-        const flow = await Flow.findOne({
-            _id: req.params.id,
-            client_id: req.client.id
-        });
+        const flow = await waService.getFlow(req.params.id);
 
         if (!flow) {
             return res.status(404).json({ message: 'Flow not found' });
         }
 
-        // Return strictly formatted response as per guide
+        // Return response matching frontend expectations if possible, or just pass through
+        // The previous local implementation returned { status: 'success', data: [ {Message_Blocks}, {Message_Routes} ], meta: {...} }
+        // We should check if the external API returns compatible structure.
+        // Assuming External API returns standard flow object.
+        // We might need to transform it if the frontend relies heavily on specific structure.
+
         res.json({
             status: 'success',
-            data: [
-                { Message_Blocks: flow.Message_Blocks || [] },
-                { Message_Routes: flow.Message_Routes || [] }
-            ],
-            meta: {
-                id: flow.id,
-                name: flow.name,
-                description: flow.description
-            }
+            data: flow // Pass through external data
         });
     } catch (error) {
-        console.error('Error fetching flow:', error);
+        console.error('Error fetching flow:', error.message);
         res.status(500).json({ message: 'Server error fetching flow' });
     }
 });
@@ -88,28 +82,20 @@ router.get('/:id', authenticate, async (req, res) => {
 // 4. Update flow
 router.put('/:id', authenticate, async (req, res) => {
     try {
-        const updateData = {};
-        if (req.body.name) updateData.name = req.body.name;
-        if (req.body.description !== undefined) updateData.description = req.body.description;
-        if (req.body.Message_Blocks) updateData.Message_Blocks = req.body.Message_Blocks;
-        if (req.body.Message_Routes) updateData.Message_Routes = req.body.Message_Routes;
+        const updateData = req.body;
+        // Construct payload. API doc for PUT /flows/{flow_id} "Update flow structure"
+        // Typically accepts name, validation_schema, etc.
+        // We pass the body through.
 
-        const flow = await Flow.findOneAndUpdate(
-            { _id: req.params.id, client_id: req.client.id },
-            { $set: updateData },
-            { new: true }
-        );
-
-        if (!flow) {
-            return res.status(404).json({ message: 'Flow not found' });
-        }
+        const updatedFlow = await waService.updateFlow(req.params.id, updateData);
 
         res.json({
             status: 'success',
-            message: 'Flow updated successfully'
+            message: 'Flow updated successfully',
+            data: updatedFlow
         });
     } catch (error) {
-        console.error('Error updating flow:', error);
+        console.error('Error updating flow:', error.message);
         res.status(500).json({ message: 'Server error updating flow' });
     }
 });
@@ -117,21 +103,14 @@ router.put('/:id', authenticate, async (req, res) => {
 // 5. Delete flow
 router.delete('/:id', authenticate, async (req, res) => {
     try {
-        const flow = await Flow.findOneAndDelete({
-            _id: req.params.id,
-            client_id: req.client.id
-        });
-
-        if (!flow) {
-            return res.status(404).json({ message: 'Flow not found' });
-        }
+        await waService.deleteFlow(req.params.id);
 
         res.json({
             status: 'success',
             message: 'Flow deleted successfully'
         });
     } catch (error) {
-        console.error('Error deleting flow:', error);
+        console.error('Error deleting flow:', error.message);
         res.status(500).json({ message: 'Server error deleting flow' });
     }
 });
