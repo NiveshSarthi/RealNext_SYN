@@ -76,7 +76,8 @@ class WaService {
             return response.data;
         } catch (error) {
             logger.error('Failed to fetch flows from External API:', error.message);
-            throw error;
+            // Return empty array to prevent 500 errors on the route level
+            return [];
         }
     }
 
