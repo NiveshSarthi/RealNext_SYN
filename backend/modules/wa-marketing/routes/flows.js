@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Flow = require('../models/Flow');
+const { Flow } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
 const { requireClientAccess } = require('../../../middleware/roles');
 const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
