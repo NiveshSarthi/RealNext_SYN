@@ -57,7 +57,18 @@ const corsOptions = {
 };
 
 // Handle ALL OPTIONS preflight requests first — before any other middleware
-app.options('*', cors(corsOptions));
+const handleCorsPreflight = (req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.status(204).end();
+  }
+  next();
+};
+
+app.use(handleCorsPreflight);
 app.use(cors(corsOptions));
 
 // Helmet — disable crossOriginResourcePolicy to allow cross-origin API access
@@ -108,15 +119,18 @@ app.get('/', (req, res) => {
 
 // Start Server
 const startServer = async () => {
+  console.log('************************************************');
+  console.log('*   REALNEXT BACKEND STARTING - VERSION 2.0.1  *');
+  console.log('*   (Defensive CORS & WFB Logs Active)         *');
+  console.log('************************************************');
+
   await connectDB();
 
-  // Cron Jobs (restored from previous file view)
+  // Cron Jobs
   try {
     const cron = require('node-cron');
     cron.schedule('*/2 * * * *', async () => {
-      // console.log('[CRON] Running Facebook leads auto-fetch...');
       try {
-        // Check if script exists before requiring
         if (fs.existsSync('./scripts/auto_fetch_facebook_leads.js')) {
           const { autoFetchFacebookLeads } = require('./scripts/auto_fetch_facebook_leads');
           await autoFetchFacebookLeads();
@@ -130,9 +144,8 @@ const startServer = async () => {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    // Write debug file
-    try { fs.writeFileSync('debug_startup.txt', `Started at ${new Date().toISOString()} on port ${PORT}\n`); } catch (e) { }
+    console.log(`[SUCCESS] Server running on port ${PORT}`);
+    console.log(`[CORS] Effective Allowed Origins:`, allowedOrigins);
   });
 };
 
