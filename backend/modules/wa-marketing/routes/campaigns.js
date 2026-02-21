@@ -172,8 +172,11 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
         try {
             const extResponse = await waService.getCampaigns({ limit: pagination.limit });
             externalCampaigns = Array.isArray(extResponse) ? extResponse : (extResponse.data || extResponse.result || []);
+            console.log(`[DEBUG_CAMPAIGN] Fetched ${externalCampaigns.length} campaigns from external API.`);
         } catch (extError) {
-            console.error('Failed to fetch external campaigns:', extError.message);
+            const errorMsg = extError.response?.data?.message || extError.message;
+            console.error(`[DEBUG_CAMPAIGN] Failed to fetch external campaigns: ${errorMsg}`);
+            logger.error(`Failed to fetch external campaigns: ${errorMsg}`);
         }
 
         // 3. Merge Strategy:

@@ -142,10 +142,14 @@ class WaService {
     async getTemplates(params = {}) {
         try {
             logger.info('Fetching templates from External API...');
-            const response = await this.api.get('/api/v1/templates', { params, timeout: 5000 });
+            const response = await this.api.get('/api/v1/templates', { params, timeout: 10000 });
             return response.data;
         } catch (error) {
-            logger.error('Failed to fetch templates from External API:', error.message);
+            const msg = error.response?.data?.message || error.message;
+            logger.error(`Failed to fetch templates from External API: ${msg}`);
+            if (error.response?.data) {
+                logger.error('External API Detail:', JSON.stringify(error.response.data));
+            }
             // Don't throw, return empty array to allow local fallback
             return [];
         }
@@ -159,8 +163,9 @@ class WaService {
             logger.info('External Campaign Created:', response.data);
             return response.data;
         } catch (error) {
-            logger.error('Failed to create campaign in External API:', error.message);
-            if (error.response) {
+            const msg = error.response?.data?.message || error.message;
+            logger.error(`Failed to create campaign in External API: ${msg}`);
+            if (error.response?.data) {
                 logger.error('External API Response:', JSON.stringify(error.response.data));
             }
             throw error;
@@ -170,10 +175,14 @@ class WaService {
     async getCampaigns(params = {}) {
         try {
             logger.info('Fetching campaigns from External API...');
-            const response = await this.api.get('/api/v1/campaigns', { params, timeout: 5000 });
+            const response = await this.api.get('/api/v1/campaigns', { params, timeout: 10000 });
             return response.data;
         } catch (error) {
-            logger.error('Failed to fetch campaigns from External API:', error.message);
+            const msg = error.response?.data?.message || error.message;
+            logger.error(`Failed to fetch campaigns from External API: ${msg}`);
+            if (error.response?.data) {
+                logger.error('External API Response:', JSON.stringify(error.response.data));
+            }
             throw error;
         }
     }
