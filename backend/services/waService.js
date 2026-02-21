@@ -51,20 +51,40 @@ class WaService {
     async login() {
         try {
             logger.info('Authenticating with External WhatsApp API...');
-            // Login is at root level
-            const response = await axios.post(`${WA_API_URL}/auth/login`, WA_CREDENTIALS, { httpsAgent });
+            // Ensure we use the latest credentials from process.env
+            const credentials = {
+                email: process.env.WA_EMAIL || 'testorg@gmail.com',
+                password: process.env.WA_PASSWORD || '123'
+            };
 
-            if (response.data && response.data.access_token) {
-                this.token = response.data.access_token;
+            console.log(`[DEBUG_AUTH] Attempting login for: ${credentials.email}`);
+
+            // Login is at root level
+            const response = await axios.post(`${WA_API_URL}/auth/login`, credentials, { httpsAgent });
+
+            console.log(`[DEBUG_AUTH] Login Response Status: ${response.status}`);
+            console.log(`[DEBUG_AUTH] Login Response Keys:`, Object.keys(response.data));
+
+            // Wide-strategy for token extraction
+            const token = response.data.access_token || response.data.token || response.data.data?.token || response.data.data?.access_token;
+
+            if (token) {
+                this.token = token;
                 // Assume 1 hour expiry if not provided
                 this.tokenExpiry = new Date(Date.now() + 55 * 60 * 1000);
                 logger.info('External WhatsApp API Login Successful');
+                console.log(`[DEBUG_AUTH] Token acquired (starts with: ${token.substring(0, 10)}...)`);
                 return this.token;
             } else {
+                console.error(`[DEBUG_AUTH] FAILED: No token found in response body:`, JSON.stringify(response.data));
                 throw new Error('No access token in response');
             }
         } catch (error) {
-            logger.error('External WhatsApp API Login Failed:', error.message);
+            const errorMsg = error.response?.data?.message || error.response?.data?.detail || error.message;
+            logger.error(`External WhatsApp API Login Failed: ${errorMsg}`);
+            if (error.response?.data) {
+                console.error(`[DEBUG_AUTH] Error Response Body:`, JSON.stringify(error.response.data));
+            }
             throw error;
         }
     }
@@ -176,6 +196,13 @@ class WaService {
         try {
             logger.info('Fetching campaigns from External API...');
             const response = await this.api.get('/api/v1/campaigns', { params, timeout: 10000 });
+            console.log(`[DEBUG_WFB_RAW] Campaigns Raw Keys:`, Object.keys(response.data));
+            // Log structure of first item if available
+            if (Array.isArray(response.data) && response.data.length > 0) {
+                console.log(`[DEBUG_WFB_RAW] First item structure:`, Object.keys(response.data[0]));
+            } else if (response.data.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+                console.log(`[DEBUG_WFB_RAW] First item structure from .data:`, Object.keys(response.data.data[0]));
+            }
             return response.data;
         } catch (error) {
             const msg = error.response?.data?.message || error.message;
