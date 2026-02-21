@@ -247,6 +247,77 @@ class WaService {
             return []; // Return empty logs instead of throwing
         }
     }
+    // --- FLOWS (/api/v1/workflows Path) ---
+    async getFlows(params = {}) {
+        try {
+            logger.info('Fetching flows (workflows) from External API...');
+            const response = await this.api.get('/api/v1/workflows', { params, timeout: 10000 });
+            return response.data;
+        } catch (error) {
+            const msg = error.response?.data?.message || error.message;
+            logger.error(`Failed to fetch flows from External API: ${msg}`);
+            // Don't throw, return empty array to allow frontend to render empty state
+            return [];
+        }
+    }
+
+    async getFlow(id) {
+        try {
+            logger.info(`Fetching flow ${id} from External API...`);
+            const response = await this.api.get(`/api/v1/workflows/${id}`, { timeout: 10000 });
+            return response.data;
+        } catch (error) {
+            const msg = error.response?.data?.message || error.message;
+            logger.error(`Failed to fetch flow ${id} from External API: ${msg}`);
+            // Return empty flow allowing frontend to render
+            return {
+                id,
+                name: "Untitled Flow",
+                description: "",
+                Message_Blocks: [],
+                Message_Routes: []
+            };
+        }
+    }
+
+    async createFlow(flowData) {
+        try {
+            logger.info('Sending flow creation request to External API...');
+            const response = await this.api.post('/api/v1/workflows', flowData);
+            logger.info('External Flow Created:', response.data);
+            return response.data;
+        } catch (error) {
+            const msg = error.response?.data?.message || error.message;
+            logger.error(`Failed to create flow in External API: ${msg}`);
+            throw error;
+        }
+    }
+
+    async updateFlow(id, flowData) {
+        try {
+            logger.info(`Sending flow update request for ${id} to External API...`);
+            const response = await this.api.put(`/api/v1/workflows/${id}`, flowData);
+            logger.info('External Flow Updated:', response.data);
+            return response.data;
+        } catch (error) {
+            const msg = error.response?.data?.message || error.message;
+            logger.error(`Failed to update flow ${id} in External API: ${msg}`);
+            throw error;
+        }
+    }
+
+    async deleteFlow(id) {
+        try {
+            logger.info(`Sending flow deletion request for ${id} to External API...`);
+            const response = await this.api.delete(`/api/v1/workflows/${id}`);
+            logger.info('External Flow Deleted');
+            return response.data;
+        } catch (error) {
+            const msg = error.response?.data?.message || error.message;
+            logger.error(`Failed to delete flow ${id} in External API: ${msg}`);
+            throw error;
+        }
+    }
 
     // --- CONTACTS (/api/v1 Path) ---
     async createContact(payload) {

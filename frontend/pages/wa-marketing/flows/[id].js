@@ -61,6 +61,21 @@ export default function FlowBuilder() {
 
             const { nodes: loadedNodes, edges: loadedEdges } = jsonToFlow(data.data);
 
+            if (!loadedNodes || loadedNodes.length === 0) {
+                // Initialize with a default starting message block
+                loadedNodes.push({
+                    id: getId(),
+                    type: 'messageNode',
+                    position: { x: 50, y: 100 },
+                    data: {
+                        bodyText: 'Start Message here...',
+                        footerText: '',
+                        buttons: [],
+                    },
+                    dragHandle: '.custom-drag-handle',
+                });
+            }
+
             setNodes(loadedNodes);
             setEdges(loadedEdges);
 

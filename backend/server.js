@@ -8,6 +8,7 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const errorHandler = require('./middleware/errorHandler');
 
 // Initialize App
 const app = express();
@@ -108,6 +109,9 @@ const connectDB = async () => {
 
 // Routes
 app.use('/api', require('./routes/index'));
+
+// Global Error Handler
+app.use(errorHandler);
 
 // Access Public folder
 app.use(express.static(path.join(__dirname, 'public')));
