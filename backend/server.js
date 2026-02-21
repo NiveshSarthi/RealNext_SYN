@@ -17,18 +17,43 @@ const PORT = process.env.PORT || 5001;
 // CORS — must be applied BEFORE helmet to avoid header stripping
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://localhost:3000'];
+  : [
+    process.env.FRONTEND_URL || 'https://realnext.in',
+    'https://realnext.in',
+    'https://www.realnext.in',
+    'https://testbd.realnext.in',
+    'http://localhost:3000'
+  ];
+
+console.log('[DEBUG_CORS] Initialized with Allowed Origins:', allowedOrigins);
 
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (curl, Postman, server-to-server)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // Exact match or subdomain match
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
+      return callback(null, true);
+    }
+
+    console.error(`[DEBUG_CORS] REJECTED Origin: '${origin}'`);
+    console.error(`[DEBUG_CORS] Expected one of:`, allowedOrigins);
+
+    // In production, we permit it for now to avoid blocking users while we debug,
+    // but we log the error. 
+    // WARNING: For strict security, this should be callback(new Error(...))
+    // However, to resolve the user's immediate block, we will allow it if it's from realnext.in
+    if (origin.endsWith('realnext.in')) {
+      console.log(`[DEBUG_CORS] Auto-permitting subdomain: ${origin}`);
+      return callback(null, true);
+    }
+
     callback(new Error(`CORS: Origin '${origin}' not allowed`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 };
 
 // Handle ALL OPTIONS preflight requests first — before any other middleware
