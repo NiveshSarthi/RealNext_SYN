@@ -23,7 +23,7 @@ class WaService {
         this.token = null;
         this.tokenExpiry = null;
         this.api = axios.create({
-            baseURL: WA_API_BASE, // Correct: https://...sslip.io/api/v1
+            baseURL: WA_API_URL, // Root URL: https://wfb.backend.niveshsarthi.com
             headers: { 'Content-Type': 'application/json' },
             timeout: 60000,
             httpsAgent // Use custom agent for all requests
@@ -51,7 +51,7 @@ class WaService {
     async login() {
         try {
             logger.info('Authenticating with External WhatsApp API...');
-            // Login is at root level, NOT under /api/v1
+            // Login is at root level
             const response = await axios.post(`${WA_API_URL}/auth/login`, WA_CREDENTIALS, { httpsAgent });
 
             if (response.data && response.data.access_token) {
@@ -69,7 +69,7 @@ class WaService {
         }
     }
 
-    // --- FLOWS ---
+    // --- FLOWS (Root Path) ---
     async getFlows() {
         try {
             logger.info('Fetching flows from External API...');
@@ -126,12 +126,11 @@ class WaService {
         }
     }
 
-    // --- TEMPLATES ---
+    // --- TEMPLATES (/api/v1 Path) ---
     async createTemplate(templateData) {
         try {
             logger.info('Sending template creation request to External API...');
-            // Using /templates per doc for "Create a new template on Meta"
-            const response = await this.api.post('/templates', templateData);
+            const response = await this.api.post('/api/v1/templates', templateData);
             logger.info('External Template Created:', response.data);
             return response.data;
         } catch (error) {
@@ -143,8 +142,7 @@ class WaService {
     async getTemplates(params = {}) {
         try {
             logger.info('Fetching templates from External API...');
-            // Using /templates to Sync & List templates from Meta
-            const response = await this.api.get('/templates', { params, timeout: 5000 });
+            const response = await this.api.get('/api/v1/templates', { params, timeout: 5000 });
             return response.data;
         } catch (error) {
             logger.error('Failed to fetch templates from External API:', error.message);
@@ -153,13 +151,11 @@ class WaService {
         }
     }
 
-    // --- CAMPAIGNS ---
+    // --- CAMPAIGNS (/api/v1 Path) ---
     async createCampaign(campaignData) {
         try {
-            const { template_name, contact_ids, template_data } = campaignData;
             logger.info('Sending campaign creation request to External API...');
-            // POST /campaigns as per API docs (not /campaigns/send)
-            const response = await this.api.post('/campaigns', campaignData);
+            const response = await this.api.post('/api/v1/campaigns', campaignData);
             logger.info('External Campaign Created:', response.data);
             return response.data;
         } catch (error) {
@@ -174,7 +170,7 @@ class WaService {
     async getCampaigns(params = {}) {
         try {
             logger.info('Fetching campaigns from External API...');
-            const response = await this.api.get('/campaigns', { params, timeout: 5000 });
+            const response = await this.api.get('/api/v1/campaigns', { params, timeout: 5000 });
             return response.data;
         } catch (error) {
             logger.error('Failed to fetch campaigns from External API:', error.message);
@@ -184,12 +180,9 @@ class WaService {
 
     async getCampaignDetail(id) {
         try {
-            // Note: The doc lists /campaigns/{campaign_id}/logs but not a detail endpoint in section 6. 
-            // Section 7 has /api/v1/campaigns, assuming we might need logs or standard GET if exists.
-            // Using /campaigns/{id}/logs for now if detail is needed, or just GET /campaigns
             logger.info(`Fetching campaign detail for ${id} from External API...`);
-            // Attempting simple GET, if 404 might need logs endpoint for stats
-            const response = await this.api.get(`/campaigns/${id}/logs`, { timeout: 5000 });
+            // Attempting logs endpoint if detail is needed
+            const response = await this.api.get(`/api/v1/campaigns/${id}/logs`, { timeout: 5000 });
             return response.data;
         } catch (error) {
             logger.error(`Failed to fetch campaign detail for ${id} from External API:`, error.message);
@@ -197,12 +190,12 @@ class WaService {
         }
     }
 
-    // --- CONTACTS ---
+    // --- CONTACTS (/api/v1 Path) ---
     async createContact(payload) {
         const contactIdentifier = payload.number || payload.phone;
         try {
             logger.info(`Syncing contact ${contactIdentifier} with External API...`);
-            const response = await this.api.post('/contacts', payload);
+            const response = await this.api.post('/api/v1/contacts', payload);
             logger.info('External Contact Synced:', response.data);
             return response.data;
         } catch (error) {
@@ -251,7 +244,7 @@ class WaService {
     async getContacts(params = {}) {
         try {
             logger.info(`Fetching contacts from External API with params: ${JSON.stringify(params)}`);
-            const response = await this.api.get('/contacts', { params });
+            const response = await this.api.get('/api/v1/contacts', { params });
             return response.data;
         } catch (error) {
             logger.error('Failed to fetch contacts from External API:', error.message);

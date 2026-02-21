@@ -1,151 +1,133 @@
 const express = require('express');
 const router = express.Router();
-const { Flow } = require('../../../models');
 const { authenticate } = require('../../../middleware/auth');
 const { requireClientAccess } = require('../../../middleware/roles');
 const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
+const waService = require('../../../services/waService');
 const logger = require('../../../config/logger');
 const { ApiError } = require('../../../middleware/errorHandler');
 
-// Flows are stored locally in MongoDB (WFB external API has no /flows endpoint)
+// Middleware chain for security and client context
 router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
 
-// Defensive helper
-const ensureClient = (req) => {
-    if (!req.client || !req.client.id) {
-        throw new ApiError(400, 'Client context is required.');
-    }
-};
-
-
-// 1. List flows
-router.get('/', async (req, res) => {
+/**
+ * @route GET /api/flows
+ * @desc List all flows from WFB External API
+ */
+router.get('/', async (req, res, next) => {
     try {
-        const clientId = req.client?.id;
-        if (!clientId) return res.status(400).json({ message: 'Client context required' });
-
-        const flows = await Flow.find({ client_id: clientId }).sort({ updated_at: -1 });
+        const flows = await waService.getFlows();
         res.json(flows);
     } catch (error) {
         logger.error('Error fetching flows:', error.message);
-        res.status(500).json({ message: 'Server error fetching flows' });
+        next(error);
     }
 });
 
-// 2. Create flow
-router.post('/', async (req, res) => {
+/**
+ * @route POST /api/flows
+ * @desc Create a new flow in WFB External API
+ */
+router.post('/', async (req, res, next) => {
     try {
-        const clientId = req.client?.id;
-        if (!clientId) return res.status(400).json({ message: 'Client context required' });
-
         const { name, categories, description, Message_Blocks, Message_Routes, metadata } = req.body;
 
         if (!name) {
-            return res.status(400).json({ message: 'Name is required' });
+            throw new ApiError(400, 'Name is required');
         }
 
-        const flow = await Flow.create({
-            client_id: clientId,
+        const flowData = {
             name,
             description: description || '',
             Message_Blocks: Message_Blocks || [],
             Message_Routes: Message_Routes || [],
-            metadata: metadata || { categories: categories || ['other'] },
-            created_by: req.user?.id
-        });
+            metadata: metadata || { categories: categories || ['other'] }
+        };
+
+        const result = await waService.createFlow(flowData);
 
         res.status(201).json({
             status: 'success',
             message: 'Flow created successfully',
-            flow_id: flow._id,
-            data: flow
+            flow_id: result.id || result._id, // API might return id or _id
+            data: result
         });
     } catch (error) {
         logger.error('Error creating flow:', error.message);
-        res.status(500).json({ message: `Server error creating flow: ${error.message}` });
+        next(error);
     }
 });
 
-// 3. Get single flow
-router.get('/:id', async (req, res) => {
+/**
+ * @route GET /api/flows/:id
+ * @desc Get flow details from WFB External API
+ */
+router.get('/:id', async (req, res, next) => {
     try {
-        const clientId = req.client?.id;
-        const flow = await Flow.findOne({ _id: req.params.id, client_id: clientId });
+        const result = await waService.getFlow(req.params.id);
 
-        if (!flow) {
-            return res.status(404).json({ message: 'Flow not found' });
+        // Match the frontend's expected structure if necessary
+        // The frontend expect: { status: 'success', data: [{Message_Blocks}, {Message_Routes}], meta: {...} }
+        // If the external API already returns this, just pass it through.
+        // Assuming we might need to wrap it based on previous local implementation:
+
+        if (result.Message_Blocks && result.Message_Routes) {
+            return res.json({
+                status: 'success',
+                data: [
+                    { Message_Blocks: result.Message_Blocks },
+                    { Message_Routes: result.Message_Routes }
+                ],
+                meta: {
+                    id: result.id || result._id,
+                    name: result.name,
+                    description: result.description,
+                    is_active: result.is_active,
+                    created_at: result.created_at,
+                    updated_at: result.updated_at
+                }
+            });
         }
 
-        res.json({
-            status: 'success',
-            data: [
-                { Message_Blocks: flow.Message_Blocks },
-                { Message_Routes: flow.Message_Routes }
-            ],
-            meta: {
-                id: flow._id,
-                name: flow.name,
-                description: flow.description,
-                is_active: flow.is_active,
-                created_at: flow.created_at,
-                updated_at: flow.updated_at
-            }
-        });
+        res.json(result);
     } catch (error) {
-        logger.error('Error fetching flow:', error.message);
-        res.status(500).json({ message: 'Server error fetching flow' });
+        logger.error('Error fetching flow detail:', error.message);
+        next(error);
     }
 });
 
-// 4. Update flow
-router.put('/:id', async (req, res) => {
+/**
+ * @route PUT /api/flows/:id
+ * @desc Update flow in WFB External API
+ */
+router.put('/:id', async (req, res, next) => {
     try {
-        const clientId = req.client?.id;
-        const flow = await Flow.findOne({ _id: req.params.id, client_id: clientId });
-
-        if (!flow) {
-            return res.status(404).json({ message: 'Flow not found' });
-        }
-
-        const { name, description, Message_Blocks, Message_Routes, is_active, metadata } = req.body;
-
-        if (name !== undefined) flow.name = name;
-        if (description !== undefined) flow.description = description;
-        if (Message_Blocks !== undefined) flow.Message_Blocks = Message_Blocks;
-        if (Message_Routes !== undefined) flow.Message_Routes = Message_Routes;
-        if (is_active !== undefined) flow.is_active = is_active;
-        if (metadata !== undefined) flow.metadata = metadata;
-
-        await flow.save();
-
+        const result = await waService.updateFlow(req.params.id, req.body);
         res.json({
             status: 'success',
             message: 'Flow updated successfully',
-            data: flow
+            data: result
         });
     } catch (error) {
         logger.error('Error updating flow:', error.message);
-        res.status(500).json({ message: 'Server error updating flow' });
+        next(error);
     }
 });
 
-// 5. Delete flow
-router.delete('/:id', async (req, res) => {
+/**
+ * @route DELETE /api/flows/:id
+ * @desc Delete flow from WFB External API
+ */
+router.delete('/:id', async (req, res, next) => {
     try {
-        const clientId = req.client?.id;
-        const result = await Flow.deleteOne({ _id: req.params.id, client_id: clientId });
-
-        if (result.deletedCount === 0) {
-            return res.status(404).json({ message: 'Flow not found' });
-        }
-
+        await waService.deleteFlow(req.params.id);
         res.json({
             status: 'success',
             message: 'Flow deleted successfully'
         });
     } catch (error) {
         logger.error('Error deleting flow:', error.message);
-        res.status(500).json({ message: 'Server error deleting flow' });
+        next(error);
     }
 });
 

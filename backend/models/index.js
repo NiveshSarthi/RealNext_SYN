@@ -12,7 +12,6 @@ const Payment = require('./Payment');
 const Lead = require('./Lead');
 const Campaign = require('./Campaign');
 const Template = require('./Template');
-const Flow = require('./Flow');
 const Workflow = require('./Workflow');
 const QuickReply = require('./QuickReply');
 const CatalogItem = require('./CatalogItem');
@@ -47,7 +46,6 @@ module.exports = {
     Lead,
     Campaign,
     Template,
-    Flow,
     Workflow,
     QuickReply,
     CatalogItem,
