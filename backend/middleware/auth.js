@@ -97,8 +97,24 @@ const authenticate = async (req, res, next) => {
                             subscription.plan_id.planFeatures.forEach(pf => {
                                 if (pf.is_enabled && pf.feature_id?.is_enabled) {
                                     if (pf.feature_id.code) {
-                                        req.features[pf.feature_id.code] = true;
-                                        req.featureLimits[pf.feature_id.code] = pf.limits || {};
+                                        const code = pf.feature_id.code;
+                                        req.features[code] = true;
+                                        req.featureLimits[code] = pf.limits || {};
+
+                                        // Map macro toggles to granular backend feature flags
+                                        if (code === 'inventory') {
+                                            req.features['catalog'] = true;
+                                        }
+                                        if (code === 'lms') {
+                                            req.features['leads'] = true;
+                                        }
+                                        if (code === 'wa_marketing') {
+                                            req.features['campaigns'] = true;
+                                            req.features['workflows'] = true;
+                                            req.features['templates'] = true;
+                                            req.features['quick_replies'] = true;
+                                            req.features['meta_ads'] = true;
+                                        }
                                     }
                                 }
                             });
@@ -113,6 +129,21 @@ const authenticate = async (req, res, next) => {
                 if (req.client.settings?.features) {
                     Object.keys(req.client.settings.features).forEach(code => {
                         req.features[code] = req.client.settings.features[code];
+
+                        // Map macro frontend toggles to granular backend feature flags
+                        if (code === 'inventory' && req.client.settings.features[code]) {
+                            req.features['catalog'] = true;
+                        }
+                        if (code === 'lms' && req.client.settings.features[code]) {
+                            req.features['leads'] = true;
+                        }
+                        if (code === 'wa_marketing' && req.client.settings.features[code]) {
+                            req.features['campaigns'] = true;
+                            req.features['workflows'] = true;
+                            req.features['templates'] = true;
+                            req.features['quick_replies'] = true;
+                            req.features['meta_ads'] = true;
+                        }
                     });
                 }
 
