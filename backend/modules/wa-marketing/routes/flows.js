@@ -2,11 +2,21 @@ const express = require('express');
 const router = express.Router();
 const Flow = require('../models/Flow');
 const { authenticate } = require('../../../middleware/auth');
-const { setClientContext } = require('../../../middleware/scopeEnforcer');
+const { requireClientAccess } = require('../../../middleware/roles');
+const { enforceClientScope, setClientContext } = require('../../../middleware/scopeEnforcer');
 const logger = require('../../../config/logger');
+const { ApiError } = require('../../../middleware/errorHandler');
 
-// Flows are stored locally in MongoDB (WFB external API does not support flows)
-router.use(authenticate, setClientContext);
+// Flows are stored locally in MongoDB (WFB external API has no /flows endpoint)
+router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
+
+// Defensive helper
+const ensureClient = (req) => {
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required.');
+    }
+};
+
 
 // 1. List flows
 router.get('/', async (req, res) => {
