@@ -174,7 +174,8 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
             console.log(`[DEBUG_CAMPAIGN] Raw External Response Type: ${typeof extResponse}`);
             console.log(`[DEBUG_CAMPAIGN] Raw External Response Keys:`, extResponse ? Object.keys(extResponse) : 'null');
 
-            externalCampaigns = Array.isArray(extResponse) ? extResponse : (extResponse.data || extResponse.result || []);
+            externalCampaigns = Array.isArray(extResponse) ? extResponse : (extResponse?.data || extResponse?.result || []);
+            if (!Array.isArray(externalCampaigns)) externalCampaigns = [];
             console.log(`[DEBUG_CAMPAIGN] Extracted ${externalCampaigns.length} external campaigns.`);
         } catch (extError) {
             const errorMsg = extError.response?.data?.message || extError.message;

@@ -65,31 +65,32 @@ router.post('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
     try {
         const result = await waService.getFlow(req.params.id);
+        console.log(`[DEBUG_FLOW] Raw Flow Result Keys:`, result ? Object.keys(result) : 'null');
+        console.log(`[DEBUG_FLOW] Blocks/Routes presence:`, {
+            blocks: !!result.Message_Blocks,
+            routes: !!result.Message_Routes
+        });
+        // The frontend expects: { status: 'success', data: {Message_Blocks: [], Message_Routes: []}, meta: {...} }
+        // Note: jsonToFlow supports both { Message_Blocks: [...] } and [{Message_Blocks: [...]}]
 
-        // Match the frontend's expected structure if necessary
-        // The frontend expect: { status: 'success', data: [{Message_Blocks}, {Message_Routes}], meta: {...} }
-        // If the external API already returns this, just pass it through.
-        // Assuming we might need to wrap it based on previous local implementation:
+        const blocks = result.Message_Blocks || result.data?.Message_Blocks || [];
+        const routes = result.Message_Routes || result.data?.Message_Routes || [];
 
-        if (result.Message_Blocks && result.Message_Routes) {
-            return res.json({
-                status: 'success',
-                data: [
-                    { Message_Blocks: result.Message_Blocks },
-                    { Message_Routes: result.Message_Routes }
-                ],
-                meta: {
-                    id: result.id || result._id,
-                    name: result.name,
-                    description: result.description,
-                    is_active: result.is_active,
-                    created_at: result.created_at,
-                    updated_at: result.updated_at
-                }
-            });
-        }
-
-        res.json(result);
+        return res.json({
+            status: 'success',
+            data: {
+                Message_Blocks: blocks,
+                Message_Routes: routes
+            },
+            meta: {
+                id: result.id || result._id || req.params.id,
+                name: result.name || result.meta?.name || 'Untitled Flow',
+                description: result.description || result.meta?.description || '',
+                is_active: result.is_active ?? result.meta?.is_active ?? true,
+                created_at: result.created_at || result.meta?.created_at,
+                updated_at: result.updated_at || result.meta?.updated_at
+            }
+        });
     } catch (error) {
         logger.error('Error fetching flow detail:', error.message);
         next(error);

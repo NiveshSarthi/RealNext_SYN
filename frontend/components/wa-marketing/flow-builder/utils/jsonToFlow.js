@@ -3,6 +3,8 @@ export function jsonToFlow(jsonData) {
     let messageBlocks = [];
     let messageRoutes = [];
 
+    if (!jsonData) return { nodes: [], edges: [] };
+
     if (Array.isArray(jsonData)) {
         // Legacy: [{Message_Blocks: [...]}, {Message_Routes: [...]}]
         messageBlocks = jsonData[0]?.Message_Blocks || [];
