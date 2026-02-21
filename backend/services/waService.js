@@ -12,10 +12,10 @@ const httpsAgent = new https.Agent({
 const WA_API_URL = process.env.WHATSAPP_API_URL || 'https://wfb.backend.niveshsarthi.com';
 // API base includes /api/v1 prefix as per API documentation
 const WA_API_BASE = `${WA_API_URL}/api/v1`;
-// Credentials hardcoded as per frontend/utils/api.js for now, ideally in env
+// Credentials read from environment variables
 const WA_CREDENTIALS = {
-    email: 'Syndicate@niveshsarthi.com',
-    password: 'Syndicate@123'
+    email: process.env.WA_EMAIL || 'testorg@gmail.com',
+    password: process.env.WA_PASSWORD || '123'
 };
 
 class WaService {
