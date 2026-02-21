@@ -65,16 +65,21 @@ router.post('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
     try {
         const result = await waService.getFlow(req.params.id);
-        console.log(`[DEBUG_FLOW] Raw Flow Result Keys:`, result ? Object.keys(result) : 'null');
-        console.log(`[DEBUG_FLOW] Blocks/Routes presence:`, {
+        logger.info(`[DEBUG_FLOW] Raw Flow Result Keys: ${result ? Object.keys(result).join(', ') : 'null'}`);
+        if (result.data) {
+            logger.info(`[DEBUG_FLOW] result.data Keys: ${Object.keys(result.data).join(', ')}`);
+        }
+        logger.info(`[DEBUG_FLOW] Blocks/Routes presence: ${JSON.stringify({
             blocks: !!result.Message_Blocks,
-            routes: !!result.Message_Routes
-        });
+            data_blocks: !!result.data?.Message_Blocks,
+            routes: !!result.Message_Routes,
+            data_routes: !!result.data?.Message_Routes
+        })}`);
         // The frontend expects: { status: 'success', data: {Message_Blocks: [], Message_Routes: []}, meta: {...} }
         // Note: jsonToFlow supports both { Message_Blocks: [...] } and [{Message_Blocks: [...]}]
 
-        const blocks = result.Message_Blocks || result.data?.Message_Blocks || [];
-        const routes = result.Message_Routes || result.data?.Message_Routes || [];
+        const blocks = result.Message_Blocks || result.data?.Message_Blocks || result.blocks || result.message_blocks || result.data?.blocks || [];
+        const routes = result.Message_Routes || result.data?.Message_Routes || result.routes || result.message_routes || result.data?.routes || [];
 
         return res.json({
             status: 'success',

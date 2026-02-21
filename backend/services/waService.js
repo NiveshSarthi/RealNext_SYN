@@ -217,12 +217,34 @@ class WaService {
     async getCampaignDetail(id) {
         try {
             logger.info(`Fetching campaign detail for ${id} from External API...`);
-            // Attempting logs endpoint if detail is needed
+            // Attempting direct detail endpoint
+            const response = await this.api.get(`/api/v1/campaigns/${id}`, { timeout: 5000 });
+            return response.data;
+        } catch (error) {
+            logger.warn(`Failed to fetch direct detail for campaign ${id}: ${error.message}. Attempting list fallback...`);
+
+            // Fallback: Fetch list and find the item (inefficient but safe if detail endpoint missing)
+            try {
+                const list = await this.getCampaigns({ limit: 100 });
+                const campaigns = Array.isArray(list) ? list : (list.data || list.result || []);
+                const found = campaigns.find(c => (c._id === id || c.id === id));
+                if (found) return found;
+            } catch (listErr) {
+                logger.error(`List fallback also failed: ${listErr.message}`);
+            }
+
+            throw error;
+        }
+    }
+
+    async getCampaignLogs(id) {
+        try {
+            logger.info(`Fetching campaign logs for ${id} from External API...`);
             const response = await this.api.get(`/api/v1/campaigns/${id}/logs`, { timeout: 5000 });
             return response.data;
         } catch (error) {
-            logger.error(`Failed to fetch campaign detail for ${id} from External API:`, error.message);
-            throw error;
+            logger.error(`Failed to fetch campaign logs for ${id} from External API:`, error.message);
+            return []; // Return empty logs instead of throwing
         }
     }
 

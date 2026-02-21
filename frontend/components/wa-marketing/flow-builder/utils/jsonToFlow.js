@@ -6,28 +6,38 @@ export function jsonToFlow(jsonData) {
     if (!jsonData) return { nodes: [], edges: [] };
 
     if (Array.isArray(jsonData)) {
-        // Legacy: [{Message_Blocks: [...]}, {Message_Routes: [...]}]
-        messageBlocks = jsonData[0]?.Message_Blocks || [];
-        messageRoutes = jsonData[1]?.Message_Routes || [];
+        // Direct array of blocks? Check first element
+        const first = jsonData[0];
+        if (first && (first.Message_block_id || first.id || first._id || first.body_text)) {
+            messageBlocks = jsonData;
+            messageRoutes = []; // Routes likely missing if it's just a flat list
+        } else {
+            // Legacy: [{Message_Blocks: [...]}, {Message_Routes: [...]}]
+            messageBlocks = jsonData[0]?.Message_Blocks || jsonData[0]?.blocks || [];
+            messageRoutes = jsonData[1]?.Message_Routes || jsonData[1]?.routes || [];
+        }
     } else {
         // New: { Message_Blocks: [...], Message_Routes: [...] }
         messageBlocks = jsonData.Message_Blocks || [];
         messageRoutes = jsonData.Message_Routes || [];
     }
 
-    const nodes = messageBlocks.map((block, index) => ({
-        id: block.Message_block_id,
-        type: "messageNode",
-        position: block.position || { x: 50 + index * 450, y: 100 + (index % 2) * 50 }, // Restore or auto-layout
-        data: {
-            bodyText: block.body_text || "",
-            footerText: block.footer_text || "",
-            buttons: block.buttons || [],
-            isLastMessage: block.last_message || false,
-            salesTeam: block.sales_Team || "",
-        },
-        dragHandle: '.custom-drag-handle',
-    }));
+    const nodes = messageBlocks.map((block, index) => {
+        const blockId = block.Message_block_id || block.id || block._id || `block-${index}`;
+        return {
+            id: blockId,
+            type: "messageNode",
+            position: block.position || { x: 50 + index * 450, y: 100 + (index % 2) * 50 },
+            data: {
+                bodyText: block.body_text || block.body || block.text || "",
+                footerText: block.footer_text || block.footer || "",
+                buttons: block.buttons || [],
+                isLastMessage: block.last_message || block.is_last || false,
+                salesTeam: block.sales_Team || block.sales_team || "",
+            },
+            dragHandle: '.custom-drag-handle',
+        };
+    });
 
     const edges = messageRoutes.map((route, index) => {
         let sourceNode = nodes.find((n) =>

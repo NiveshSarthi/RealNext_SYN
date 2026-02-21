@@ -175,12 +175,42 @@ export default function Layout({ children }) {
       );
     }
 
+    const effectiveHref = item.href || (item.children && item.children.length > 0 ? item.children[0].href : null);
+
+    if (!effectiveHref) {
+      return (
+        <div
+          className={`
+            group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ease-in-out
+            ${isActive || isChildActive
+              ? 'bg-primary/10 text-primary shadow-[0_0_10px_rgba(249,115,22,0.1)] border border-primary/20'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent'
+            }
+            ${isCollapsed ? 'justify-center' : ''}
+            ${isSubItem ? 'py-2 opacity-80 hover:opacity-100' : ''}
+          `}
+          title={isCollapsed ? item.label : ''}
+        >
+          <item.icon
+            className={`
+              h-5 w-5 flex-shrink-0 transition-colors duration-200
+              ${isActive || isChildActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}
+              ${isCollapsed ? '' : 'mr-3'}
+            `}
+          />
+          {!isCollapsed && (
+            <span className="truncate">{item.label}</span>
+          )}
+        </div>
+      );
+    }
+
     return (
       <Link
-        href={item.href}
+        href={effectiveHref}
         className={`
           group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ease-in-out
-          ${isActive
+          ${isActive || isChildActive
             ? 'bg-primary/10 text-primary shadow-[0_0_10px_rgba(249,115,22,0.1)] border border-primary/20'
             : 'text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent'
           }
@@ -192,7 +222,7 @@ export default function Layout({ children }) {
         <item.icon
           className={`
             h-5 w-5 flex-shrink-0 transition-colors duration-200
-            ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}
+            ${isActive || isChildActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}
             ${isCollapsed ? '' : 'mr-3'}
           `}
         />

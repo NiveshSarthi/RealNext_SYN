@@ -61,7 +61,7 @@ export default function CampaignDetail() {
     };
 
     const handleSend = async () => {
-        if (!confirm(`Are you sure you want to send the campaign "${campaign.name}"?`)) {
+        if (!confirm(`Are you sure you want to send the campaign "${campaign?.name || 'this campaign'}"?`)) {
             return;
         }
 
@@ -104,7 +104,8 @@ export default function CampaignDetail() {
     }
 
     const getStatusColor = (status) => {
-        switch (status) {
+        const s = (status || '').toLowerCase();
+        switch (s) {
             case 'completed': return 'bg-green-100 text-green-800';
             case 'running': return 'bg-blue-100 text-blue-800';
             case 'failed': return 'bg-red-100 text-red-800';
@@ -158,11 +159,11 @@ export default function CampaignDetail() {
                     <div className="px-6 py-8">
                         <div className="flex items-center justify-between">
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-900">{campaign.name}</h1>
+                                <h1 className="text-3xl font-bold text-gray-900">{campaign.name || 'Untitled Campaign'}</h1>
                                 <p className="mt-2 text-gray-600">{campaign.description || 'No description'}</p>
                             </div>
                             <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(campaign.status)}`}>
-                                {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
+                                {(campaign.status || 'draft').charAt(0).toUpperCase() + (campaign.status || 'draft').slice(1).toLowerCase()}
                             </span>
                         </div>
 
@@ -172,14 +173,14 @@ export default function CampaignDetail() {
                                     <UsersIcon className="h-6 w-6 text-blue-500" />
                                     <span className="ml-2 text-sm font-medium text-gray-500">Recipients</span>
                                 </div>
-                                <div className="mt-2 text-2xl font-bold text-gray-900">{campaign.total_recipients || 0}</div>
+                                <div className="mt-2 text-2xl font-bold text-gray-900">{campaign.total_contacts || campaign.total_recipients || 0}</div>
                             </div>
                             <div className="bg-gray-50 p-4 rounded-lg">
                                 <div className="flex items-center">
                                     <ChatBubbleLeftRightIcon className="h-6 w-6 text-green-500" />
                                     <span className="ml-2 text-sm font-medium text-gray-500">Sent</span>
                                 </div>
-                                <div className="mt-2 text-2xl font-bold text-gray-900">{campaign.sentCount || campaign.sent_count || 0}</div>
+                                <div className="mt-2 text-2xl font-bold text-gray-900">{campaign.stats?.sent || campaign.sentCount || campaign.sent_count || 0}</div>
                             </div>
                             <div className="bg-gray-50 p-4 rounded-lg">
                                 <div className="flex items-center">

@@ -302,9 +302,12 @@ router.post('/',
                         throw new Error('No valid contact IDs provided or found for this audience.');
                     }
 
+                    console.log(`[DEBUG_CAMPAIGN] Validating ${validContactIds.length} contact IDs for client ${req.client.id}`);
                     const syncedContactIds = await syncAudienceContacts(validContactIds, req.client.id);
+                    console.log(`[DEBUG_CAMPAIGN] Synced ${syncedContactIds.length} contact IDs`);
 
                     if (syncedContactIds.length === 0) {
+                        console.error(`[DEBUG_CAMPAIGN] SYNC FAILED: No leads found in DB for the provided IDs or they belong to a different client.`);
                         throw ApiError.badRequest('None of the selected leads could be successfully synced with the WhatsApp service. Please check lead phone numbers.');
                     }
 
@@ -389,19 +392,46 @@ router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
 
         let data = localCampaign ? localCampaign.toObject() : null;
 
-        // If local has external ID, fetch live stats
+        // If local has external ID, fetch live stats and details
         if (data && data.metadata?.external_id) {
             try {
-                const liveData = await waService.getCampaignDetail(data.metadata.external_id);
-                data = { ...data, ...liveData, stats: liveData.stats || data.stats };
+                const [liveData, logs] = await Promise.all([
+                    waService.getCampaignDetail(data.metadata.external_id).catch(() => ({})),
+                    waService.getCampaignLogs(data.metadata.external_id).catch(() => [])
+                ]);
+
+                // Normalize liveData (if it's an array, it's malformed or a log response)
+                const normalizedLive = Array.isArray(liveData) ? {} : (liveData.data || liveData);
+
+                data = {
+                    ...data,
+                    ...normalizedLive,
+                    logs: logs,
+                    stats: normalizedLive.stats || data.stats,
+                    // Ensure local status takes precedence if live status is missing or 'FAILED' (standardize case)
+                    status: (normalizedLive.status || data.status || 'draft').toLowerCase()
+                };
             } catch (err) {
                 console.error('Failed to fetch live stats:', err.message);
             }
         } else if (!localCampaign) {
             // Try fetching directly as external ID
             try {
-                const liveData = await waService.getCampaignDetail(req.params.id);
-                data = { ...liveData, is_external_only: true };
+                const [liveData, logs] = await Promise.all([
+                    waService.getCampaignDetail(req.params.id),
+                    waService.getCampaignLogs(req.params.id)
+                ]);
+
+                // Normalize
+                const normalizedLive = Array.isArray(liveData) ? {} : (liveData.data || liveData);
+
+                data = {
+                    ...normalizedLive,
+                    logs,
+                    _id: req.params.id,
+                    is_external_only: true,
+                    status: (normalizedLive.status || 'completed').toLowerCase()
+                };
             } catch (err) {
                 throw ApiError.notFound('Campaign not found local or external');
             }
