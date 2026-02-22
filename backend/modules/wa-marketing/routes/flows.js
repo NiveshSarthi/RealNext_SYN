@@ -65,21 +65,24 @@ router.post('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
     try {
         const result = await waService.getFlow(req.params.id);
-        logger.info(`[DEBUG_FLOW] Raw Flow Result Keys: ${result ? Object.keys(result).join(', ') : 'null'}`);
-        if (result.data) {
-            logger.info(`[DEBUG_FLOW] result.data Keys: ${Object.keys(result.data).join(', ')}`);
-        }
-        logger.info(`[DEBUG_FLOW] Blocks/Routes presence: ${JSON.stringify({
-            blocks: !!result.Message_Blocks,
-            data_blocks: !!result.data?.Message_Blocks,
-            routes: !!result.Message_Routes,
-            data_routes: !!result.data?.Message_Routes
-        })}`);
-        // The frontend expects: { status: 'success', data: {Message_Blocks: [], Message_Routes: []}, meta: {...} }
-        // Note: jsonToFlow supports both { Message_Blocks: [...] } and [{Message_Blocks: [...]}]
+        // Flexible extraction logic
+        let blocks = result.Message_Blocks || result.blocks || result.message_blocks || [];
+        let routes = result.Message_Routes || result.routes || result.message_routes || [];
 
-        const blocks = result.Message_Blocks || result.data?.Message_Blocks || result.blocks || result.message_blocks || result.data?.blocks || [];
-        const routes = result.Message_Routes || result.data?.Message_Routes || result.routes || result.message_routes || result.data?.routes || [];
+        if (Array.isArray(result.data)) {
+            // Check elements of the array (WFB-style wrapping)
+            result.data.forEach(item => {
+                if (item.Message_Blocks || item.blocks || item.message_blocks) {
+                    blocks = item.Message_Blocks || item.blocks || item.message_blocks;
+                }
+                if (item.Message_Routes || item.routes || item.message_routes) {
+                    routes = item.Message_Routes || item.routes || item.message_routes;
+                }
+            });
+        } else if (result.data && typeof result.data === 'object') {
+            blocks = blocks.length > 0 ? blocks : (result.data.Message_Blocks || result.data.blocks || result.data.message_blocks || []);
+            routes = routes.length > 0 ? routes : (result.data.Message_Routes || result.data.routes || result.data.message_routes || []);
+        }
 
         return res.json({
             status: 'success',

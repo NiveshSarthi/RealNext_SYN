@@ -311,12 +311,33 @@ router.post('/',
                         throw ApiError.badRequest('None of the selected leads could be successfully synced with the WhatsApp service. Please check lead phone numbers.');
                     }
 
+                    // Transform variable_mapping to WFB structured format: 
+                    // {"1": "Val"} -> {"1": {"type": "static", "value": "Val"}}
+                    const simpleMapping = template_data?.variable_mapping || {};
+                    const structuredMapping = {};
+
+                    Object.keys(simpleMapping).forEach(key => {
+                        const val = simpleMapping[key];
+                        // If it's already an object, assume it's correct
+                        if (typeof val === 'object' && val !== null) {
+                            structuredMapping[key] = val;
+                        } else {
+                            // Check if it looks like a contact field (though frontend usually sends static values)
+                            // For now, we default to "static" as that's what the UI provides
+                            structuredMapping[key] = {
+                                type: 'static',
+                                value: val?.toString() || ''
+                            };
+                        }
+                    });
+
                     const externalPayload = {
+                        name: name,
                         template_name,
-                        language_code: template_data?.language_code || 'en_US',
+                        language: template_data?.language_code || 'en_US', // WFB docs show 'language'
                         contact_ids: syncedContactIds,
-                        variable_mapping: template_data?.variable_mapping || {},
-                        schedule_time: scheduled_at ? new Date(scheduled_at).toISOString() : null
+                        variable_mapping: structuredMapping,
+                        scheduled_at: scheduled_at ? new Date(scheduled_at).toISOString() : null // WFB docs show 'scheduled_at'
                     };
 
                     console.log(`[DEBUG_CAMPAIGN] Triggering External Service with payload:`, JSON.stringify(externalPayload, null, 2));
