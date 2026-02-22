@@ -354,7 +354,7 @@ export default function Layout({ children }) {
 
         {/* Page Content */}
         <main className="flex-1 py-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 animate-fade-in">
+          <div className="mx-auto px-4 sm:px-6 md:px-8 animate-fade-in">
             {children}
           </div>
         </main>
