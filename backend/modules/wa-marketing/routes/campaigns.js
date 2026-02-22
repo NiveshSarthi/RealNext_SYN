@@ -320,14 +320,47 @@ router.post('/',
                     };
 
                     console.log(`[DEBUG_CAMPAIGN] Triggering External Service with payload:`, JSON.stringify(externalPayload, null, 2));
-                    logger.info(`Triggering external campaign for ${campaign._id} with ${validContactIds.length} contacts`);
+                    logger.info(`Triggering external campaign for ${campaign._id} with ${validContactIds.length} contacts. Payload: ${JSON.stringify(externalPayload)}`);
 
-                    const externalResponse = await waService.createCampaign(externalPayload);
+                    let externalResponse;
+                    try {
+                        externalResponse = await waService.createCampaign(externalPayload);
+                    } catch (firstTryError) {
+                        const isNoContactsError =
+                            firstTryError.response?.data?.detail === 'No contacts selected' ||
+                            JSON.stringify(firstTryError.response?.data).includes('No contacts selected');
+
+                        if (isNoContactsError) {
+                            console.log(`[DEBUG_CAMPAIGN] WFB rejected contact IDs. Attempting deep re-sync for all ${validContactIds.length} contacts...`);
+                            logger.info(`WFB rejected contacts for campaign ${campaign._id}. Clearing cache and re-syncing...`);
+
+                            // Clear cached external IDs for these specific leads to force a fresh sync
+                            await Lead.updateMany(
+                                { _id: { $in: validContactIds } },
+                                { $unset: { 'metadata.external_contact_id': '' } }
+                            );
+
+                            const reSyncedIds = await syncAudienceContacts(validContactIds, req.client.id);
+
+                            if (reSyncedIds.length > 0) {
+                                externalPayload.contact_ids = reSyncedIds;
+                                console.log(`[DEBUG_CAMPAIGN] Retrying with ${reSyncedIds.length} re-synced IDs...`);
+                                externalResponse = await waService.createCampaign(externalPayload);
+                            } else {
+                                throw firstTryError;
+                            }
+                        } else {
+                            throw firstTryError;
+                        }
+                    }
+
                     console.log(`[DEBUG_CAMPAIGN] External Success:`, JSON.stringify(externalResponse));
 
                     // Update local campaign with external ID if available
-                    if (externalResponse && externalResponse.id) {
-                        campaign.metadata = { ...campaign.metadata, external_id: externalResponse.id };
+                    // Note: WFB returns campaign_id or id
+                    const extId = externalResponse?.campaign_id || externalResponse?.id || externalResponse?.data?.id;
+                    if (extId) {
+                        campaign.metadata = { ...campaign.metadata, external_id: extId };
                     }
 
                     await campaign.save();
