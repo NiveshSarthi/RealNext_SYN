@@ -330,7 +330,11 @@ class WaService {
             logger.info('External Template Created:', response.data);
             return response.data;
         } catch (error) {
-            logger.error('Failed to create template in External API:', error.message);
+            const msg = error.response?.data?.message || error.response?.data?.detail || error.message;
+            logger.error(`Failed to create template in External API: ${msg}`);
+            if (error.response?.data) {
+                logger.error(`[WFB_API_CREATE_TEMPLATE_ERROR] Data: ${JSON.stringify(error.response.data, null, 2)}`);
+            }
             throw error;
         }
     }

@@ -116,7 +116,16 @@ router.post('/',
                 body_text, footer_text, buttons, metadata
             } = req.body;
 
-            console.log('[Template Create Request]', JSON.stringify(req.body, null, 2));
+            // Normalize template name (Meta requirements: lowercase, alphanumeric, and underscores)
+            const normalizedName = (name || '')
+                .toLowerCase()
+                .replace(/\s+/g, '_')
+                .replace(/[^a-z0-9_]/g, '');
+
+            // Normalize category (TRANSACTIONAL -> MARKETING)
+            const normalizedCategory = (category || 'MARKETING').toUpperCase() === 'TRANSACTIONAL' ? 'MARKETING' : category.toUpperCase();
+
+            logger.info(`[Template Create Request] ${JSON.stringify({ ...req.body, name: normalizedName, category: normalizedCategory }, null, 2)}`);
 
             // 1. Create in External WhatsApp API
             let externalTemplate;
@@ -125,16 +134,32 @@ router.post('/',
 
             try {
                 externalTemplate = await waService.createTemplate({
-                    name,
-                    category,
+                    name: normalizedName,
+                    category: normalizedCategory,
                     language: languageCode,
                     components: components || [],
-                    // allow passing other fields if needed by external API
                 });
             } catch (extError) {
-                // If external creation fails, do not create local record
-                // Also provide detailed error message
-                const errorMsg = extError.response?.data?.error?.message || extError.response?.data?.error || extError.message;
+                // Determine actual error message from WFB response
+                let errorMsg = extError.message;
+                const errorData = extError.response?.data;
+
+                logger.error(`External WhatsApp API Error Detail: ${JSON.stringify(errorData || {}, null, 2)}`);
+
+                if (errorData?.detail) {
+                    try {
+                        // Sometimes detail is a stringified JSON from Meta
+                        const parsedDetail = typeof errorData.detail === 'string' ? JSON.parse(errorData.detail) : errorData.detail;
+                        errorMsg = parsedDetail.error?.message || parsedDetail.message || errorData.detail;
+                    } catch (e) {
+                        errorMsg = errorData.detail;
+                    }
+                } else if (errorData?.error?.message) {
+                    errorMsg = errorData.error.message;
+                } else if (errorData?.message) {
+                    errorMsg = errorData.message;
+                }
+
                 throw new ApiError(400, `External WhatsApp API Error: ${errorMsg}`);
             }
 

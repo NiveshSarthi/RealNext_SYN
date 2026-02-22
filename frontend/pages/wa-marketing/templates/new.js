@@ -25,13 +25,13 @@ const categories = [
 ];
 
 const languages = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'it', name: 'Italian' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'hi', name: 'Hindi' },
+  { code: 'en_US', name: 'English (US)' },
+  { code: 'es_ES', name: 'Spanish (Spain)' },
+  { code: 'fr_FR', name: 'French (France)' },
+  { code: 'de_DE', name: 'German (Germany)' },
+  { code: 'it_IT', name: 'Italian (Italy)' },
+  { code: 'pt_BR', name: 'Portuguese (Brazil)' },
+  { code: 'hi_IN', name: 'Hindi (India)' },
 ];
 
 export default function NewTemplate() {
@@ -43,7 +43,7 @@ export default function NewTemplate() {
     name: '',
     type: 'text',
     category: 'marketing',
-    language: 'en',
+    language: 'en_US',
     content: '',
     header: '',
     footer: '',
@@ -170,11 +170,17 @@ export default function NewTemplate() {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => {
+                    const val = e.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                    setFormData(prev => ({ ...prev, name: val }));
+                  }}
                   className="w-full px-4 py-3 bg-background border border-border rounded-lg text-white placeholder-gray-500 focus:border-primary focus:ring-1 focus:ring-primary"
                   placeholder="e.g., welcome_message"
                   required
                 />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Only lowercase letters, numbers, and underscores are allowed.
+                </p>
               </div>
 
               <div>
