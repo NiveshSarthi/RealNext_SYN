@@ -22,6 +22,13 @@ class WaService {
     constructor() {
         this.token = null;
         this.tokenExpiry = null;
+        this.superAdminToken = null;
+        this.superAdminTokenExpiry = null;
+
+        // Super Admin credentials as requested
+        this.SUPER_ADMIN_EMAIL = 'ratnaker@gmail.com';
+        this.SUPER_ADMIN_PASSWORD = '123';
+
         this.api = axios.create({
             baseURL: WA_API_URL, // Root URL: https://wfb.backend.niveshsarthi.com
             headers: { 'Content-Type': 'application/json' },
@@ -85,6 +92,163 @@ class WaService {
             if (error.response?.data) {
                 console.error(`[DEBUG_AUTH] Error Response Body:`, JSON.stringify(error.response.data));
             }
+            throw error;
+        }
+    }
+
+    // --- SUPER ADMIN (/super-admin) ---
+    async getSuperAdminToken() {
+        if (this.superAdminToken && this.superAdminTokenExpiry && new Date() < this.superAdminTokenExpiry) {
+            return this.superAdminToken;
+        }
+        return this.superAdminLogin();
+    }
+
+    async superAdminLogin() {
+        try {
+            logger.info('Authenticating Super Admin with External WhatsApp API...');
+            console.log(`[DEBUG_AUTH] Attempting super-admin login for: ${this.SUPER_ADMIN_EMAIL}`);
+
+            const response = await axios.post(`${WA_API_URL}/super-admin/login`, {
+                email: this.SUPER_ADMIN_EMAIL,
+                password: this.SUPER_ADMIN_PASSWORD
+            }, {
+                timeout: 10000,
+                httpsAgent
+            });
+
+            this.superAdminToken = response.data.access_token;
+            console.log(`[DEBUG_AUTH] Super Admin Login Success. Token snippet: ${this.superAdminToken?.substring(0, 15)}...`);
+
+            this.superAdminTokenExpiry = new Date(new Date().getTime() + 25 * 60000); // 25 minutes buffer
+            return this.superAdminToken;
+        } catch (error) {
+            const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message;
+            logger.error('External WhatsApp API Super Admin Login Failed:', errorMsg);
+            throw new Error(`WFB Super Admin Auth Failed: ${errorMsg}`);
+        }
+    }
+
+    async getWfbOrganizations() {
+        try {
+            const token = await this.getSuperAdminToken();
+            const response = await this.api.get('/super-admin/organizations', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to fetch WFB organizations:', error.message);
+            throw error;
+        }
+    }
+
+    async createWfbOrganization(orgData) {
+        try {
+            const token = await this.getSuperAdminToken();
+            const response = await this.api.post('/super-admin/organizations', orgData, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return response.data;
+        } catch (error) {
+            const msg = error.response?.data?.message || error.response?.data?.detail || error.message;
+            logger.error(`Failed to create WFB organization: ${msg}`);
+            throw new Error(`WFB API Error: ${JSON.stringify(error.response?.data) || msg}`);
+        }
+    }
+
+    async updateWfbOrganizationStatus(orgId, status) {
+        try {
+            const token = await this.getSuperAdminToken();
+            const response = await this.api.put(`/super-admin/organizations/${orgId}/status`, { status }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return response.data;
+        } catch (error) {
+            logger.error(`Failed to update WFB org status:`, error.message);
+            throw error;
+        }
+    }
+
+    async deleteWfbOrganization(orgId) {
+        try {
+            const token = await this.getSuperAdminToken();
+            const response = await this.api.delete(`/super-admin/organizations/${orgId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return response.data;
+        } catch (error) {
+            logger.error(`Failed to delete WFB org:`, error.message);
+            throw error;
+        }
+    }
+
+    // --- SETTINGS & PHONE NUMBERS (/settings & /phone-numbers) ---
+    async getWaSettings() {
+        try {
+            const response = await this.api.get('/settings/whatsapp');
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to get WA Settings:', error.message);
+            throw error;
+        }
+    }
+
+    async saveWaSettings(data) {
+        try {
+            const response = await this.api.post('/settings/whatsapp', data);
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to save WA Settings:', error.message);
+            throw error;
+        }
+    }
+
+    async getOpenAiSettings() {
+        try {
+            const response = await this.api.get('/settings/openai');
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to get OpenAI Settings:', error.message);
+            throw error;
+        }
+    }
+
+    async saveOpenAiSettings(data) {
+        try {
+            const response = await this.api.post('/settings/openai', data);
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to save OpenAI Settings:', error.message);
+            throw error;
+        }
+    }
+
+    async getPhoneNumbers() {
+        try {
+            const response = await this.api.get('/phone-numbers');
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to get Phone Numbers:', error.message);
+            throw error;
+        }
+    }
+
+    async createPhoneNumber(data) {
+        try {
+            const response = await this.api.post('/phone-numbers', data);
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to create Phone Number:', error.message);
+            throw error;
+        }
+    }
+
+    async updatePhoneNumber(id, data) {
+        try {
+            const response = await this.api.put(`/phone-numbers/${id}`, data);
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to update Phone Number:', error.message);
             throw error;
         }
     }
@@ -323,14 +487,76 @@ class WaService {
         }
     }
 
+    async uploadContacts(formData) {
+        try {
+            // Note: Make sure the formData boundary is correctly serialized when passing to Axios
+            logger.info(`Uploading contacts CSV to External API...`);
+            const response = await this.api.post('/api/v1/contacts/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to upload contacts CSV:', error.message);
+            throw error;
+        }
+    }
+
+    async deleteContact(id) {
+        try {
+            logger.info(`Deleting contact ${id} from External API...`);
+            const response = await this.api.delete(`/api/v1/contacts/${id}`);
+            return response.data;
+        } catch (error) {
+            // Sometimes it's /contacts/:id and sometimes it's just not supported, fallback parsing handled here
+            logger.error(`Failed to delete contact ${id}:`, error.message);
+            throw error;
+        }
+    }
+
+    // --- CONVERSATIONS (/conversations) ---
+    async getConversations(params = {}) {
+        try {
+            logger.info('Fetching conversations from External API...');
+            const response = await this.api.get('/conversations', { params });
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to fetch conversations:', error.message);
+            throw error;
+        }
+    }
+
+    async getConversationMessages(number) {
+        try {
+            logger.info(`Fetching messages for ${number}...`);
+            const response = await this.api.get(`/conversations/${number}/messages`);
+            return response.data;
+        } catch (error) {
+            logger.error(`Failed to fetch messages for ${number}:`, error.message);
+            throw error;
+        }
+    }
+
+    async sendLiveMessage(payload) {
+        try {
+            logger.info(`Sending live message to ${payload.to}...`);
+            const response = await this.api.post('/conversations/send', payload);
+            return response.data;
+        } catch (error) {
+            logger.error('Failed to send live message:', error.message);
+            throw error;
+        }
+    }
+
     // Helper to format local campaign to external payload
     formatPayload(localCampaign, contactIds) {
         return {
+            name: localCampaign.name,
             template_name: localCampaign.template_name,
-            language_code: localCampaign.template_data?.language_code || 'en_US',
-            contact_ids: contactIds, // Must be provided as array of IDs
+            language: localCampaign.template_data?.language_code || localCampaign.language || 'en_US',
+            contact_ids: contactIds, // Array of IDs
+            filters: localCampaign.filters || {},
             variable_mapping: localCampaign.template_data?.variable_mapping || {},
-            schedule_time: localCampaign.scheduled_at ? localCampaign.scheduled_at.toISOString() : null
+            scheduled_at: localCampaign.scheduled_at ? localCampaign.scheduled_at.toISOString() : null
         };
     }
 }

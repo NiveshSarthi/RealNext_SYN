@@ -22,6 +22,8 @@ router.use('/roles', require('./roles'));
 
 // Feature module routes
 router.use('/leads', require('../modules/lms/leads'));
+router.use('/wa-marketing/contacts', require('../modules/wa-marketing/routes/contacts'));
+router.use('/wa-marketing/conversations', require('../modules/wa-marketing/routes/conversations'));
 router.use('/campaigns', require('../modules/wa-marketing/routes/campaigns'));
 router.use('/templates', require('../modules/wa-marketing/routes/templates'));
 router.use('/workflows', require('../modules/wa-marketing/routes/workflows'));
@@ -32,6 +34,7 @@ router.use('/quick-replies', require('../modules/wa-marketing/routes/quickReplie
 router.use('/catalog', require('../modules/inventory/routes'));
 router.use('/lms', require('../modules/lms/routes'));
 router.use('/meta-ads', require('../modules/wa-marketing/routes/metaAds'));
+router.use('/wfb-settings', require('../modules/wa-marketing/routes/wfbSettings'));
 router.use('/payments', require('./payments'));
 
 // V1 Routes (matching API Documentation)

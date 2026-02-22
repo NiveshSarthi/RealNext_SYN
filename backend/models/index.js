@@ -26,6 +26,12 @@ const Permission = require('./Permission');
 const FacebookPageConnection = require('./FacebookPageConnection');
 const FacebookLeadForm = require('./FacebookLeadForm');
 
+// New WFB Models
+const WaSetting = require('./WaSetting');
+const WaContact = require('./WaContact');
+const WaConversation = require('./WaConversation');
+const WaMessage = require('./WaMessage');
+
 /**
  * Note: Associations in Mongoose are handled via 'ref' in schemas.
  * The index file now simply aggregates and exports all models.
@@ -58,6 +64,9 @@ module.exports = {
     Role,
     Permission,
     FacebookPageConnection,
-    FacebookLeadForm
+    FacebookLeadForm,
+    WaSetting,
+    WaContact,
+    WaConversation,
+    WaMessage
 };
-

@@ -10,6 +10,7 @@ const { ApiError } = require('../../middleware/errorHandler');
 const { getPagination, getPaginatedResponse, getSorting, buildSearchFilter, mergeFilters, buildDateRangeFilter } = require('../../utils/helpers');
 const { createLead, validate, validators } = require('../../utils/validators');
 const mongoose = require('mongoose');
+const waService = require('../../services/waService');
 
 // Middleware
 router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
@@ -137,6 +138,15 @@ router.post('/',
 
             // Track usage
             await incrementUsage(req, 'leads');
+
+            // Sync with WFB External Contacts
+            if (lead.phone) {
+                waService.createContact({
+                    name: lead.name || '',
+                    number: lead.phone,
+                    tags: lead.tags || []
+                }).catch(err => console.error('[WFB Sync] Failed to sync new lead:', err.message));
+            }
 
             res.status(201).json({
                 success: true,
@@ -445,6 +455,16 @@ router.put('/:id',
 
             Object.assign(lead, updateData);
             await lead.save();
+
+            // Sync with WFB External Contacts
+            // `createContact` checks for existing numbers and ignores 409 conflicts gracefully
+            if (lead.phone) {
+                waService.createContact({
+                    name: lead.name || '',
+                    number: lead.phone,
+                    tags: lead.tags || []
+                }).catch(err => console.error('[WFB Sync] Failed to sync updated lead:', err.message));
+            }
 
             res.json({
                 success: true,
