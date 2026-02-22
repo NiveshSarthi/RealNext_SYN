@@ -5,11 +5,23 @@ import Layout from '../../components/Layout';
 import { metaAdsAPI, leadsAPI, internalLeadsAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
+import {
+    Calendar,
+    Plus,
+    RefreshCw,
+    UserPlus,
+    Megaphone,
+    Mail,
+    ChevronRight,
+    TrendingUp,
+    Users
+} from 'lucide-react';
 
 export default function LMS() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
 
+    // ... (rest of the fetching stays the same) ...
     // 1. Fetch Facebook Pages (for active campaigns count)
     const { data: pages = [] } = useQuery({
         queryKey: ['facebook-pages'],
@@ -81,7 +93,7 @@ export default function LMS() {
                     <h2 className="text-xl font-bold text-white tracking-tight">Sales Overview</h2>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center bg-card-dark rounded-lg px-3 py-1.5 border border-border-dark hidden sm:flex">
-                            <span className="material-symbols-outlined text-slate-400 text-[20px] mr-2">calendar_today</span>
+                            <Calendar className="text-slate-400 h-4 w-4 mr-2" />
                             <span className="text-sm font-medium text-slate-200">Live Data</span>
                         </div>
                     </div>
@@ -230,7 +242,7 @@ export default function LMS() {
                                                     <path d="M0 80 Q 50 100, 100 60 T 200 70 T 300 30 T 400 50 T 500 10" fill="none" stroke="#f49d25" strokeWidth="3" vectorEffect="non-scaling-stroke"></path>
                                                     <path d="M0 80 Q 50 100, 100 60 T 200 70 T 300 30 T 400 50 T 500 10 V 150 H 0 Z" fill="url(#gradientStitch)" opacity="0.2" stroke="none" vectorEffect="non-scaling-stroke"></path>
                                                     <defs>
-                                                        <linearGradient id="gradientStitch" x1="0%" x2="0%" y1="0%" y2="100%">
+                                                        <linearGradient id="gradientStitch" x1="0%" x2="0%" y1="0%" x2="100%">
                                                             <stop offset="0%" style={{ stopColor: '#f49d25', stopOpacity: 1 }}></stop>
                                                             <stop offset="100%" style={{ stopColor: '#f49d25', stopOpacity: 0 }}></stop>
                                                         </linearGradient>
@@ -252,11 +264,11 @@ export default function LMS() {
                                     <h3 className="text-white font-semibold text-lg mb-4">Quick Actions</h3>
                                     <div className="flex flex-col gap-3">
                                         <button onClick={() => router.push('/lms/leads?new=true')} className="flex items-center justify-center gap-2 w-full bg-[#f49d25] hover:bg-orange-500 text-background-dark font-bold py-3 rounded-lg transition-colors shadow-lg shadow-orange-900/20">
-                                            <span className="material-symbols-outlined text-[20px]">add</span>
+                                            <Plus className="h-5 w-5" />
                                             Add New Lead
                                         </button>
                                         <button onClick={() => router.push('/lms/manager')} className="flex items-center justify-center gap-2 w-full bg-[#493922] hover:bg-[#5a462b] text-white text-sm font-medium py-2.5 rounded-lg transition-colors border border-transparent hover:border-slate-600">
-                                            <span className="material-symbols-outlined text-[18px]">sync</span>
+                                            <RefreshCw className="h-4 w-4" />
                                             Integrations Setup
                                         </button>
                                     </div>
@@ -274,20 +286,21 @@ export default function LMS() {
                                                 const timeAgo = formatDistanceToNow(new Date(lead.created_at), { addSuffix: true });
                                                 // Rotate icons/colors for visual variety in the dashboard
                                                 const icons = [
-                                                    { bg: 'bg-blue-500/20', text: 'text-blue-500', icon: 'person_add' },
-                                                    { bg: 'bg-emerald-500/20', text: 'text-emerald-500', icon: 'campaign' },
-                                                    { bg: 'bg-[#f49d25]/20', text: 'text-[#f49d25]', icon: 'mail' },
+                                                    { bg: 'bg-blue-500/20', text: 'text-blue-500', icon: UserPlus },
+                                                    { bg: 'bg-emerald-500/20', text: 'text-emerald-500', icon: Megaphone },
+                                                    { bg: 'bg-[#f49d25]/20', text: 'text-[#f49d25]', icon: Mail },
                                                 ];
                                                 const style = icons[lead.name.length % icons.length];
+                                                const IconComponent = style.icon;
 
                                                 return (
                                                     <li key={lead._id || lead.id} onClick={() => router.push(`/lms/leads?id=${lead._id || lead.id}`)} className="flex gap-3 p-3 hover:bg-white/5 rounded-lg transition-colors cursor-pointer group">
                                                         <div className={`mt-1 h-8 w-8 rounded-full ${style.bg} ${style.text} flex items-center justify-center shrink-0`}>
-                                                            <span className="material-symbols-outlined text-[16px]">{style.icon}</span>
+                                                            <IconComponent className="h-4 w-4" />
                                                         </div>
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <p className="text-sm text-slate-200">New lead <span className="font-semibold text-white truncate max-w-[150px] inline-block align-bottom">{lead.name || 'Unknown'}</span></p>
-                                                            <p className="text-xs text-slate-500">{timeAgo} • {lead.source || 'Manual'}</p>
+                                                        <div className="flex-1 flex flex-col gap-0.5 overflow-hidden">
+                                                            <p className="text-sm text-slate-200">New lead <span className="font-semibold text-white truncate max-w-[120px] inline-block align-bottom">{lead.name || 'Unknown'}</span></p>
+                                                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{timeAgo} • {lead.source || 'Manual'}</p>
                                                         </div>
                                                     </li>
                                                 );
