@@ -133,7 +133,12 @@ router.post('/',
                 tags: tags || [],
                 custom_fields: custom_fields || {},
                 assigned_to: assigned_to || req.user.id,
-                metadata: metadata || {}
+                metadata: metadata || {},
+                activity_logs: [{
+                    type: 'system',
+                    content: `Lead captured via ${source || 'manual'}`,
+                    user_id: req.user.id
+                }]
             });
 
             // Track usage
@@ -244,6 +249,7 @@ router.get('/stats/overview', requireFeature('leads'), async (req, res, next) =>
                 by_source: bySource.map(s => ({ source: s._id, count: s.count })),
                 average_ai_score: avgScore[0]?.average || 0,
                 metrics: {
+                    total_leads: totalLeads,
                     today_total: todayCount,
                     yesterday_total: yesterdayCount,
                     active_channels_count: uniqueSources.length || 1, // At least 1 (Manual)
@@ -456,8 +462,13 @@ router.put('/:id',
             Object.assign(lead, updateData);
             await lead.save();
 
+            // Populate before returning
+            await lead.populate({
+                path: 'assigned_to',
+                select: 'name email avatar_url'
+            });
+
             // Sync with WFB External Contacts
-            // `createContact` checks for existing numbers and ignores 409 conflicts gracefully
             if (lead.phone) {
                 waService.createContact({
                     name: lead.name || '',
@@ -515,8 +526,28 @@ router.put('/:id/assign',
                 }
             }
 
+            let logContent = 'Lead unassigned';
+            if (user_id) {
+                const targetUser = await User.findById(user_id);
+                logContent = `Assigned to ${targetUser?.name || 'Team Member'}`;
+            }
+
+            lead.activity_logs.push({
+                type: 'assignment_change',
+                content: logContent,
+                old_value: lead.assigned_to ? String(lead.assigned_to) : 'unassigned',
+                new_value: user_id ? String(user_id) : 'unassigned',
+                user_id: req.user.id
+            });
+
             lead.assigned_to = user_id || null;
             await lead.save();
+
+            // Populate before returning
+            await lead.populate({
+                path: 'assigned_to',
+                select: 'name email avatar_url'
+            });
 
             res.json({
                 success: true,

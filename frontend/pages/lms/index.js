@@ -58,10 +58,10 @@ export default function LMS() {
     }
 
     // Calculations based on API data
-    const totalLeads = statsData?.details?.total_leads || 0;
+    const totalLeads = statsData?.metrics?.total_leads || 0;
     const activeCampaigns = pages.length;
-    const conversionRate = statsData?.details?.conversion_rate?.toFixed(1) || 0;
-    const todayIntake = statsData?.details?.today_count || 0;
+    const conversionRate = statsData?.metrics?.conversion_rate || 0;
+    const todayIntake = statsData?.metrics?.today_total || 0;
 
     // Pipeline mapping
     const getStageCount = (stageName) => {
