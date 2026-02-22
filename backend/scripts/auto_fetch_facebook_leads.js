@@ -88,12 +88,10 @@ async function autoFetchFacebookLeads() {
     // Check if mongoose is already connected
     if (mongoose.connection.readyState !== 1) {
       // console.log('🔌 [AUTO-FETCH] Connecting to database...');
-      await Promise.race([
-        mongoose.connect(process.env.MONGODB_URI),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Database connection timeout')), 15000)
-        )
-      ]);
+      await mongoose.connect(process.env.MONGODB_URI, {
+        serverSelectionTimeoutMS: 15000,
+        socketTimeoutMS: 45000
+      });
       didConnect = true;
     }
 

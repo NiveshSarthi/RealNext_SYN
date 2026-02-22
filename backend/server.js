@@ -96,11 +96,33 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// Global Unhandled Exceptions Logging
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL] Uncaught Exception:', err);
+  // Optional: process.exit(1); depending on pm2/docker restart policy
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 // Database Connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      maxPoolSize: 50,
+      serverSelectionTimeoutMS: 15000, // Stop trying to connect/buffer after 15 seconds
+      socketTimeoutMS: 45000,          // Close sockets after 45 seconds of inactivity
+    });
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+
+    mongoose.connection.on('error', err => {
+      console.error('[MongoDB Error]', err);
+    });
+
+    mongoose.connection.on('disconnected', () => {
+      console.warn('[MongoDB Disconnected] Attempting to reconnect or waiting for auto-reconnect...');
+    });
   } catch (error) {
     console.error(`Error: ${error.message}`);
     process.exit(1);
