@@ -103,17 +103,17 @@ export default function LMS() {
                 <main className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-hide">
                     <div className="w-full mx-auto flex flex-col gap-6">
                         {/* KPI Summary Row */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                             {/* KPI 1 */}
-                            <div className="bg-card-dark border border-border-dark rounded-xl p-5 flex flex-col gap-2 relative overflow-hidden group hover:border-[#f49d25]/30 transition-colors">
+                            <div className="bg-card-dark border border-border-dark rounded-xl p-4 sm:p-5 flex flex-col gap-1 sm:gap-2 relative overflow-hidden group hover:border-[#f49d25]/30 transition-colors">
                                 <div className="flex justify-between items-start">
-                                    <p className="text-sm font-medium text-slate-400">Total Leads</p>
-                                    <span className="bg-emerald-500/10 text-emerald-500 text-xs font-bold px-2 py-0.5 rounded-full">All Time</span>
+                                    <p className="text-[10px] sm:text-sm font-medium text-slate-400">Total Leads</p>
+                                    <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden sm:block">All Time</span>
                                 </div>
                                 <div className="flex items-end gap-2 mt-1">
-                                    <h3 className="text-3xl font-bold text-white tracking-tight">{totalLeads.toLocaleString()}</h3>
+                                    <h3 className="text-xl sm:text-3xl font-bold text-white tracking-tight">{totalLeads.toLocaleString()}</h3>
                                 </div>
-                                <div className="absolute bottom-0 left-0 right-0 h-8 opacity-20 translate-y-2 group-hover:translate-y-1 transition-transform">
+                                <div className="absolute bottom-0 left-0 right-0 h-6 sm:h-8 opacity-20 translate-y-2 group-hover:translate-y-1 transition-transform">
                                     <svg className="w-full h-full stroke-[#f49d25] fill-none stroke-2" preserveAspectRatio="none" viewBox="0 0 100 25">
                                         <path d="M0 20 C 10 20, 15 5, 25 10 C 35 15, 45 20, 55 10 C 65 0, 75 15, 85 10 C 95 5, 100 15, 100 15" vectorEffect="non-scaling-stroke"></path>
                                     </svg>
@@ -121,15 +121,15 @@ export default function LMS() {
                             </div>
 
                             {/* KPI 2 */}
-                            <div className="bg-card-dark border border-border-dark rounded-xl p-5 flex flex-col gap-2 relative overflow-hidden group hover:border-[#f49d25]/30 transition-colors">
+                            <div className="bg-card-dark border border-border-dark rounded-xl p-4 sm:p-5 flex flex-col gap-1 sm:gap-2 relative overflow-hidden group hover:border-[#f49d25]/30 transition-colors">
                                 <div className="flex justify-between items-start">
-                                    <p className="text-sm font-medium text-slate-400">Active Integrations</p>
-                                    <span className="bg-blue-500/10 text-blue-500 text-xs font-bold px-2 py-0.5 rounded-full">Live</span>
+                                    <p className="text-[10px] sm:text-sm font-medium text-slate-400">Campaigns</p>
+                                    <span className="bg-blue-500/10 text-blue-500 text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden sm:block">Live</span>
                                 </div>
                                 <div className="flex items-end gap-2 mt-1">
-                                    <h3 className="text-3xl font-bold text-white tracking-tight">{activeCampaigns}</h3>
+                                    <h3 className="text-xl sm:text-3xl font-bold text-white tracking-tight">{activeCampaigns}</h3>
                                 </div>
-                                <div className="absolute bottom-0 left-0 right-0 h-8 opacity-20 translate-y-2 group-hover:translate-y-1 transition-transform">
+                                <div className="absolute bottom-0 left-0 right-0 h-6 sm:h-8 opacity-20 translate-y-2 group-hover:translate-y-1 transition-transform">
                                     <svg className="w-full h-full stroke-blue-500 fill-none stroke-2" preserveAspectRatio="none" viewBox="0 0 100 25">
                                         <path d="M0 15 C 20 15, 30 15, 40 10 C 50 5, 60 5, 70 15 C 80 25, 90 20, 100 15" vectorEffect="non-scaling-stroke"></path>
                                     </svg>
@@ -137,14 +137,14 @@ export default function LMS() {
                             </div>
 
                             {/* KPI 3 */}
-                            <div className="bg-card-dark border border-border-dark rounded-xl p-5 flex flex-col gap-2 relative overflow-hidden group hover:border-[#f49d25]/30 transition-colors">
+                            <div className="bg-card-dark border border-border-dark rounded-xl p-4 sm:p-5 flex flex-col gap-1 sm:gap-2 relative overflow-hidden group hover:border-[#f49d25]/30 transition-colors">
                                 <div className="flex justify-between items-start">
-                                    <p className="text-sm font-medium text-slate-400">Hot/Closure Rate</p>
+                                    <p className="text-[10px] sm:text-sm font-medium text-slate-400">Hot Rate</p>
                                 </div>
                                 <div className="flex items-end gap-2 mt-1">
-                                    <h3 className="text-3xl font-bold text-white tracking-tight">{conversionRate}%</h3>
+                                    <h3 className="text-xl sm:text-3xl font-bold text-white tracking-tight">{conversionRate}%</h3>
                                 </div>
-                                <div className="absolute bottom-0 left-0 right-0 h-8 opacity-20 translate-y-2 group-hover:translate-y-1 transition-transform">
+                                <div className="absolute bottom-0 left-0 right-0 h-6 sm:h-8 opacity-20 translate-y-2 group-hover:translate-y-1 transition-transform">
                                     <svg className="w-full h-full stroke-emerald-500 fill-none stroke-2" preserveAspectRatio="none" viewBox="0 0 100 25">
                                         <path d="M0 25 L 20 20 L 40 15 L 60 20 L 80 10 L 100 5" vectorEffect="non-scaling-stroke"></path>
                                     </svg>
@@ -152,15 +152,15 @@ export default function LMS() {
                             </div>
 
                             {/* KPI 4 */}
-                            <div className="bg-card-dark border border-border-dark rounded-xl p-5 flex flex-col gap-2 relative overflow-hidden group hover:border-[#f49d25]/30 transition-colors">
+                            <div className="bg-card-dark border border-border-dark rounded-xl p-4 sm:p-5 flex flex-col gap-1 sm:gap-2 relative overflow-hidden group hover:border-[#f49d25]/30 transition-colors">
                                 <div className="flex justify-between items-start">
-                                    <p className="text-sm font-medium text-slate-400">Today's Intake</p>
-                                    <span className="bg-purple-500/10 text-purple-400 text-xs font-bold px-2 py-0.5 rounded-full">New</span>
+                                    <p className="text-[10px] sm:text-sm font-medium text-slate-400">Today</p>
+                                    <span className="bg-purple-500/10 text-purple-400 text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden sm:block">New</span>
                                 </div>
                                 <div className="flex items-end gap-2 mt-1">
-                                    <h3 className="text-3xl font-bold text-white tracking-tight">{todayIntake}</h3>
+                                    <h3 className="text-xl sm:text-3xl font-bold text-white tracking-tight">{todayIntake}</h3>
                                 </div>
-                                <div className="absolute bottom-0 left-0 right-0 h-8 opacity-20 translate-y-2 group-hover:translate-y-1 transition-transform">
+                                <div className="absolute bottom-0 left-0 right-0 h-6 sm:h-8 opacity-20 translate-y-2 group-hover:translate-y-1 transition-transform">
                                     <svg className="w-full h-full stroke-purple-500 fill-none stroke-2" preserveAspectRatio="none" viewBox="0 0 100 25">
                                         <path d="M0 25 L 20 20 L 40 20 L 60 10 L 80 5 L 100 0" vectorEffect="non-scaling-stroke"></path>
                                     </svg>
@@ -260,27 +260,27 @@ export default function LMS() {
                             {/* Right Panel (Actions & Activity) */}
                             <div className="lg:col-span-3 flex flex-col gap-6">
                                 {/* Quick Actions */}
-                                <div className="bg-card-dark border border-border-dark rounded-xl p-5">
+                                <div className="bg-card-dark border border-border-dark rounded-xl p-4 sm:p-5">
                                     <h3 className="text-white font-semibold text-lg mb-4">Quick Actions</h3>
-                                    <div className="flex flex-col gap-3">
-                                        <button onClick={() => router.push('/lms/leads?new=true')} className="flex items-center justify-center gap-2 w-full bg-[#f49d25] hover:bg-orange-500 text-background-dark font-bold py-3 rounded-lg transition-colors shadow-lg shadow-orange-900/20">
-                                            <Plus className="h-5 w-5" />
-                                            Add New Lead
+                                    <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
+                                        <button onClick={() => router.push('/lms/leads?new=true')} className="flex items-center justify-center gap-2 w-full bg-[#f49d25] hover:bg-orange-500 text-background-dark font-bold py-3 rounded-lg transition-colors shadow-lg shadow-orange-900/20 text-xs sm:text-base">
+                                            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+                                            Add Lead
                                         </button>
-                                        <button onClick={() => router.push('/lms/manager')} className="flex items-center justify-center gap-2 w-full bg-[#493922] hover:bg-[#5a462b] text-white text-sm font-medium py-2.5 rounded-lg transition-colors border border-transparent hover:border-slate-600">
-                                            <RefreshCw className="h-4 w-4" />
-                                            Integrations Setup
+                                        <button onClick={() => router.push('/lms/manager')} className="flex items-center justify-center gap-2 w-full bg-[#493922] hover:bg-[#5a462b] text-white text-[10px] sm:text-sm font-medium py-2.5 rounded-lg transition-colors border border-transparent hover:border-slate-600">
+                                            <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
+                                            Setup
                                         </button>
                                     </div>
                                 </div>
 
                                 {/* Recent Activity Feed */}
-                                <div className="bg-card-dark border border-border-dark rounded-xl flex-1 flex flex-col overflow-hidden min-h-[400px]">
-                                    <div className="p-5 border-b border-border-dark flex justify-between items-center">
+                                <div className="bg-card-dark border border-border-dark rounded-xl flex-1 flex flex-col overflow-hidden h-auto lg:min-h-[400px]">
+                                    <div className="p-4 sm:p-5 border-b border-border-dark flex justify-between items-center">
                                         <h3 className="text-white font-semibold text-lg">Recent Flow</h3>
                                         <button onClick={() => router.push('/lms/leads')} className="text-xs text-[#f49d25] font-medium hover:underline">View All</button>
                                     </div>
-                                    <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
+                                    <div className="flex-1 overflow-y-auto p-2 scrollbar-hide max-h-[350px] lg:max-h-none">
                                         <ul className="flex flex-col">
                                             {recentLeads?.length > 0 ? recentLeads.map((lead) => {
                                                 const timeAgo = formatDistanceToNow(new Date(lead.created_at), { addSuffix: true });

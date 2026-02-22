@@ -95,7 +95,7 @@ const leadSchema = new Schema({
     activity_logs: [{
         type: {
             type: String,
-            enum: ['status_change', 'stage_change', 'note', 'assignment', 'creation', 'field_update'],
+            enum: ['status_change', 'stage_change', 'note', 'assignment', 'creation', 'field_update', 'system', 'assignment_change'],
             required: true
         },
         content: {

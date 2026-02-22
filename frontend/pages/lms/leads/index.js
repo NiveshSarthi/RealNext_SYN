@@ -50,7 +50,8 @@ import {
   Globe,
   Building2,
   Check,
-  Loader2
+  Loader2,
+  ChevronLeft
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
 import {
@@ -151,17 +152,17 @@ const StatsCard = ({ title, value, icon: Icon, colorClass, bgClass, delay = 0 })
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
-    className="bg-[#161B22]/40 backdrop-blur-xl border border-white/5 rounded-2xl p-5 flex flex-col justify-between h-36 relative overflow-hidden group hover:border-indigo-500/30 transition-all shadow-xl"
+    className="bg-[#161B22]/40 backdrop-blur-xl border border-white/5 rounded-2xl p-4 sm:p-5 flex flex-col justify-between h-32 sm:h-36 relative overflow-hidden group hover:border-indigo-500/30 transition-all shadow-xl"
   >
     <div className={`absolute -top-4 -right-4 p-3 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity ${colorClass}`}>
-      <Icon className="h-24 w-24" />
+      <Icon className="h-20 w-20 sm:h-24 sm:w-24" />
     </div>
-    <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${bgClass} ${colorClass} bg-opacity-10 mb-4 border border-white/5`}>
-      <Icon className="h-6 w-6" />
+    <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center ${bgClass} ${colorClass} bg-opacity-10 mb-2 sm:mb-4 border border-white/5`}>
+      <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
     </div>
     <div>
-      <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em]">{title}</p>
-      <h3 className="text-3xl font-black text-white mt-1 tabular-nums">{value}</h3>
+      <p className="text-gray-500 text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em]">{title}</p>
+      <h3 className="text-xl sm:text-3xl font-black text-white mt-0.5 sm:mt-1 tabular-nums">{value}</h3>
     </div>
   </motion.div>
 );
@@ -189,18 +190,18 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, onAssign, ca
       transition={{ delay: index * 0.05 }}
       className="bg-[#161B22]/60 backdrop-blur-md border border-white/5 rounded-2xl p-6 hover:border-indigo-500/30 transition-all group relative shadow-lg"
     >
-      <div className="flex justify-between items-start mb-5">
+      <div className="flex flex-col sm:flex-row justify-between items-start mb-5 gap-4">
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-white/10 text-indigo-400 font-black text-xl shadow-inner group-hover:scale-110 transition-transform">
+          <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-white/10 text-indigo-400 font-black text-lg shadow-inner group-hover:scale-110 transition-transform flex-shrink-0">
             {lead.name?.charAt(0)?.toUpperCase() || '?'}
           </div>
-          <div>
-            <h4 className="text-white font-bold text-lg truncate max-w-[180px]" title={lead.name}>{lead.name || 'Unknown Lead'}</h4>
-            <div className="flex items-center gap-2 mt-1.5">
+          <div className="min-w-0">
+            <h4 className="text-white font-bold text-base sm:text-lg truncate max-w-[180px]" title={lead.name}>{lead.name || 'Unknown Lead'}</h4>
+            <div className="flex flex-wrap items-center gap-2 mt-1.5">
               {isMetaLead && (
-                <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-blue-400 bg-blue-400/5 px-2 py-0.5 rounded-full border border-blue-400/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                  Meta Ads
+                <span className="flex items-center gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-blue-400 bg-blue-400/5 px-2 py-0.5 rounded-full border border-blue-400/20">
+                  <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  Meta
                 </span>
               )}
               <select
@@ -208,7 +209,7 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, onAssign, ca
                 onChange={handleStageChange}
                 onClick={(e) => e.stopPropagation()}
                 disabled={!canEdit}
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${stageColors[lead.stage] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
+                className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${stageColors[lead.stage] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
               >
                 {Object.keys(stageStatusMapping).map(stage => (
                   <option key={stage} value={stage} className="bg-[#161B22] text-gray-300">
@@ -216,23 +217,10 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, onAssign, ca
                   </option>
                 ))}
               </select>
-              <select
-                value={lead.status || 'Uncontacted'}
-                onChange={(e) => onStatusChange(lead, e.target.value, lead.stage)}
-                onClick={(e) => e.stopPropagation()}
-                disabled={!canEdit}
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-[#0D1117] cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}
-              >
-                {(stageStatusMapping[lead.stage] || stageStatusMapping['Screening']).map(status => (
-                  <option key={status} value={status} className="bg-[#161B22] text-gray-300">
-                    {status}
-                  </option>
-                ))}
-              </select>
             </div>
           </div>
         </div>
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-[#0D1117] p-1 rounded-xl shadow-xl">
+        <div className="sm:opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-[#0D1117] p-1 rounded-xl shadow-xl self-end sm:self-auto">
           <button onClick={() => onAssign(lead)} className="p-2 text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors" title="Assign Lead">
             <UserPlus className="h-4 w-4" />
           </button>
@@ -286,12 +274,12 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, onAssign, ca
 const CommunicationButton = ({ icon: Icon, label, color, onClick, sublabel }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all active:scale-95 group relative overflow-hidden ${color}`}
+    className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border transition-all active:scale-95 group relative overflow-hidden ${color}`}
   >
     <div className="relative z-10 flex flex-col items-center">
-      <Icon className="h-6 w-6 mb-2 group-hover:scale-110 transition-transform" />
-      <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
-      {sublabel && <span className="text-[8px] opacity-60 mt-0.5">{sublabel}</span>}
+      <Icon className="h-5 w-5 sm:h-6 sm:w-6 mb-1.5 sm:mb-2 group-hover:scale-110 transition-transform" />
+      <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">{label}</span>
+      {sublabel && <span className="text-[7px] sm:text-[8px] opacity-60 mt-0.5 hidden sm:inline">{sublabel}</span>}
     </div>
     <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
   </button>
@@ -436,24 +424,24 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
             <span className="relative z-10">{lead.name?.charAt(0)?.toUpperCase() || '?'}</span>
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
               {isEditing ? (
                 <input
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-2xl font-black text-white focus:outline-none focus:border-indigo-500/50 w-full md:w-auto"
+                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xl sm:text-2xl font-black text-white focus:outline-none focus:border-indigo-500/50 w-full sm:w-auto"
                   placeholder="Lead Name"
                 />
               ) : (
-                <h2 className="text-4xl font-black text-white tracking-tight">{lead.name || 'Anonymous'}</h2>
+                <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">{lead.name || 'Anonymous'}</h2>
               )}
-              <div className={`px-4 py-1.5 rounded-full text-[10px] font-black border tracking-[0.2em] uppercase flex items-center gap-2 ${score > 80 ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400' :
+              <div className={`px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black border tracking-[0.2em] uppercase flex items-center gap-1 sm:gap-2 ${score > 80 ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400' :
                 score > 50 ? 'bg-yellow-400/10 border-yellow-400/20 text-yellow-400' :
                   'bg-red-400/10 border-red-400/20 text-red-400'
                 }`}>
                 <span className="opacity-60">Score:</span>
-                <span className="text-lg leading-none">{score}</span>
+                <span className="text-sm sm:text-lg leading-none">{score}</span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3 mt-4">
@@ -507,7 +495,7 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {canEdit && (
             <>
               {isEditing ? (
@@ -515,16 +503,16 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                   <Button
                     onClick={() => setIsEditing(false)}
                     variant="outline"
-                    className="h-12 border-white/10 bg-transparent hover:bg-white/5 text-gray-400 rounded-2xl px-6 font-black uppercase tracking-widest text-[11px]"
+                    className="h-10 sm:h-12 border-white/10 bg-transparent hover:bg-white/5 text-gray-400 rounded-2xl px-4 sm:px-6 font-black uppercase tracking-widest text-[10px] sm:text-[11px]"
                   >
-                    <X className="h-4 w-4 mr-2" /> Cancel
+                    <X className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Cancel</span>
                   </Button>
                   <Button
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl px-8 shadow-2xl shadow-emerald-900/40 font-black uppercase tracking-widest text-[11px] border-0"
+                    className="h-10 sm:h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl px-6 sm:px-8 shadow-2xl shadow-emerald-900/40 font-black uppercase tracking-widest text-[10px] sm:text-[11px] border-0"
                   >
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 sm:mr-2" />}
                     Save
                   </Button>
                 </div>
@@ -532,17 +520,17 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                 <Button
                   onClick={() => setIsEditing(true)}
                   variant="outline"
-                  className="h-12 border-white/10 bg-transparent hover:bg-white/5 text-white rounded-2xl px-8 font-black uppercase tracking-widest text-[11px]"
+                  className="h-10 sm:h-12 border-white/10 bg-transparent hover:bg-white/5 text-white rounded-2xl px-6 sm:px-8 font-black uppercase tracking-widest text-[10px] sm:text-[11px]"
                 >
-                  <Pencil className="h-4 w-4 mr-2 opacity-50" /> Edit
+                  <Pencil className="h-4 w-4 sm:mr-2 opacity-50" /> <span className="hidden sm:inline">Edit</span>
                 </Button>
               )}
             </>
           )}
           <Button
-            className="h-12 bg-[#FF7A19] hover:bg-[#FF8B33] text-white rounded-2xl px-10 shadow-2xl shadow-orange-900/40 font-black uppercase tracking-widest text-[11px] border-0"
+            className="h-10 sm:h-12 bg-[#FF7A19] hover:bg-[#FF8B33] text-white rounded-2xl px-6 sm:px-10 shadow-2xl shadow-orange-900/40 font-black uppercase tracking-widest text-[10px] sm:text-[11px] border-0"
           >
-            <Zap className="h-4 w-4 mr-2" /> Act
+            <Zap className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Action</span>
           </Button>
         </div>
       </div>
@@ -558,7 +546,7 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
               <Sparkles className="h-3.5 w-3.5 text-yellow-400" />
               Property Analysis
             </h4>
-            <div className="grid grid-cols-2 gap-6 relative z-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 relative z-10">
               <div className="space-y-1">
                 <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Property Interest</p>
                 {isEditing ? (
@@ -580,28 +568,28 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                   </p>
                 )}
               </div>
-              <div className="space-y-1 text-right">
+              <div className="space-y-1 sm:text-right">
                 <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Budget Range</p>
                 {isEditing ? (
-                  <div className="flex gap-2 justify-end mt-1">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:justify-end mt-1">
                     <input
                       type="number"
                       value={editForm.budget_min}
                       onChange={(e) => setEditForm({ ...editForm, budget_min: e.target.value })}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 focus:outline-none focus:border-indigo-500/50 w-32 text-right"
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 focus:outline-none focus:border-indigo-500/50 w-full sm:w-32 sm:text-right"
                       placeholder="Min"
                     />
-                    <span className="text-gray-600 self-center">-</span>
+                    <span className="text-gray-600 self-center hidden sm:inline">-</span>
                     <input
                       type="number"
                       value={editForm.budget_max}
                       onChange={(e) => setEditForm({ ...editForm, budget_max: e.target.value })}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 focus:outline-none focus:border-indigo-500/50 w-32 text-right"
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 focus:outline-none focus:border-indigo-500/50 w-full sm:w-32 sm:text-right"
                       placeholder="Max"
                     />
                   </div>
                 ) : (
-                  <p className="text-lg font-black text-emerald-400">
+                  <p className="text-base sm:text-lg font-black text-emerald-400">
                     ₹{lead.budget_min?.toLocaleString() || '0'} - ₹{lead.budget_max?.toLocaleString() || 'Ask'}
                   </p>
                 )}
@@ -613,9 +601,9 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                   <span className="text-xs font-black text-gray-300 uppercase tracking-widest">{lead.source || 'Direct'}</span>
                 </div>
               </div>
-              <div className="space-y-1 text-right">
+              <div className="space-y-1 sm:text-right">
                 <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Priority</p>
-                <div className="flex items-center justify-end gap-2 mt-1">
+                <div className="flex items-center sm:justify-end gap-2 mt-1">
                   <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest border ${score > 70 ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-gray-500/10 border-white/5 text-gray-500'
                     }`}>
                     {score > 70 ? 'High Intent' : 'Monitoring'}
@@ -727,13 +715,13 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
           <div className="bg-[#161B22]/40 border border-white/5 rounded-3xl p-6">
             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-6">Management Matrix</h4>
             <div className="space-y-5">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20">
                     <TrendingUp className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Active Stage & Status</p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Stage & Status</p>
                     {isEditing ? (
                       <div className="flex gap-2 mt-1">
                         <select
@@ -763,14 +751,14 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                 {!isEditing && (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:bg-indigo-500/10 transition-all"
+                    className="w-fit px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:bg-indigo-500/10 transition-all"
                   >
                     Change
                   </button>
                 )}
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
                     <Users className="h-5 w-5" />
@@ -782,7 +770,7 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                 </div>
                 <button
                   onClick={() => onAssign(lead)}
-                  className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                  className="w-fit px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/10 transition-all"
                 >
                   Assign
                 </button>
@@ -791,13 +779,13 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
           </div>
 
           {/* Activity Timeline */}
-          <div className="bg-[#0D1117] border border-white/5 rounded-3xl p-6 flex flex-col h-[600px]">
+          <div className="bg-[#0D1117] border border-white/5 rounded-3xl p-4 sm:p-6 flex flex-col h-[450px] sm:h-[600px]">
             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-6 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Clock className="h-3.5 w-3.5" />
-                Live Pulse Timeline
+                <span className="hidden sm:inline">Live Pulse</span> Timeline
               </div>
-              <span className="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md border border-indigo-500/20 lowercase text-[8px] font-bold">Auto-sync active</span>
+              <span className="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md border border-indigo-500/20 lowercase text-[8px] font-bold">Live Sync</span>
             </h4>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
@@ -915,9 +903,9 @@ export default function Leads() {
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
-  // Selection State for Combined View
   const [selectedLead, setSelectedLead] = useState(null);
   const [isSelectionLoading, setIsSelectionLoading] = useState(false);
+  const [mobileSubView, setMobileSubView] = useState('list'); // 'list' or 'detail'
   // Dynamic Filter Options
   const [filterOptions, setFilterOptions] = useState({
     form_names: [],
@@ -1092,6 +1080,7 @@ export default function Leads() {
     if (!lead) return;
     setIsSelectionLoading(true);
     setSelectedLead(lead);
+    setMobileSubView('detail'); // Switch to detail view on mobile
     try {
       // Fetch full details for the selected lead to ensure timeline and notes are fresh
       const res = await leadsAPI.getLead(lead.id || lead._id);
@@ -1260,8 +1249,8 @@ export default function Leads() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-          <StatsCard title="Pipeline Total" value={stats.total} icon={Zap} colorClass="text-indigo-400" bgClass="bg-indigo-400" delay={0.1} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
+          <StatsCard title="Pipeline" value={stats.total} icon={Zap} colorClass="text-indigo-400" bgClass="bg-indigo-400" delay={0.1} />
           <StatsCard title="Screening" value={stats.screening} icon={Users} colorClass="text-blue-400" bgClass="bg-blue-400" delay={0.2} />
           <StatsCard title="Sourcing" value={stats.sourcing} icon={Search} colorClass="text-yellow-400" bgClass="bg-yellow-400" delay={0.3} />
           <StatsCard title="Walk-in" value={stats.walkin} icon={MapPin} colorClass="text-pink-400" bgClass="bg-pink-400" delay={0.4} />
@@ -1269,15 +1258,15 @@ export default function Leads() {
         </div>
 
         {/* Management Toolbar */}
-        <div className="bg-[#161B22]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-4 flex flex-col lg:flex-row justify-between items-center gap-6 shadow-2xl">
-          <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
+        <div className="bg-[#161B22]/60 backdrop-blur-xl border border-white/5 rounded-3xl p-4 flex flex-col xl:flex-row justify-between items-center gap-4 sm:gap-6 shadow-2xl">
+          <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full xl:w-auto">
             {/* Stage Filter */}
-            <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
+            <div className="flex w-full sm:w-auto bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
               <span className="px-3 flex items-center text-[10px] font-black uppercase tracking-widest text-gray-500">Stage:</span>
               <select
                 value={stageFilter}
                 onChange={(e) => { setStageFilter(e.target.value); setStatusFilter('all'); setCurrentPage(1); }}
-                className="bg-transparent text-gray-300 text-xs font-black uppercase tracking-widest px-4 py-2 focus:outline-none cursor-pointer"
+                className="bg-transparent text-gray-300 text-xs font-black uppercase tracking-widest px-4 py-2 focus:outline-none cursor-pointer flex-1 sm:flex-none"
               >
                 <option value="all">All Stages</option>
                 {Object.keys(stageStatusMapping).map(stage => (
@@ -1287,12 +1276,12 @@ export default function Leads() {
             </div>
 
             {/* Status Filter */}
-            <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
+            <div className="flex w-full sm:w-auto bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
               <span className="px-3 flex items-center text-[10px] font-black uppercase tracking-widest text-gray-500">Status:</span>
               <select
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                className="bg-transparent text-gray-300 text-xs font-black uppercase tracking-widest px-4 py-2 focus:outline-none cursor-pointer"
+                className="bg-transparent text-gray-300 text-xs font-black uppercase tracking-widest px-4 py-2 focus:outline-none cursor-pointer flex-1 sm:flex-none"
               >
                 <option value="all">All Status</option>
                 {(stageFilter === 'all'
@@ -1306,18 +1295,18 @@ export default function Leads() {
           </div>
 
           {/* Search Center */}
-          <div className="flex-1 max-w-xl w-full relative group">
+          <div className="flex-1 max-w-full xl:max-w-xl w-full relative group order-last xl:order-none">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 group-focus-within:text-indigo-400 transition-colors" />
             <input
               type="text"
-              placeholder="Search by name, email, phone, location..."
+              placeholder="Search leads..."
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               className="w-full bg-[#0E1117]/80 border border-white/5 rounded-2xl py-3.5 pl-14 pr-6 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-all shadow-inner"
             />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between xl:justify-end gap-3 w-full xl:w-auto">
             {/* View Toggle */}
             <div className="flex bg-[#0E1117]/80 rounded-2xl p-1.5 border border-white/5">
               <button
@@ -1334,24 +1323,26 @@ export default function Leads() {
               </button>
             </div>
 
-            <button
-              onClick={() => {
-                fetchLeads(false);
-                fetchStats();
-                toast.success('Matrix Refreshed');
-              }}
-              className="p-3 rounded-2xl bg-[#0E1117]/80 border border-white/5 text-gray-500 hover:text-indigo-400 hover:border-indigo-500/30 transition-all active:scale-95"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  fetchLeads(false);
+                  fetchStats();
+                  toast.success('Matrix Refreshed');
+                }}
+                className="p-3 rounded-2xl bg-[#0E1117]/80 border border-white/5 text-gray-500 hover:text-indigo-400 hover:border-indigo-500/30 transition-all active:scale-95"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
 
-            <Button
-              onClick={() => setShowAdvancedFilters(true)}
-              variant="outline"
-              className="bg-[#0E1117]/80 border-white/5 hover:border-indigo-500/30 text-gray-400 hover:text-white rounded-2xl h-12 px-6 font-black uppercase tracking-widest text-[10px]"
-            >
-              <Filter className="w-3.5 h-3.5 mr-2" /> Advanced
-            </Button>
+              <Button
+                onClick={() => setShowAdvancedFilters(true)}
+                variant="outline"
+                className="bg-[#0E1117]/80 border-white/5 hover:border-indigo-500/30 text-gray-400 hover:text-white rounded-2xl h-12 px-4 sm:px-6 font-black uppercase tracking-widest text-[9px] sm:text-[10px]"
+              >
+                <Filter className="w-3.5 h-3.5 mr-2" /> <span className="hidden sm:inline">Advanced</span>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -1574,16 +1565,16 @@ export default function Leads() {
               >
                 {leads.length > 0 ? (
                   viewMode === 'table' ? (
-                    <div className="flex flex-col xl:flex-row gap-8 h-[1000px] xl:h-[800px]">
+                    <div className="flex flex-col xl:flex-row gap-8 min-h-[600px] xl:h-[800px]">
                       {/* Left Panel: Compact List */}
-                      <div className="w-full xl:w-[380px] flex flex-col h-full bg-[#161B22]/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-4 shadow-2xl">
+                      <div className={`w-full xl:w-[380px] flex flex-col h-full bg-[#161B22]/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-4 shadow-2xl ${mobileSubView === 'detail' ? 'hidden xl:flex' : 'flex'}`}>
                         <div className="flex items-center justify-between mb-4 px-2">
                           <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Master Index</h4>
                           <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
                             {leads.length} Records
                           </span>
                         </div>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1 max-h-[500px] xl:max-h-none">
                           {leads.map((lead) => (
                             <LeadListItem
                               key={lead.id}
@@ -1596,13 +1587,24 @@ export default function Leads() {
                       </div>
 
                       {/* Right Panel: Enhanced Detail Visualization */}
-                      <div className="flex-1 bg-[#161B22]/60 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+                      <div className={`flex-1 bg-[#161B22]/60 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] p-6 sm:p-8 shadow-2xl relative overflow-hidden ${mobileSubView === 'list' ? 'hidden xl:block' : 'block'}`}>
+                        {/* Mobile Back Button */}
+                        <div className="xl:hidden mb-6">
+                          <button
+                            onClick={() => setMobileSubView('list')}
+                            className="flex items-center gap-2 text-indigo-400 font-bold uppercase tracking-widest text-xs hover:text-indigo-300 transition-colors"
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                            Back to Index
+                          </button>
+                        </div>
+
                         {/* Background Decorative Gradient */}
                         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/5 blur-[120px] rounded-full -mr-48 -mt-48 z-0" />
 
                         <div className="relative z-10 h-full">
                           {isSelectionLoading ? (
-                            <div className="h-full flex flex-col items-center justify-center text-indigo-500/30">
+                            <div className="h-full flex flex-col items-center justify-center text-indigo-500/30 py-20">
                               <div className="w-10 h-10 border-2 border-indigo-500/10 border-t-indigo-500/50 rounded-full animate-spin mb-4" />
                               <p className="text-[10px] uppercase font-black tracking-widest">Syncing Matrix...</p>
                             </div>
