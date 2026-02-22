@@ -138,13 +138,22 @@ router.post('/',
                 throw new ApiError(400, `External WhatsApp API Error: ${errorMsg}`);
             }
 
+            // Normalize status to match local enum ['pending', 'approved', 'rejected', 'disabled']
+            let normalizedStatus = 'pending';
+            const rawStatus = (externalTemplate?.status || 'pending').toLowerCase();
+            if (['pending', 'approved', 'rejected', 'disabled'].includes(rawStatus)) {
+                normalizedStatus = rawStatus;
+            } else if (rawStatus === 'success' || rawStatus === 'created') {
+                normalizedStatus = 'pending'; // WFB returns success but Meta/Local use pending for new templates
+            }
+
             // 2. Create Local Record
             const template = await Template.create({
                 client_id: req.client.id,
                 name,
                 category,
                 language: languageCode,
-                status: externalTemplate?.status || 'approved', // Assume approved/pending based on response
+                status: normalizedStatus,
                 components: components || {},
                 header_type,
                 body_text,

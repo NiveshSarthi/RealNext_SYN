@@ -49,7 +49,7 @@ router.post('/', async (req, res, next) => {
         res.status(201).json({
             status: 'success',
             message: 'Flow created successfully',
-            flow_id: result.id || result._id, // API might return id or _id
+            flow_id: result.flow_id || result.id || result._id, // API returns flow_id
             data: result
         });
     } catch (error) {
@@ -108,7 +108,21 @@ router.get('/:id', async (req, res, next) => {
  */
 router.put('/:id', async (req, res, next) => {
     try {
-        const result = await waService.updateFlow(req.params.id, req.body);
+        const { name, name: flowName, description, categories, Message_Blocks, Message_Routes } = req.body;
+
+        // External WFB API requires a specific wrapped structure for updates:
+        // meta fields at top level, and blocks/routes inside a 'data' array.
+        const wrappedPayload = {
+            name: name || flowName,
+            description: description || '',
+            categories: categories || ['other'],
+            data: [
+                { Message_Blocks: Message_Blocks || [] },
+                { Message_Routes: Message_Routes || [] }
+            ]
+        };
+
+        const result = await waService.updateFlow(req.params.id, wrappedPayload);
         res.json({
             status: 'success',
             message: 'Flow updated successfully',

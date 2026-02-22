@@ -1,35 +1,15 @@
-const http = require('http');
+const axios = require('axios');
 
-const data = JSON.stringify({
-    email: 'admin@realnext.com',
-    password: 'RealnextAdmin2024!debug' // From .env
-});
-
-const options = {
-    hostname: 'localhost',
-    port: 5062,
-    path: '/api/auth/login',
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': data.length
+async function testLogin() {
+    try {
+        console.log('Testing login for ratification...');
+        const res = await axios.post('http://localhost:5062/api/auth/login', {
+            email: 'testclient@realnext.com',
+            password: 'password123'
+        });
+        console.log('Success:', res.data);
+    } catch (e) {
+        console.log('Error:', e.response?.data || e.message);
     }
-};
-
-const req = http.request(options, (res) => {
-    console.log(`STATUS: ${res.statusCode}`);
-    res.setEncoding('utf8');
-    res.on('data', (chunk) => {
-        console.log(`BODY: ${chunk}`);
-    });
-    res.on('end', () => {
-        console.log('No more data in response.');
-    });
-});
-
-req.on('error', (e) => {
-    console.error(`problem with request: ${e.message}`);
-});
-
-req.write(data);
-req.end();
+}
+testLogin();

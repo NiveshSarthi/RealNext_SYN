@@ -1,0 +1,6 @@
+FAILED: 401
+{
+  "success": false,
+  "error": "User not found",
+  "code": "UNAUTHORIZED"
+}

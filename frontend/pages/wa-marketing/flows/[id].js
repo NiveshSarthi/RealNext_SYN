@@ -43,6 +43,7 @@ export default function FlowBuilder() {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [flowName, setFlowName] = useState('Untitled Flow');
+    const [flowMeta, setFlowMeta] = useState(null);
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -57,6 +58,7 @@ export default function FlowBuilder() {
         setLoading(true);
         try {
             const data = await flowApi.getFlow(flowId);
+            setFlowMeta(data.meta);
             setFlowName(data.meta?.name || 'Untitled Flow');
 
             const { nodes: loadedNodes, edges: loadedEdges } = jsonToFlow(data.data);
@@ -121,12 +123,17 @@ export default function FlowBuilder() {
         setSaving(true);
         try {
             const flowData = flowToJson(nodes, edges);
-            // We can also update name here if we had an input for it, 
-            // but for now we just save the graph.
-            await flowApi.updateFlow(flowId, {
+
+            // External API requires full object (name, description, categories, Message_Blocks, Message_Routes)
+            const payload = {
+                name: flowMeta?.name || flowName,
+                description: flowMeta?.description || '',
+                categories: flowMeta?.categories || ['other'],
                 Message_Blocks: flowData.Message_Blocks,
                 Message_Routes: flowData.Message_Routes
-            });
+            };
+
+            await flowApi.updateFlow(flowId, payload);
             toast.success('Flow saved successfully!');
         } catch (error) {
             console.error('Save failed', error);
