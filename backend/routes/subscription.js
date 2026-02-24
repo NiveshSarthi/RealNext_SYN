@@ -4,6 +4,18 @@ const { Plan, Feature, PlanFeature, Subscription } = require('../models');
 const { authenticate, optionalAuth } = require('../middleware/auth');
 const { ApiError } = require('../middleware/errorHandler');
 
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    // Super admins can skip client context check for listing (GET)
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
+
 /**
  * @route GET /api/subscription/plans
  * @desc Get all public plans (for pricing page)
@@ -41,11 +53,12 @@ router.get('/plans', optionalAuth, async (req, res, next) => {
  */
 router.get('/current', authenticate, async (req, res, next) => {
     try {
-        if (!req.client) {
+        ensureClient(req);
+        if (!req.client?.id) {
             return res.json({
                 success: true,
                 data: null,
-                message: 'No client context'
+                message: 'Global Super Admin context (no client selected)'
             });
         }
 
@@ -174,11 +187,8 @@ router.post('/activate', authenticate, async (req, res, next) => {
  */
 router.post('/cancel', authenticate, async (req, res, next) => {
     try {
+        ensureClient(req);
         const { reason, immediate } = req.body;
-
-        if (!req.client) {
-            throw ApiError.badRequest('Client context required');
-        }
 
         const subscription = await Subscription.findOne({
             client_id: req.client.id,

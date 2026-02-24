@@ -37,7 +37,9 @@ export default function LeadDetail() {
         stage: '',
         status: '',
         assigned_to: '',
-        source: ''
+        source: '',
+        form_name: '',
+        campaign_name: ''
     });
 
     const stageStatusMapping = {
@@ -67,7 +69,9 @@ export default function LeadDetail() {
                 stage: leadData.stage || 'Screening',
                 status: leadData.status || 'Uncontacted',
                 assigned_to: leadData.assigned_to?._id || leadData.assigned_to || '',
-                source: leadData.source || 'manual'
+                source: leadData.source || 'manual',
+                form_name: leadData.form_name || '',
+                campaign_name: leadData.campaign_name || ''
             });
         } catch (error) {
             console.error('Failed to fetch lead:', error);
@@ -126,7 +130,9 @@ export default function LeadDetail() {
             await leadsAPI.updateLead(id, {
                 stage: quickUpdateForm.stage,
                 status: quickUpdateForm.status,
-                source: quickUpdateForm.source
+                source: quickUpdateForm.source,
+                form_name: quickUpdateForm.form_name,
+                campaign_name: quickUpdateForm.campaign_name
             });
 
             toast.success('Lead updated successfully');
@@ -274,9 +280,16 @@ export default function LeadDetail() {
                                         <div className="h-6 w-6 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
                                             <TagIcon className="h-3.5 w-3.5 text-emerald-400" />
                                         </div>
-                                        <span className="text-sm font-medium text-white capitalize">
-                                            {lead.source || 'manual'}
-                                        </span>
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium text-white capitalize leading-tight">
+                                                {lead.source || 'manual'}
+                                            </span>
+                                            {lead.form_name && (
+                                                <span className="text-[10px] text-indigo-400 font-bold truncate max-w-[150px]">
+                                                    {lead.form_name}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -294,6 +307,8 @@ export default function LeadDetail() {
                                 <DetailRow label="Phone" value={lead.phone} icon={PhoneIcon} />
                                 <DetailRow label="Email" value={lead.email || 'Not provided'} icon={EnvelopeIcon} />
                                 <DetailRow label="Location" value={lead.location || 'Not specified'} icon={MapPinIcon} />
+                                <DetailRow label="Marketing Form" value={lead.form_name || 'N/A'} icon={PaperAirplaneIcon} />
+                                <DetailRow label="Campaign" value={lead.campaign_name || 'N/A'} icon={TagIcon} />
                             </dl>
                         </div>
 

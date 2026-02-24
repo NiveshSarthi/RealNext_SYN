@@ -15,6 +15,11 @@ router.use(authenticate, requireClientAccess, setClientContext, enforceClientSco
 
 // Defensive helper to ensure client context exists before using req.client.id
 const ensureClient = (req) => {
+    // Super admins can skip client context check for listing (GET)
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
     if (!req.client || !req.client.id) {
         throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
     }
@@ -28,7 +33,10 @@ router.get('/', requireFeature('quick_replies'), async (req, res, next) => {
     try {
         ensureClient(req);
         const { category, search } = req.query;
-        const query = { client_id: req.client.id };
+        let query = {};
+        if (req.client?.id) {
+            query.client_id = req.client.id;
+        }
 
         if (category) query.category = category;
         if (search) {
@@ -167,8 +175,9 @@ router.post('/process', requireFeature('quick_replies'), async (req, res, next) 
 
         if (shortcutMatch) {
             const shortcut = shortcutMatch[1];
+            const clientFilter = req.client?.id ? { client_id: req.client.id } : {};
             const reply = await QuickReply.findOne({
-                client_id: req.client.id,
+                ...clientFilter,
                 shortcut
             });
 
@@ -214,7 +223,8 @@ router.get('/stats/overview', requireFeature('quick_replies'), async (req, res, 
             }
         ]);
 
-        const topReplies = await QuickReply.find({ client_id: req.client.id })
+        const clientFilter = req.client?.id ? { client_id: req.client.id } : {};
+        const topReplies = await QuickReply.find(clientFilter)
             .sort({ usage_count: -1 })
             .limit(5);
 

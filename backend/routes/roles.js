@@ -9,17 +9,30 @@ const { ApiError } = require('../middleware/errorHandler');
 // Middleware
 router.use(authenticate, requireClientAccess, enforceClientScope);
 
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    // Super admins can skip client context check for listing (GET)
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
+
 /**
  * @route GET /api/roles
  * @desc Get all roles for the tenant (including system roles)
  */
 router.get('/', async (req, res, next) => {
     try {
-        const clientId = req.client.id;
+        ensureClient(req);
+        const clientId = req.client?.id;
 
-        // Get client-specific roles
-        const clientRoles = await Role.find({ client_id: clientId })
-            .sort({ is_system: -1, created_at: 1 });
+        // Get client-specific roles (if client selected)
+        const clientRoles = clientId ? await Role.find({ client_id: clientId })
+            .sort({ is_system: -1, created_at: 1 }) : [];
 
         // Also include system-wide roles (client_id = null)
         const systemRoles = await Role.find({ client_id: null })
@@ -77,6 +90,7 @@ router.get('/permissions', async (req, res, next) => {
  */
 router.post('/', async (req, res, next) => {
     try {
+        ensureClient(req);
         const { name, description, permissions } = req.body;
         const clientId = req.client.id;
 
@@ -133,6 +147,7 @@ router.post('/', async (req, res, next) => {
  */
 router.patch('/:id', async (req, res, next) => {
     try {
+        ensureClient(req);
         const { id } = req.params;
         const { name, description, permissions } = req.body;
         const clientId = req.client.id;
@@ -204,6 +219,7 @@ router.patch('/:id', async (req, res, next) => {
  */
 router.delete('/:id', async (req, res, next) => {
     try {
+        ensureClient(req);
         const { id } = req.params;
         const clientId = req.client.id;
 

@@ -27,7 +27,14 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('access_token');
+      let token = localStorage.getItem('access_token');
+
+      // Defensive check for corrupted token strings
+      if (token === 'undefined' || token === 'null') {
+        localStorage.removeItem('access_token');
+        token = null;
+      }
+
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -68,11 +75,22 @@ api.interceptors.response.use(
           try {
             console.log('[API Interceptor] Calling refresh endpoint...');
             const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, { refresh_token: refreshToken });
-            const { access_token } = response.data;
-            localStorage.setItem('access_token', access_token);
-            originalRequest.headers.Authorization = `Bearer ${access_token}`;
-            console.log('[API Interceptor] Token refreshed successfully, retrying request');
-            return axios(originalRequest);
+
+            // Fix: Backend response is { success: true, data: { access_token, refresh_token } }
+            const access_token = response.data?.data?.access_token;
+            const new_refresh_token = response.data?.data?.refresh_token;
+
+            if (access_token && access_token !== 'undefined') {
+              localStorage.setItem('access_token', access_token);
+              if (new_refresh_token && new_refresh_token !== 'undefined') {
+                localStorage.setItem('refresh_token', new_refresh_token);
+              }
+              originalRequest.headers.Authorization = `Bearer ${access_token}`;
+              console.log('[API Interceptor] Token refreshed successfully, retrying request');
+              return axios(originalRequest);
+            } else {
+              throw new Error('Invalid token received from refresh endpoint');
+            }
           } catch (refreshError) {
             console.error('[API Interceptor] Token refresh failed:', refreshError.message);
             localStorage.removeItem('access_token');
@@ -238,6 +256,11 @@ export const internalLeadsAPI = {
   importLeads: (data) => api.post('/api/leads/import', data), // expects { leads: [...] }
   getStats: () => api.get('/api/leads/stats/overview'),
   getFilters: () => api.get('/api/leads/filters'),
+  bulkMove: (leadIds, stage) => api.patch('/api/leads/bulk-move', { lead_ids: leadIds, stage }),
+  getStageMetadata: () => api.get('/api/leads/stage-metadata'),
+  getStages: () => api.get('/api/leads/stages'),
+  createStage: (data) => api.post('/api/leads/stages', data),
+  reorderStages: (ids) => api.put('/api/leads/stages/reorder', { ids }),
 };
 
 // Aliasing contactsAPI to leadsAPI for backward compatibility

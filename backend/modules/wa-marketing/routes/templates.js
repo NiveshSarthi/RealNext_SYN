@@ -17,6 +17,11 @@ router.use(authenticate, requireClientAccess, setClientContext, enforceClientSco
 
 // Defensive helper to ensure client context exists before using req.client.id
 const ensureClient = (req) => {
+    // Super admins can skip client context check for listing (GET)
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
     if (!req.client || !req.client.id) {
         throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
     }
@@ -73,8 +78,11 @@ router.get('/', requireFeature('templates'), async (req, res, next) => {
         const statusFilter = req.query.status ? { status: req.query.status } : null;
         const categoryFilter = req.query.category ? { category: req.query.category } : null;
 
+        // Core filter: if client context exists, use it. If not (Super Admin), don't filter by client_id.
+        const clientFilter = req.client?.id ? { client_id: req.client.id } : {};
+
         const where = mergeFilters(
-            { client_id: req.client.id },
+            clientFilter,
             statusFilter,
             categoryFilter
         );
@@ -213,10 +221,11 @@ router.post('/',
 router.get('/:id', requireFeature('templates'), async (req, res, next) => {
     try {
         ensureClient(req);
-        const template = await Template.findOne({
-            _id: req.params.id,
-            client_id: req.client.id
-        });
+        const query = { _id: req.params.id };
+        if (req.client?.id) {
+            query.client_id = req.client.id;
+        }
+        const template = await Template.findOne(query);
 
         if (!template) {
             throw ApiError.notFound('Template not found');
@@ -242,10 +251,11 @@ router.put('/:id',
     async (req, res, next) => {
         try {
             ensureClient(req);
-            const template = await Template.findOne({
-                _id: req.params.id,
-                client_id: req.client.id
-            });
+            const query = { _id: req.params.id };
+            if (req.client?.id) {
+                query.client_id = req.client.id;
+            }
+            const template = await Template.findOne(query);
 
             if (!template) {
                 throw ApiError.notFound('Template not found');

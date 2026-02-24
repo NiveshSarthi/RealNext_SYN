@@ -10,6 +10,18 @@ const { ApiError } = require('../middleware/errorHandler');
 const { validate, validators } = require('../utils/validators');
 const { getPagination, getPaginatedResponse, getSorting, buildSearchFilter, mergeFilters } = require('../utils/helpers');
 
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    // Super admins can skip client context check for listing (GET)
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
+
 // All routes require authentication and client access
 router.use(authenticate, requireClientAccess, enforceClientScope);
 
@@ -20,6 +32,10 @@ router.use(authenticate, requireClientAccess, enforceClientScope);
  */
 router.get('/profile', async (req, res, next) => {
     try {
+        ensureClient(req);
+        if (!req.client?.id) {
+            return res.json({ success: true, data: null, message: 'Global Super Admin context (no client selected)' });
+        }
         const client = await Client.findById(req.client.id)
             .populate({
                 path: 'subscriptions',
@@ -57,6 +73,7 @@ router.put('/profile',
     auditAction('update', 'client'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const client = await Client.findById(req.client.id);
             if (!client) {
                 throw ApiError.notFound('Client not found');
@@ -92,7 +109,9 @@ router.put('/profile',
  */
 router.get('/users', async (req, res, next) => {
     try {
-        const clientUsers = await ClientUser.find({ client_id: req.client.id })
+        ensureClient(req);
+        const clientFilter = req.client?.id ? { client_id: req.client.id } : {};
+        const clientUsers = await ClientUser.find(clientFilter)
             .populate({
                 path: 'user_id',
                 select: 'name email avatar_url phone status last_login_at'
@@ -123,6 +142,7 @@ router.post('/users',
     auditAction('add_user', 'client'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const { email, name, role, permissions, department } = req.body;
 
             // Check subscription limits
@@ -272,6 +292,10 @@ router.delete('/users/:userId',
  */
 router.get('/subscription', async (req, res, next) => {
     try {
+        ensureClient(req);
+        if (!req.client?.id) {
+            return res.json({ success: true, data: null, message: 'Global Super Admin context (no client selected)' });
+        }
         const subscriptionService = require('../services/subscriptionService');
         const subscription = await subscriptionService.getSubscription(req.client.id);
 
@@ -304,16 +328,20 @@ router.get('/subscription', async (req, res, next) => {
  */
 router.get('/stats', async (req, res, next) => {
     try {
+        ensureClient(req);
+        const clientId = req.client?.id ? new mongoose.Types.ObjectId(req.client.id) : null;
+        const matchStage = clientId ? { client_id: clientId } : {};
+
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
         // In Mongoose, we use counts on the models
         const [leadCount, newLeadsThisMonth, campaignCount, activeCampaigns, teamCount] = await Promise.all([
-            Lead.countDocuments({ client_id: req.client.id }),
-            Lead.countDocuments({ client_id: req.client.id, created_at: { $gte: thirtyDaysAgo } }),
-            Campaign.countDocuments({ client_id: req.client.id }),
-            Campaign.countDocuments({ client_id: req.client.id, status: 'running' }),
-            ClientUser.countDocuments({ client_id: req.client.id })
+            Lead.countDocuments(matchStage),
+            Lead.countDocuments({ ...matchStage, created_at: { $gte: thirtyDaysAgo } }),
+            Campaign.countDocuments(matchStage),
+            Campaign.countDocuments({ ...matchStage, status: 'running' }),
+            ClientUser.countDocuments(matchStage)
         ]);
 
         res.json({

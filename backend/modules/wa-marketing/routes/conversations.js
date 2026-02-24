@@ -14,6 +14,11 @@ router.use(authenticate, requireClientAccess, setClientContext, enforceClientSco
 router.use(requireFeature('campaigns')); // Using campaigns as feature gate for all WA Marketing features
 
 const ensureClient = (req) => {
+    // Super admins can skip client context check for GET
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
     if (!req.client || !req.client.id) {
         throw new ApiError(400, 'Client context is required.');
     }
@@ -27,7 +32,10 @@ router.get('/', async (req, res, next) => {
     try {
         ensureClient(req);
 
-        let query = { client_id: req.client.id };
+        let query = {};
+        if (req.client?.id) {
+            query.client_id = req.client.id;
+        }
         if (req.query.search) {
             query.$or = [
                 { phone_number: { $regex: req.query.search, $options: 'i' } },
@@ -61,8 +69,9 @@ router.get('/:number/messages', async (req, res, next) => {
         ensureClient(req);
         const phoneNumber = req.params.number;
 
+        const clientFilter = req.client?.id ? { client_id: req.client.id } : {};
         const conversation = await WaConversation.findOne({
-            client_id: req.client.id,
+            ...clientFilter,
             phone_number: phoneNumber
         });
 
@@ -71,7 +80,7 @@ router.get('/:number/messages', async (req, res, next) => {
         }
 
         const messages = await WaMessage.find({
-            client_id: req.client.id,
+            ...clientFilter,
             conversation_id: conversation._id
         }).sort({ timestamp: 1 });
 
@@ -104,7 +113,7 @@ router.post('/send', async (req, res, next) => {
         }
 
         // 1. Ensure conversation exists locally
-        let conversation = await WaConversation.findOne({ client_id: req.client.id, phone_number: to });
+        let conversation = await WaConversation.findOne({ ...clientFilter, phone_number: to });
         if (!conversation) {
             conversation = await WaConversation.create({
                 client_id: req.client.id,

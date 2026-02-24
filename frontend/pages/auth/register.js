@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import {
@@ -8,7 +9,15 @@ import {
   ChatBubbleLeftRightIcon,
   EyeIcon,
   EyeSlashIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  UserIcon,
+  EnvelopeIcon,
+  BuildingOfficeIcon,
+  PhoneIcon,
+  LockClosedIcon,
+  SparklesIcon,
+  ShieldCheckIcon,
+  IdentificationIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '../../components/ui/Button';
 
@@ -37,11 +46,6 @@ export default function Register() {
 
     if (formData.password.length < 8) {
       toast.error('Password must be at least 8 characters long');
-      return;
-    }
-
-    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])/.test(formData.password)) {
-      toast.error('Password must contain at least one uppercase letter, one lowercase letter, and one number');
       return;
     }
 
@@ -77,235 +81,298 @@ export default function Register() {
   };
 
   const passwordStrength = (password) => {
-    if (password.length === 0) return { score: 0, label: '', color: '' };
-    if (password.length < 6) return { score: 1, label: 'Weak', color: 'text-red-500' };
-    if (password.length < 8) return { score: 2, label: 'Fair', color: 'text-yellow-500' };
-    if (password.length < 12) return { score: 3, label: 'Good', color: 'text-blue-500' };
-    return { score: 4, label: 'Strong', color: 'text-green-500' };
+    if (password.length === 0) return { score: 0, label: '', color: 'bg-gray-800' };
+    if (password.length < 6) return { score: 1, label: 'Weak', color: 'bg-red-500' };
+    if (password.length < 8) return { score: 2, label: 'Fair', color: 'bg-yellow-500' };
+    if (password.length < 12) return { score: 3, label: 'Good', color: 'bg-blue-500' };
+    return { score: 4, label: 'Strong', color: 'bg-green-500' };
   };
 
   const strength = passwordStrength(formData.password);
 
   return (
-    <div className="min-h-screen bg-[#0E1117] flex items-center justify-center p-4 relative overflow-hidden font-sans selection:bg-primary/30">
-      {/* Background Ambience */}
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-purple-500/10 blur-[120px] rounded-full opacity-20 pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-primary/10 blur-[100px] rounded-full opacity-10 pointer-events-none"></div>
+    <div className="min-h-screen bg-[#07090D] flex items-center justify-center p-6 relative overflow-hidden font-sans selection:bg-primary/30">
+      {/* Immersive Background Mesh (Shared with Login) */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[url('https://grain-gradient.vercel.app/noise.svg')] opacity-[0.15] mix-blend-overlay"></div>
+        <motion.div
+          animate={{
+            x: [0, -100, 50, 0],
+            y: [0, 50, -100, 0],
+            rotate: [0, -90, -180, 0],
+            scale: [1, 1.2, 0.8, 1]
+          }}
+          transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
+          className="absolute -top-[20%] -left-[20%] w-[1000px] h-[1000px] bg-purple-600/20 blur-[180px] rounded-full mix-blend-screen"
+        ></motion.div>
+        <motion.div
+          animate={{
+            x: [0, 100, -50, 0],
+            y: [0, -100, 50, 0],
+            rotate: [0, 90, 180, 0],
+            scale: [1, 1.3, 0.9, 1]
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          className="absolute -bottom-[20%] -right-[20%] w-[1100px] h-[1100px] bg-primary/20 blur-[180px] rounded-full mix-blend-screen"
+        ></motion.div>
+      </div>
 
-      <div className="w-full max-w-md relative z-10 animate-fade-in my-8">
-        {/* Back to Home */}
-        <div className="mb-8">
-          <Link href="/" className="inline-flex items-center text-gray-500 hover:text-white transition-colors text-sm font-medium">
-            <ArrowLeftIcon className="h-4 w-4 mr-2" />
-            Back to home
+      <div className="w-full max-w-2xl relative z-10 my-16">
+        {/* Premium Back Navigation */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-12 flex justify-center"
+        >
+          <Link href="/" className="group flex items-center space-x-3 px-6 py-2 rounded-full border border-white/5 bg-white/5 backdrop-blur-md hover:bg-white/10 hover:border-white/10 transition-all duration-300">
+            <ArrowLeftIcon className="h-4 w-4 text-gray-500 group-hover:text-primary transition-colors" />
+            <span className="text-[10px] font-black text-gray-500 group-hover:text-white uppercase tracking-[0.4em]">Return to Core</span>
           </Link>
-        </div>
+        </motion.div>
 
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="mx-auto h-14 w-14 bg-gradient-to-br from-primary to-orange-600 rounded-xl flex items-center justify-center shadow-glow mb-6 text-black">
-            <ChatBubbleLeftRightIcon className="h-7 w-7" />
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Create account</h1>
-          <p className="text-gray-400">
-            Join the automated real estate revolution
-          </p>
-        </div>
+        {/* Extreme Glass Card */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          className="relative"
+        >
+          <div className="absolute -inset-[1px] bg-gradient-to-br from-white/20 via-transparent to-primary/20 rounded-[4rem] p-[1px] opacity-50"></div>
 
-        {/* Main Card */}
-        <div className="bg-[#161B22]/80 backdrop-blur-md rounded-2xl shadow-soft border border-white/5 p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <InputField
-              id="name"
-              label="Full Name"
-              placeholder="John Doe"
-              value={formData.name}
-              onChange={handleChange}
-              required
-            />
+          <div className="relative bg-[#0E1117]/80 backdrop-blur-[120px] rounded-[4rem] shadow-[0_0_100px_-20px_rgba(0,0,0,0.8)] p-12 md:p-20 border border-white/10 overflow-hidden">
+            <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
+              style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '32px 32px' }}></div>
 
-            <InputField
-              id="email"
-              label="Email Address"
-              type="email"
-              placeholder="john@realestate.com"
-              value={formData.email}
-              onChange={handleChange}
-              required
-            />
-
-            <InputField
-              id="businessName"
-              label="Business Name"
-              placeholder="Prime Properties Ltd."
-              value={formData.businessName}
-              onChange={handleChange}
-              required
-            />
-
-            <div className="space-y-2">
-              <label htmlFor="whatsappNumber" className="text-sm font-medium text-gray-300">WhatsApp Number</label>
-              <div className="relative group">
-                <input
-                  id="whatsappNumber"
-                  name="whatsappNumber"
-                  type="tel"
-                  required
-                  className="w-full bg-[#0E1117] border border-white/10 rounded-lg px-4 py-3 pl-11 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
-                  placeholder="+91 98765 43210"
-                  value={formData.whatsappNumber}
-                  onChange={handleChange}
-                />
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                  <ChatBubbleLeftRightIcon className="h-5 w-5" />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-gray-300">Password</label>
-              <div className="relative group">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  className="w-full bg-[#0E1117] border border-white/10 rounded-lg px-4 py-3 pr-12 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
-                  placeholder="Create a strong password"
-                  value={formData.password}
-                  onChange={handleChange}
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                  onClick={() => setShowPassword(!showPassword)}
+            <div className="relative z-10">
+              {/* Branding Section */}
+              <div className="text-center mb-16">
+                <motion.div
+                  whileHover={{ scale: 1.05, rotate: -5 }}
+                  className="mx-auto h-20 w-20 bg-gradient-to-br from-primary via-orange-500 to-purple-600 rounded-3xl flex items-center justify-center shadow-[0_0_60px_-10px_rgba(255,122,0,0.6)] mb-10 p-0.5"
                 >
-                  {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
-                </button>
+                  <div className="w-full h-full bg-[#0E1117] rounded-[1.4rem] flex items-center justify-center">
+                    <IdentificationIcon className="h-10 w-10 text-primary" />
+                  </div>
+                </motion.div>
+                <h1 className="text-5xl font-black text-white mb-4 tracking-tighter uppercase leading-none">Create Account</h1>
+                <p className="text-gray-500 font-bold text-[10px] uppercase tracking-[0.6em] opacity-60">
+                  Join the RealNext Network
+                </p>
               </div>
 
-              {/* Strength Meter */}
-              {formData.password && (
-                <div className="mt-2 space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Strength</span>
-                    <span className={`${strength.color} font-medium`}>{strength.label}</span>
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-10">
+                <div className="grid md:grid-cols-2 gap-10">
+                  <InputField
+                    id="name"
+                    label="Full Name"
+                    icon={UserIcon}
+                    placeholder="Your Full Name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                  />
+                  <InputField
+                    id="email"
+                    label="Email Address"
+                    icon={EnvelopeIcon}
+                    type="email"
+                    placeholder="your@email.com"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-10">
+                  <InputField
+                    id="businessName"
+                    label="Business Name"
+                    icon={BuildingOfficeIcon}
+                    placeholder="Your Business Name"
+                    value={formData.businessName}
+                    onChange={handleChange}
+                    required
+                  />
+                  <InputField
+                    id="whatsappNumber"
+                    label="WhatsApp Number"
+                    icon={PhoneIcon}
+                    type="tel"
+                    placeholder="Your WhatsApp Number"
+                    value={formData.whatsappNumber}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-10">
+                  <div className="space-y-3">
+                    <label htmlFor="password" className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">Password</label>
+                    <div className="relative group">
+                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-primary transition-colors">
+                        <LockClosedIcon className="h-5 w-5" />
+                      </div>
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl px-7 py-5 pl-16 pr-16 text-sm text-white placeholder-gray-700 outline-none hover:bg-white/[0.05] focus:bg-white/[0.08] focus:border-primary/40 focus:ring-[6px] focus:ring-primary/5 transition-all duration-500"
+                        placeholder="••••••••"
+                        value={formData.password}
+                        onChange={handleChange}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white transition-colors"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                      </button>
+                    </div>
+                    {/* Strength Meter */}
+                    <AnimatePresence>
+                      {formData.password && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-4 space-y-2 px-4"
+                        >
+                          <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-[0.3em]">
+                            <span className="text-gray-600">Password Strength</span>
+                            <span className={strength.score > 2 ? 'text-green-500' : 'text-gray-700'}>{strength.label}</span>
+                          </div>
+                          <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${(strength.score / 4) * 100}%` }}
+                              className={`h-full transition-all duration-500 ${strength.color}`}
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
-                  <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${strength.score === 1 ? 'bg-red-500 w-1/4' :
-                        strength.score === 2 ? 'bg-yellow-500 w-2/4' :
-                          strength.score === 3 ? 'bg-blue-500 w-3/4' :
-                            'bg-green-500 w-full'
-                        }`}
+
+                  <div className="space-y-3">
+                    <label htmlFor="confirmPassword" className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">Confirm Password</label>
+                    <div className="relative group">
+                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-primary transition-colors">
+                        <CheckCircleIcon className="h-5 w-5" />
+                      </div>
+                      <input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        required
+                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl px-7 py-5 pl-16 pr-16 text-sm text-white placeholder-gray-700 outline-none hover:bg-white/[0.05] focus:bg-white/[0.08] focus:border-primary/40 focus:ring-[6px] focus:ring-primary/5 transition-all duration-500"
+                        placeholder="••••••••"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white transition-colors"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                      </button>
+                    </div>
+                    {formData.confirmPassword && formData.password === formData.confirmPassword && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center text-[8px] font-black uppercase tracking-[0.3em] text-green-500 mt-4 px-4"
+                      >
+                        <ShieldCheckIcon className="h-3 w-3 mr-2" /> Passwords Match
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4 pt-4 px-4">
+                  <div className="relative flex items-center h-5">
+                    <input
+                      id="terms"
+                      type="checkbox"
+                      required
+                      className="h-5 w-5 rounded-lg border-white/10 bg-white/5 text-primary focus:ring-primary/20 focus:ring-offset-0 transition-all cursor-pointer"
                     />
                   </div>
+                  <label htmlFor="terms" className="text-[9px] font-bold text-gray-600 leading-relaxed uppercase tracking-widest max-w-sm">
+                    Adhere strictly to <a href="#" className="text-primary hover:text-white transition-colors">Neural Protocols</a> & <a href="#" className="text-primary hover:text-white transition-colors">Privacy Bounds</a>.
+                  </label>
                 </div>
-              )}
-            </div>
 
-            <div className="space-y-2">
-              <label htmlFor="confirmPassword" className="text-sm font-medium text-gray-300">Confirm Password</label>
-              <div className="relative group">
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  className="w-full bg-[#0E1117] border border-white/10 rounded-lg px-4 py-3 pr-12 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
-                  placeholder="Confirm password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
-                </button>
-              </div>
-              {formData.confirmPassword && formData.password === formData.confirmPassword && (
-                <div className="flex items-center text-xs text-green-500 mt-1">
-                  <CheckCircleIcon className="h-3 w-3 mr-1" /> Match
+                <div className="pt-10">
+                  <motion.button
+                    type="submit"
+                    disabled={loading}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="relative w-full h-20 rounded-3xl overflow-hidden group shadow-[0_25px_50px_-15px_rgba(255,122,0,0.3)]"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary via-orange-500 to-purple-600 group-hover:scale-110 transition-transform duration-700"></div>
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/5 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="relative flex items-center justify-center space-x-4 text-black font-black text-sm uppercase tracking-[0.4em]">
+                      {loading ? (
+                        <>
+                          <div className="h-6 w-6 border-[3px] border-black/20 border-t-black rounded-full animate-spin"></div>
+                          <span>Provisioning...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Finalize Enrollment</span>
+                          <SparklesIcon className="h-6 w-6" />
+                        </>
+                      )}
+                    </div>
+                  </motion.button>
                 </div>
-              )}
-            </div>
+              </form>
 
-            <div className="flex items-start space-x-2 pt-2">
-              <input
-                id="terms"
-                type="checkbox"
-                required
-                className="mt-0.5 h-4 w-4 rounded border-white/20 bg-[#0E1117] text-primary focus:ring-primary/50 focus:ring-offset-0"
-              />
-              <label htmlFor="terms" className="text-xs text-gray-400 leading-relaxed">
-                I agree to the{' '}
-                <a href="#" className="text-primary hover:text-orange-400 transition-colors">Terms of Service</a>
-                {' '}and{' '}
-                <a href="#" className="text-primary hover:text-orange-400 transition-colors">Privacy Policy</a>
-              </label>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full h-12 text-base font-semibold shadow-glow-sm mt-4"
-              variant="primary"
-            >
-              {loading ? 'Creating Account...' : 'Start Free Trial'}
-            </Button>
-          </form>
-
-          {/* Social Registration */}
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10" />
+              <div className="mt-20 text-center border-t border-white/5 pt-16">
+                <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest mb-3 opacity-50">
+                  Instance already initialized?
+                </p>
+                <Link href="/auth/login" className="group text-primary hover:text-white transition-all duration-300">
+                  <span className="text-[11px] font-black uppercase tracking-[0.5em] border-b border-primary/20 group-hover:border-white group-hover:tracking-[0.6em] transition-all">Begin Synchronization</span>
+                </Link>
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-[#161B22] text-gray-500">Or sign up with</span>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button className="h-10 px-4 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#0E1117] hover:bg-white/5 hover:border-white/20 text-gray-300 transition-all text-sm font-medium">
-                Google
-              </button>
-              <button className="h-10 px-4 flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-[#0E1117] hover:bg-white/5 hover:border-white/20 text-gray-300 transition-all text-sm font-medium">
-                Twitter
-              </button>
             </div>
           </div>
-
-          <div className="mt-8 text-center border-t border-white/5 pt-6">
-            <p className="text-sm text-gray-400">
-              Already have an account?{' '}
-              <Link href="/auth/login" className="text-primary hover:text-orange-400 transition-colors font-medium">
-                Sign in
-              </Link>
-            </p>
-          </div>
-        </div>
+        </motion.div>
       </div>
+
+      <style jsx global>{`
+        ::placeholder { color: #374151; font-weight: 900; letter-spacing: 0.15em; text-transform: uppercase; font-size: 10px; }
+      `}</style>
     </div>
   );
 }
 
-function InputField({ id, label, type = "text", placeholder, value, onChange, required }) {
+function InputField({ id, label, type = "text", placeholder, value, onChange, required, icon: Icon }) {
   return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="text-sm font-medium text-gray-300">{label}</label>
-      <input
-        id={id}
-        name={id}
-        type={type}
-        required={required}
-        className="w-full bg-[#0E1117] border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-      />
+    <div className="space-y-3">
+      <label htmlFor={id} className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-4">{label}</label>
+      <div className="relative group">
+        {Icon && (
+          <div className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-primary transition-colors duration-500">
+            <Icon className="h-5 w-5" />
+          </div>
+        )}
+        <input
+          id={id}
+          name={id}
+          type={type}
+          required={required}
+          className={`w-full bg-white/[0.03] border border-white/5 rounded-2xl px-7 py-5 ${Icon ? 'pl-16' : ''} text-sm text-white placeholder-gray-700 outline-none hover:bg-white/[0.05] focus:bg-white/[0.08] focus:border-primary/40 focus:ring-[6px] focus:ring-primary/5 transition-all duration-500`}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+        />
+      </div>
     </div>
   )
 }

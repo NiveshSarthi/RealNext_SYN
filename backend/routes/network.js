@@ -12,16 +12,31 @@ const { validate, validators } = require('../utils/validators');
 // Middleware
 router.use(authenticate, requireClientAccess, enforceClientScope);
 
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    // Super admins can skip client context check for listing (GET)
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
+
 router.get('/', requireFeature('network'), async (req, res, next) => {
     try {
-        const clientId = req.client.id;
-        const connections = await NetworkConnection.find({
+        ensureClient(req);
+        const clientId = req.client?.id;
+        const query = clientId ? {
             $or: [
                 { from_client_id: clientId },
                 { to_client_id: clientId }
             ],
             status: 'accepted'
-        })
+        } : { status: 'accepted' };
+
+        const connections = await NetworkConnection.find(query)
             .populate({ path: 'from_client_id', select: 'name logo_url' })
             .populate({ path: 'to_client_id', select: 'name logo_url' });
 
@@ -36,8 +51,10 @@ router.get('/', requireFeature('network'), async (req, res, next) => {
 
 router.get('/requests', requireFeature('network'), async (req, res, next) => {
     try {
+        ensureClient(req);
+        const clientFilter = req.client?.id ? { to_client_id: req.client.id } : {};
         const requests = await NetworkConnection.find({
-            to_client_id: req.client.id,
+            ...clientFilter,
             status: 'pending'
         })
             .populate({ path: 'from_client_id', select: 'name logo_url' })
@@ -57,9 +74,10 @@ router.post('/connect/:clientId',
     auditAction('create', 'network_request'),
     async (req, res, next) => {
         try {
+            ensureClient(req);
             const toClientId = req.params.clientId;
 
-            if (toClientId === req.client.id) {
+            if (req.client?.id && toClientId === req.client.id) {
                 throw ApiError.badRequest('Cannot connect to self');
             }
 
@@ -152,7 +170,7 @@ router.get('/search', requireFeature('network'), async (req, res, next) => {
 
         const clients = await Client.find({
             name: { $regex: query, $options: 'i' },
-            _id: { $ne: req.client.id },
+            ...(req.client?.id ? { _id: { $ne: req.client.id } } : {}),
             status: 'active'
         })
             .select('id name logo_url address')
@@ -169,19 +187,20 @@ router.get('/search', requireFeature('network'), async (req, res, next) => {
 
 router.get('/stats', requireFeature('network'), async (req, res, next) => {
     try {
-        const clientId = req.client.id;
-        const connectionsCount = await NetworkConnection.countDocuments({
+        ensureClient(req);
+        const clientId = req.client?.id;
+        const matchQuery = clientId ? {
             $or: [
                 { from_client_id: clientId },
                 { to_client_id: clientId }
             ],
             status: 'accepted'
-        });
+        } : { status: 'accepted' };
 
-        const pendingCount = await NetworkConnection.countDocuments({
-            to_client_id: clientId,
-            status: 'pending'
-        });
+        const connectionsCount = await NetworkConnection.countDocuments(matchQuery);
+
+        const pendingQuery = clientId ? { to_client_id: clientId, status: 'pending' } : { status: 'pending' };
+        const pendingCount = await NetworkConnection.countDocuments(pendingQuery);
 
         res.json({
             success: true,

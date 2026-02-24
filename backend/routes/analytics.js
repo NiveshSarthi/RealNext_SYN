@@ -10,8 +10,20 @@ const { subDays, startOfDay, format, eachDayOfInterval } = require('date-fns');
 // Middleware
 router.use(authenticate, requireClientAccess, enforceClientScope);
 
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    // Super admins can skip client context check for listing (GET)
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
+
 // ─── Helper ──────────────────────────────────────────────────────────────────
-const clientOid = (req) => new mongoose.Types.ObjectId(req.client.id);
+const clientOid = (req) => req.client?.id ? new mongoose.Types.ObjectId(req.client.id) : null;
 
 /**
  * @route GET /api/analytics/dashboard
@@ -19,7 +31,9 @@ const clientOid = (req) => new mongoose.Types.ObjectId(req.client.id);
  */
 router.get('/dashboard', async (req, res, next) => {
     try {
+        ensureClient(req);
         const cid = clientOid(req);
+        const matchStage = cid ? { client_id: cid } : {};
         const days = parseInt(req.query.period) || 30;
         const since = subDays(new Date(), days);
 
@@ -36,13 +50,13 @@ router.get('/dashboard', async (req, res, next) => {
         ] = await Promise.all([
             // Lead by stage
             Lead.aggregate([
-                { $match: { client_id: cid, deleted_at: null } },
+                { $match: { ...matchStage, deleted_at: null } },
                 { $group: { _id: '$stage', count: { $sum: 1 } } }
             ]),
 
             // Lead by source (top 8)
             Lead.aggregate([
-                { $match: { client_id: cid, deleted_at: null, source: { $ne: null, $ne: '' } } },
+                { $match: { ...matchStage, deleted_at: null, source: { $ne: null, $ne: '' } } },
                 { $group: { _id: '$source', count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 8 }
@@ -50,14 +64,14 @@ router.get('/dashboard', async (req, res, next) => {
 
             // Lead by status
             Lead.aggregate([
-                { $match: { client_id: cid, deleted_at: null } },
+                { $match: { ...matchStage, deleted_at: null } },
                 { $group: { _id: '$status', count: { $sum: 1 } } },
                 { $sort: { count: -1 } }
             ]),
 
             // Lead volume per day (time-series)
             Lead.aggregate([
-                { $match: { client_id: cid, created_at: { $gte: since }, deleted_at: null } },
+                { $match: { ...matchStage, created_at: { $gte: since }, deleted_at: null } },
                 {
                     $group: {
                         _id: {
@@ -71,7 +85,7 @@ router.get('/dashboard', async (req, res, next) => {
 
             // Campaign aggregate stats
             Campaign.aggregate([
-                { $match: { client_id: cid, deleted_at: null } },
+                { $match: { ...matchStage, deleted_at: null } },
                 {
                     $group: {
                         _id: null,
@@ -90,13 +104,13 @@ router.get('/dashboard', async (req, res, next) => {
 
             // Campaign by type
             Campaign.aggregate([
-                { $match: { client_id: cid, deleted_at: null } },
+                { $match: { ...matchStage, deleted_at: null } },
                 { $group: { _id: '$type', count: { $sum: 1 } } }
             ]),
 
             // Inventory / Catalog
             CatalogItem.aggregate([
-                { $match: { client_id: cid } },
+                { $match: { ...matchStage } },
                 {
                     $group: {
                         _id: null,
@@ -113,7 +127,7 @@ router.get('/dashboard', async (req, res, next) => {
 
             // Recent lead activity (last 10 logs across all leads)
             Lead.aggregate([
-                { $match: { client_id: cid, deleted_at: null, 'activity_logs.0': { $exists: true } } },
+                { $match: { ...matchStage, deleted_at: null, 'activity_logs.0': { $exists: true } } },
                 { $sort: { updated_at: -1 } },
                 { $limit: 30 },
                 { $unwind: '$activity_logs' },
@@ -131,9 +145,9 @@ router.get('/dashboard', async (req, res, next) => {
         ]);
 
         // ── Totals ────────────────────────────────────────────────────────
-        const totalLeads = await Lead.countDocuments({ client_id: cid, deleted_at: null });
-        const newLeads = await Lead.countDocuments({ client_id: cid, created_at: { $gte: since }, deleted_at: null });
-        const activeWorkflows = await Workflow.countDocuments({ client_id: cid, status: 'active' });
+        const totalLeads = await Lead.countDocuments({ ...matchStage, deleted_at: null });
+        const newLeads = await Lead.countDocuments({ ...matchStage, created_at: { $gte: since }, deleted_at: null });
+        const activeWorkflows = await Workflow.countDocuments({ ...matchStage, status: 'active' });
 
         // ── Build lead time-series with all days (fill gaps) ──────────────
         const interval = eachDayOfInterval({ start: since, end: new Date() });
@@ -143,9 +157,8 @@ router.get('/dashboard', async (req, res, next) => {
             count: dailyLeadMap[format(d, 'yyyy-MM-dd')] || 0
         }));
 
-        // ── Catalog by category ────────────────────────────────────────────
         const catalogByCategory = await CatalogItem.aggregate([
-            { $match: { client_id: cid } },
+            { $match: { ...matchStage } },
             { $group: { _id: '$category', count: { $sum: 1 }, avgPrice: { $avg: '$price' } } },
             { $sort: { count: -1 } }
         ]);
@@ -226,9 +239,11 @@ router.get('/conversations', async (req, res, next) => {
  */
 router.get('/messages', async (req, res, next) => {
     try {
+        ensureClient(req);
         const cid = clientOid(req);
+        const matchStage = cid ? { client_id: cid } : {};
         const stats = await Campaign.aggregate([
-            { $match: { client_id: cid, deleted_at: null } },
+            { $match: { ...matchStage, deleted_at: null } },
             {
                 $group: {
                     _id: null,
@@ -249,8 +264,10 @@ router.get('/messages', async (req, res, next) => {
  */
 router.get('/contacts', async (req, res, next) => {
     try {
+        ensureClient(req);
         const cid = clientOid(req);
-        const total = await Lead.countDocuments({ client_id: cid, deleted_at: null });
+        const matchStage = cid ? { client_id: cid } : {};
+        const total = await Lead.countDocuments({ ...matchStage, deleted_at: null });
         res.json({ success: true, data: { total, active: total } });
     } catch (error) { next(error); }
 });
@@ -260,8 +277,10 @@ router.get('/contacts', async (req, res, next) => {
  */
 router.get('/campaigns', async (req, res, next) => {
     try {
+        ensureClient(req);
         const cid = clientOid(req);
-        const campaigns = await Campaign.find({ client_id: cid, deleted_at: null })
+        const query = cid ? { client_id: cid, deleted_at: null } : { deleted_at: null };
+        const campaigns = await Campaign.find(query)
             .select('name status type stats created_at')
             .limit(10)
             .sort({ created_at: -1 });

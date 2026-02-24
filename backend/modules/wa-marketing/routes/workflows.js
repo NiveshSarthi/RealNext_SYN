@@ -16,6 +16,11 @@ router.use(authenticate, requireClientAccess, setClientContext, enforceClientSco
 
 // Defensive helper to ensure client context exists before using req.client.id
 const ensureClient = (req) => {
+    // Super admins can skip client context check for GET
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
     if (!req.client || !req.client.id) {
         throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
     }
@@ -29,9 +34,13 @@ const ensureClient = (req) => {
 router.get('/', requireFeature('workflows'), async (req, res, next) => {
     try {
         ensureClient(req);
-        const workflows = await Workflow.find({
-            client_id: req.client.id
-        }).sort({ created_at: -1 });
+
+        let where = {};
+        if (req.client?.id) {
+            where.client_id = req.client.id;
+        }
+
+        const workflows = await Workflow.find(where).sort({ created_at: -1 });
 
         res.json({
             success: true,
@@ -88,8 +97,11 @@ router.post('/',
 router.get('/stats', requireFeature('workflows'), async (req, res, next) => {
     try {
         ensureClient(req);
-        const total = await Workflow.countDocuments({ client_id: req.client.id });
-        const active = await Workflow.countDocuments({ client_id: req.client.id, status: 'active' });
+
+        const clientMatch = req.client?.id ? { client_id: req.client.id } : {};
+
+        const total = await Workflow.countDocuments(clientMatch);
+        const active = await Workflow.countDocuments({ ...clientMatch, status: 'active' });
         // Assuming 'execution_count' is a field that can be summed in MongoDB,
         // this would typically require an aggregation pipeline.
         // For a direct replacement, we'll mock it or assume a simple sum if possible.
@@ -97,7 +109,7 @@ router.get('/stats', requireFeature('workflows'), async (req, res, next) => {
         // For now, let's assume a simple sum is not directly available and might need aggregation.
         // For the purpose of this edit, we'll keep it as is, assuming it's a custom method or will be adapted.
         const executions = await Workflow.aggregate([
-            { $match: { client_id: req.client.id } },
+            { $match: clientMatch },
             { $group: { _id: null, totalExecutions: { $sum: '$execution_count' } } }
         ]).then(result => result.length > 0 ? result[0].totalExecutions : 0);
 
@@ -140,9 +152,11 @@ router.get('/history', requireFeature('workflows'), async (req, res, next) => {
 router.get('/:id', requireFeature('workflows'), async (req, res, next) => {
     try {
         ensureClient(req);
-        const workflow = await Workflow.findOne({
-            _id: req.params.id, client_id: req.client.id
-        });
+        const query = { _id: req.params.id };
+        if (req.client?.id) {
+            query.client_id = req.client.id;
+        }
+        const workflow = await Workflow.findOne(query);
 
         if (!workflow) {
             throw ApiError.notFound('Workflow not found');
@@ -168,9 +182,11 @@ router.put('/:id',
     async (req, res, next) => {
         try {
             ensureClient(req);
-            const workflow = await Workflow.findOne({
-                _id: req.params.id, client_id: req.client.id
-            });
+            const query = { _id: req.params.id };
+            if (req.client?.id) {
+                query.client_id = req.client.id;
+            }
+            const workflow = await Workflow.findOne(query);
 
             if (!workflow) {
                 throw ApiError.notFound('Workflow not found');
@@ -201,9 +217,11 @@ router.post('/:id/activate',
     async (req, res, next) => {
         try {
             ensureClient(req);
-            const workflow = await Workflow.findOne({
-                _id: req.params.id, client_id: req.client.id
-            });
+            const query = { _id: req.params.id };
+            if (req.client?.id) {
+                query.client_id = req.client.id;
+            }
+            const workflow = await Workflow.findOne(query);
 
             if (!workflow) throw ApiError.notFound('Workflow not found');
 
@@ -232,9 +250,11 @@ router.post('/:id/deactivate',
     async (req, res, next) => {
         try {
             ensureClient(req);
-            const workflow = await Workflow.findOne({
-                _id: req.params.id, client_id: req.client.id
-            });
+            const query = { _id: req.params.id };
+            if (req.client?.id) {
+                query.client_id = req.client.id;
+            }
+            const workflow = await Workflow.findOne(query);
 
             if (!workflow) throw ApiError.notFound('Workflow not found');
 
@@ -264,8 +284,9 @@ router.post('/trigger/:type', requireFeature('workflows'), async (req, res, next
         logger.info(`Workflow triggered for client ${req.client.id}: ${type}`, req.body);
 
         // Find relevant workflows
+        const clientFilter = req.client?.id ? { client_id: req.client.id } : {};
         const workflows = await Workflow.find({
-            client_id: req.client.id,
+            ...clientFilter,
             status: 'active',
             'trigger_config.type': type
         });

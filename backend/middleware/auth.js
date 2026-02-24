@@ -17,6 +17,7 @@ const authenticate = async (req, res, next) => {
         }
 
         const token = authHeader.substring(7);
+        // console.log(`[AUTH-DEBUG] Token length: ${token.length}`);
 
         // Verify JWT
         const decoded = jwt.verify(token, jwtConfig.accessSecret);

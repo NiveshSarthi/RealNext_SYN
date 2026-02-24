@@ -13,7 +13,8 @@ import {
     BuildingOfficeIcon,
     CurrencyRupeeIcon,
     MapPinIcon,
-    CheckCircleIcon
+    CheckCircleIcon,
+    MegaphoneIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '../../../components/ui/Button';
 
@@ -39,7 +40,9 @@ export default function NewLead() {
         budget_min: '',
         budget_max: '',
         type: 'residential',
-        notes: ''
+        notes: '',
+        form_name: '',
+        campaign_name: ''
     });
 
     useEffect(() => {
@@ -229,6 +232,30 @@ export default function NewLead() {
                                         ))}
                                     </select>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Marketing Info */}
+                        <div>
+                            <h3 className="text-lg font-medium leading-6 text-white mb-6 flex items-center border-b border-border/50 pb-2">
+                                <MegaphoneIcon className="h-5 w-5 mr-2 text-primary" />
+                                Marketing Identification
+                            </h3>
+                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                <InputField
+                                    label="Form Name"
+                                    name="form_name"
+                                    value={formData.form_name}
+                                    onChange={handleChange}
+                                    placeholder="e.g. Website Contact Form"
+                                />
+                                <InputField
+                                    label="Campaign Name"
+                                    name="campaign_name"
+                                    value={formData.campaign_name}
+                                    onChange={handleChange}
+                                    placeholder="e.g. Diwali Special 2024"
+                                />
                             </div>
                         </div>
 

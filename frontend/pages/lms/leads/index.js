@@ -318,10 +318,15 @@ const LeadListItem = ({ lead, isSelected, onClick, canEdit }) => {
             </div>
           </div>
           <div className="flex items-center justify-between mt-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col">
               <p className="text-[10px] text-gray-500 font-bold tracking-tight truncate max-w-[120px]">
                 {lead.phone || 'No Phone Sync'}
               </p>
+              {lead.form_name && (
+                <p className="text-[8px] text-indigo-400 font-black uppercase tracking-tighter truncate max-w-[120px]" title={lead.form_name}>
+                  {lead.form_name}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[8px] text-gray-500 font-black uppercase tracking-[0.2em]">
@@ -361,7 +366,9 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
     budget_max: '',
     property_type: '',
     status: '',
-    stage: ''
+    stage: '',
+    form_name: '',
+    campaign_name: ''
   });
 
   useEffect(() => {
@@ -375,7 +382,9 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
         budget_max: lead.budget_max || 0,
         property_type: lead.property_type || lead.custom_fields?.p_type || 'Residential',
         status: lead.status || 'Uncontacted',
-        stage: lead.stage || 'Screening'
+        stage: lead.stage || 'Screening',
+        form_name: lead.form_name || '',
+        campaign_name: lead.campaign_name || ''
       });
       setIsEditing(false);
     }
@@ -491,6 +500,12 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
               <span className="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] bg-indigo-500/5 text-indigo-400 border border-indigo-500/20 flex items-center gap-2">
                 {isMetaLead ? <Facebook className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
                 {lead.source || 'Lead Ads'}
+                {(lead.form_name || lead.campaign_name) && (
+                  <>
+                    <div className="h-2 w-px bg-indigo-500/20" />
+                    <span className="text-indigo-300 font-bold tracking-normal opacity-80">{lead.form_name || lead.campaign_name}</span>
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -596,9 +611,19 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
               </div>
               <div className="space-y-1">
                 <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Inquiry Source</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <Globe className="h-3.5 w-3.5 text-blue-400" />
-                  <span className="text-xs font-black text-gray-300 uppercase tracking-widest">{lead.source || 'Direct'}</span>
+                <div className="flex flex-col gap-1 mt-1">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="text-xs font-black text-gray-300 uppercase tracking-widest">{lead.source || 'Direct'}</span>
+                  </div>
+                  {lead.form_name && (
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-3 w-3 text-indigo-400" />
+                      <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-tight truncate max-w-[150px]" title={lead.form_name}>
+                        {lead.form_name}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="space-y-1 sm:text-right">
@@ -703,6 +728,40 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                     />
                   ) : (
                     <p className="text-sm font-bold text-white truncate max-w-[200px]">{lead.email || 'No email'}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Form Info Section */}
+            <div className="flex items-center justify-between p-3 bg-black/20 rounded-2xl border border-white/5 group hover:border-white/10 transition-all">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-gray-800 flex items-center justify-center text-gray-400 group-hover:text-indigo-400">
+                  <Megaphone className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-none mb-1">Marketing Identification</p>
+                  {isEditing ? (
+                    <div className="flex flex-col gap-2 mt-1">
+                      <input
+                        type="text"
+                        value={editForm.form_name}
+                        onChange={(e) => setEditForm({ ...editForm, form_name: e.target.value })}
+                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-xs font-bold text-indigo-300 focus:outline-none focus:border-indigo-500/50 w-full"
+                        placeholder="Form Name"
+                      />
+                      <input
+                        type="text"
+                        value={editForm.campaign_name}
+                        onChange={(e) => setEditForm({ ...editForm, campaign_name: e.target.value })}
+                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-xs font-bold text-gray-400 focus:outline-none focus:border-indigo-500/50 w-full"
+                        placeholder="Campaign Name"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col">
+                      <p className="text-sm font-bold text-indigo-300">{lead.form_name || 'No Form Identified'}</p>
+                      <p className="text-[10px] text-gray-500 font-medium">{lead.campaign_name || 'Unassigned Campaign'}</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1164,6 +1223,7 @@ export default function Leads() {
       email: lead.email || '',
       campaign_name: lead.campaign_name || '',
       source: lead.source || '',
+      form_name: lead.form_name || '',
       budget_min: lead.budget_min || '',
       budget_max: lead.budget_max || '',
       notes: lead.notes || '',

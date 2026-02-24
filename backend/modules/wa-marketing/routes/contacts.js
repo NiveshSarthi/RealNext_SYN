@@ -20,6 +20,11 @@ router.use(authenticate, requireClientAccess, setClientContext, enforceClientSco
 router.use(requireFeature('campaigns')); // Uses Campaigns feature flag as proxy for WA Contacts
 
 const ensureClient = (req) => {
+    // Super admins can skip client context check for GET
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
     if (!req.client || !req.client.id) {
         throw new ApiError(400, 'Client context is required.');
     }
@@ -33,7 +38,10 @@ router.get('/', async (req, res, next) => {
     try {
         ensureClient(req);
 
-        let query = { client_id: req.client.id };
+        let query = {};
+        if (req.client?.id) {
+            query.client_id = req.client.id;
+        }
         if (req.query.search) {
             query.$or = [
                 { name: { $regex: req.query.search, $options: 'i' } },
@@ -82,7 +90,8 @@ router.post('/', async (req, res, next) => {
         }
 
         // Check if exists
-        const exists = await WaContact.findOne({ client_id: req.client.id, phone });
+        const clientFilter = req.client?.id ? { client_id: req.client.id } : {};
+        const exists = await WaContact.findOne({ ...clientFilter, phone });
         if (exists) {
             return res.status(409).json({ success: false, message: 'Phone number already exists in your audience' });
         }
@@ -113,7 +122,11 @@ router.post('/', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
     try {
         ensureClient(req);
-        const contact = await WaContact.findOneAndDelete({ _id: req.params.id, client_id: req.client.id });
+        const query = { _id: req.params.id };
+        if (req.client?.id) {
+            query.client_id = req.client.id;
+        }
+        const contact = await WaContact.findOneAndDelete(query);
 
         if (!contact) {
             return res.status(404).json({ success: false, message: 'Contact not found' });

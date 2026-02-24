@@ -57,6 +57,18 @@ router.get('/test-email', authenticate, async (req, res) => {
     }
 });
 
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    // Super admins can skip client context check for listing (GET)
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
+
 // Middleware — applied to all routes below this line
 router.use(authenticate, requireClientAccess, enforceClientScope);
 
@@ -67,10 +79,11 @@ router.use(authenticate, requireClientAccess, enforceClientScope);
  */
 router.get('/', async (req, res, next) => {
     try {
-        const clientId = req.client.id;
+        ensureClient(req);
+        const clientId = req.client?.id;
 
         const [teamMembers, superAdmins] = await Promise.all([
-            ClientUser.find({ client_id: clientId })
+            clientId ? ClientUser.find({ client_id: clientId })
                 .populate({
                     path: 'user_id',
                     select: 'name email phone avatar_url status last_login_at created_at'
@@ -79,7 +92,7 @@ router.get('/', async (req, res, next) => {
                     path: 'role_id',
                     select: 'name description permissions'
                 })
-                .sort({ created_at: -1 }),
+                .sort({ created_at: -1 }) : [],
             User.find({
                 $or: [
                     { is_super_admin: true },
@@ -157,6 +170,7 @@ router.get('/', async (req, res, next) => {
  */
 router.post('/invite', async (req, res, next) => {
     try {
+        ensureClient(req);
         const { email, name, password, role, role_id, department } = req.body;
         const clientId = req.client.id;
 
@@ -289,6 +303,7 @@ router.post('/invite', async (req, res, next) => {
  */
 router.patch('/:userId', async (req, res, next) => {
     try {
+        ensureClient(req);
         const { userId } = req.params;
         const { role, role_id, department, status } = req.body;
         const clientId = req.client.id;
@@ -349,6 +364,7 @@ router.patch('/:userId', async (req, res, next) => {
  */
 router.delete('/:userId', async (req, res, next) => {
     try {
+        ensureClient(req);
         const { userId } = req.params;
         const clientId = req.client.id;
 

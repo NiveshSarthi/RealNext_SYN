@@ -53,13 +53,34 @@ const verifyAndRotateRefreshToken = async (token, deviceInfo = null, ipAddress =
 
     const storedToken = await RefreshToken.findOne({ token_hash: tokenHash });
 
-    if (!storedToken || !storedToken.isValid()) {
+    if (!storedToken) {
         return null;
     }
 
-    // Revoke old token
-    storedToken.revoked_at = new Date();
-    await storedToken.save();
+    // Check if token is valid or within 30s grace period of revocation
+    const now = new Date();
+    const isExpired = now >= new Date(storedToken.expires_at);
+    const revokationGraceExpired = storedToken.revoked_at &&
+        (now.getTime() - new Date(storedToken.revoked_at).getTime() > 30000);
+
+    if (isExpired || revokationGraceExpired) {
+        return null;
+    }
+
+    // If already revoked within grace period, don't rotate again, just return existing rotation target if possible
+    // But for simplicity in this implementation, we just allow the rotation to proceed once within grace
+    if (storedToken.revoked_at) {
+        // Find if a replacement was already created (this helps mitigate multiple concurrent refreshes)
+        // However, since we don't have a direct 'replaced_by' link, we'll just allow one 
+        // fresh rotation if it's within 30s.
+        console.log(`[JWT-DEBUG] Token ${tokenHash.substring(0, 8)}... used within 30s grace period`);
+    }
+
+    // Revoke old token (if not already revoked)
+    if (!storedToken.revoked_at) {
+        storedToken.revoked_at = new Date();
+        await storedToken.save();
+    }
 
     // Generate new refresh token
     const newToken = await generateRefreshToken(

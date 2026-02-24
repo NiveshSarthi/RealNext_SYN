@@ -12,6 +12,11 @@ router.use(authenticate, requireClientAccess, setClientContext, enforceClientSco
 
 // Helper
 const ensureClient = (req) => {
+    // Super admins can skip client context check for GET
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
     if (!req.client || !req.client.id) {
         throw new ApiError(400, 'Client context is required for isolated configurations.');
     }
