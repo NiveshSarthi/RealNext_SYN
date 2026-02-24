@@ -1382,6 +1382,24 @@ export default function Leads() {
                   {/* Filters Grid */}
                   <div className="space-y-6">
 
+                    {/* Stage Filter */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Stage</label>
+                      <select
+                        value={stageFilter}
+                        onChange={(e) => {
+                          setStageFilter(e.target.value);
+                          setStatusFilter('all');
+                          setCurrentPage(1);
+                        }}
+                        className="w-full bg-[#0E1117]/80 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500/50 transition-all"
+                      >
+                        <option value="all">All Stages</option>
+                        {Object.keys(stageStatusMapping).map(stage => (
+                          <option key={stage} value={stage}>{stage}</option>
+                        ))}
+                      </select>
+                    </div>
 
                     {/* Form Name Filter */}
                     <div className="space-y-2">
