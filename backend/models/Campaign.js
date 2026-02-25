@@ -5,7 +5,7 @@ const campaignSchema = new Schema({
     client_id: {
         type: Schema.Types.ObjectId,
         ref: 'Client',
-        required: true
+        required: false
     },
     name: {
         type: String,

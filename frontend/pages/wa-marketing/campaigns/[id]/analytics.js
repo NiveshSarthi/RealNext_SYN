@@ -68,10 +68,10 @@ export default function CampaignAnalytics() {
     }
 
     const stats = [
-        { name: 'Sent', value: campaign.sent_count || 0, icon: EnvelopeIcon, color: 'text-blue-600' },
-        { name: 'Delivered', value: campaign.delivered_count || 0, icon: EnvelopeOpenIcon, color: 'text-green-600' },
-        { name: 'Read', value: campaign.read_count || 0, icon: CursorArrowRaysIcon, color: 'text-purple-600' },
-        { name: 'Failed', value: campaign.failed_count || 0, icon: NoSymbolIcon, color: 'text-red-600' },
+        { name: 'Sent', value: campaign.sent_count || campaign.stats?.sent || 0, icon: EnvelopeIcon, color: 'text-blue-600' },
+        { name: 'Delivered', value: campaign.delivered_count || campaign.stats?.delivered || 0, icon: EnvelopeOpenIcon, color: 'text-green-600' },
+        { name: 'Read', value: campaign.read_count || campaign.stats?.read || 0, icon: CursorArrowRaysIcon, color: 'text-purple-600' },
+        { name: 'Failed', value: campaign.failed_count || campaign.stats?.failed || 0, icon: NoSymbolIcon, color: 'text-red-600' },
     ];
 
     return (

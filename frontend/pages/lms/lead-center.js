@@ -5,6 +5,131 @@ import Layout from '../../components/Layout';
 import { leadsAPI } from '../../utils/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { format } from 'date-fns';
+import {
+    MagnifyingGlassIcon,
+    PlusCircleIcon,
+    FunnelIcon,
+    ArrowsUpDownIcon,
+    ArrowPathIcon,
+    AdjustmentsHorizontalIcon,
+    ChevronDownIcon,
+    PhoneIcon,
+    EllipsisVerticalIcon,
+    MapPinIcon,
+    BuildingOfficeIcon,
+    ArrowRightIcon,
+    ClockIcon,
+    AcademicCapIcon,
+    CheckIcon,
+    PlusIcon,
+    ShieldCheckIcon,
+    CurrencyRupeeIcon
+} from '@heroicons/react/24/outline';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const LeadCard = ({ lead, onClick, isSelected, onSelect, stages }) => {
+    const stageColor = stages.find(s => s.name === lead.stage)?.color || '#F49D25';
+
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            whileHover={{ y: -5, scale: 1.01 }}
+            onClick={onClick}
+            className={`relative group cursor-pointer p-6 rounded-[2rem] border transition-all duration-500 overflow-hidden shrink-0 ${isSelected
+                ? 'bg-primary/5 border-primary/30 shadow-glow-sm'
+                : 'bg-white/[0.01] border-white/[0.05] hover:bg-white/[0.03] hover:border-white/10 shadow-2xl'
+                }`}
+        >
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+
+            <div className="relative z-10 flex items-center gap-8">
+                <div
+                    onClick={(e) => { e.stopPropagation(); onSelect(); }}
+                    className={`h-6 w-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300 ${isSelected ? 'bg-primary border-primary' : 'border-white/10 bg-white/[0.02] group-hover:border-primary/50'
+                        }`}
+                >
+                    {isSelected && <CheckIcon className="h-4 w-4 text-black font-black" />}
+                </div>
+
+                <div className="relative">
+                    <div className="h-16 w-16 rounded-[1.4rem] bg-gradient-to-br from-white/[0.08] to-transparent border border-white/10 flex items-center justify-center shadow-inner group-hover:border-primary/30 transition-colors">
+                        <span className="text-xl font-black text-white">{lead.name.charAt(0)}</span>
+                    </div>
+                    <div
+                        className="absolute -right-1 -bottom-1 h-5 w-5 rounded-full border-4 border-[#0D1117] shadow-glow-sm"
+                        style={{ backgroundColor: stageColor }}
+                    ></div>
+                </div>
+
+                <div className="flex-1 min-w-[200px]">
+                    <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-black text-white tracking-tighter group-hover:text-primary transition-colors">{lead.name}</h3>
+                        {lead.ai_score > 80 && (
+                            <div className="px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[12px] text-primary">verified</span>
+                                <span className="text-[8px] font-black text-primary uppercase text-left">Elite</span>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-4 text-[10px] font-medium text-gray-500 uppercase tracking-widest">
+                        <div className="flex items-center gap-1.5 hover:text-gray-300 transition-colors text-left">
+                            <PhoneIcon className="h-3 w-3" />
+                            {lead.phone}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-left">
+                            <span className="material-symbols-outlined text-[14px] text-primary">language</span>
+                            <span className="opacity-60">{lead.source || 'Direct Telemetry'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-12 text-right">
+                    <div className="space-y-1">
+                        <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest leading-none">Valuation</p>
+                        <p className="text-sm font-black text-white tracking-tighter">
+                            {lead.budget_max ? `₹${(lead.budget_max / 100000).toFixed(1)}L` : '---'}
+                        </p>
+                    </div>
+
+                    <div className="space-y-1">
+                        <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest leading-none">Interest</p>
+                        <div className="flex items-center justify-end gap-2">
+                            <div className="h-1 w-8 rounded-full bg-white/5 overflow-hidden">
+                                <div
+                                    className="h-full bg-primary"
+                                    style={{ width: `${lead.ai_score || 50}%` }}
+                                />
+                            </div>
+                            <span className="text-[10px] font-black text-primary uppercase tracking-tighter">{lead.status}</span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest leading-none">Status</p>
+                        <div className="flex items-center justify-end gap-2">
+                            <div className={`h-1.5 w-1.5 rounded-full shadow-glow-sm ${lead.status === 'Lost' ? 'bg-red-500' :
+                                lead.status === 'Warm' ? 'bg-orange-500' : 'bg-blue-500'
+                                }`}></div>
+                            <span className="text-[10px] font-black text-white uppercase tracking-tighter">{lead.stage}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <button className="h-10 w-10 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/10 transition-all">
+                            <ClockIcon className="h-4 w-4" />
+                        </button>
+                        <button className="h-10 w-10 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-center text-gray-500 hover:text-primary hover:bg-primary/10 transition-all">
+                            <ArrowRightIcon className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
 
 export default function LeadCenter() {
     const router = useRouter();
@@ -14,14 +139,18 @@ export default function LeadCenter() {
     const [selectedLeads, setSelectedLeads] = useState([]);
     const [stages, setStages] = useState([]);
     const { user } = useAuth();
+    const [mountTime, setMountTime] = useState(null);
 
-    // Filter & Search States
+    useEffect(() => {
+        setMountTime(new Date());
+    }, []);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [activeStage, setActiveStage] = useState('all');
     const [selectedStatus, setSelectedStatus] = useState('All');
     const [showManageGroups, setShowManageGroups] = useState(true);
+    const [showMoveDropdown, setShowMoveDropdown] = useState(false);
 
-    // Create Group States
     const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupColor, setNewGroupColor] = useState('#f49d25');
@@ -48,7 +177,7 @@ export default function LeadCenter() {
             const response = await leadsAPI.getLeads(params);
             setLeads(response.data?.data || []);
             setError(null);
-            fetchStages(); // Refresh stage counts
+            fetchStages();
         } catch (err) {
             console.error('Error fetching leads:', err);
             setError('Failed to load leads data. Please check your connection.');
@@ -60,9 +189,20 @@ export default function LeadCenter() {
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchLeads();
-        }, 500); // Debounce search
+        }, 500);
         return () => clearTimeout(timer);
     }, [fetchLeads]);
+
+    // Listen for Voice Command Intent: CREATE_GROUP
+    useEffect(() => {
+        if (router.query.action === 'createGroup') {
+            setShowManageGroups(true); // Open sidebar if closed
+            setShowCreateGroup(true); // Reveal the creation input
+            if (router.query.prefillName) {
+                setNewGroupName(router.query.prefillName);
+            }
+        }
+    }, [router.query]);
 
     const handleBulkMove = async (targetStage) => {
         if (selectedLeads.length === 0) return;
@@ -73,7 +213,7 @@ export default function LeadCenter() {
             fetchLeads();
         } catch (err) {
             console.error('Error moving leads:', err);
-            alert('Failed to move leads. ' + (err.response?.data?.message || err.message));
+            alert('Failed to move leads.');
         } finally {
             setLoading(false);
         }
@@ -97,44 +237,10 @@ export default function LeadCenter() {
             fetchLeads();
         } catch (err) {
             console.error('Error creating stage:', err);
-            alert('Failed to create stage: ' + (err.response?.data?.message || err.message));
+            alert('Failed to create stage.');
         } finally {
             setLoading(false);
         }
-    };
-
-    const getStageStyles = (stage) => {
-        const styles = {
-            'Screening': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
-            'Sourcing': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-            'Walk-in': 'bg-pink-500/10 text-pink-400 border-pink-500/20',
-            'Closure': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-        };
-        const stageData = stages.find(s => s.name === stage);
-        if (stageData?.is_custom) {
-            return `bg-orange-500/10 text-orange-400 border-orange-500/20`; // Default for custom for now
-        }
-        return styles[stage] || 'bg-white/10 text-white border-white/20';
-    };
-
-    const getBorderColor = (stage) => {
-        const borders = {
-            'Screening': 'hover:border-indigo-500/50',
-            'Sourcing': 'hover:border-purple-500/50',
-            'Walk-in': 'hover:border-pink-500/50',
-            'Closure': 'hover:border-emerald-500/50'
-        };
-        return borders[stage] || 'hover:border-primary/50';
-    };
-
-    const getAccentBg = (stage) => {
-        const bgs = {
-            'Screening': 'bg-indigo-500/60 group-hover:bg-indigo-500 shadow-[2px_0_10px_rgba(99,102,241,0.3)]',
-            'Sourcing': 'bg-purple-500/60 group-hover:bg-purple-500 shadow-[2px_0_10px_rgba(168,85,247,0.3)]',
-            'Walk-in': 'bg-pink-500/60 group-hover:bg-pink-500 shadow-[2px_0_10px_rgba(236,72,153,0.3)]',
-            'Closure': 'bg-emerald-500/60 group-hover:bg-emerald-500 shadow-[2px_0_10px_rgba(16,185,129,0.3)]'
-        };
-        return bgs[stage] || 'bg-primary/60 group-hover:bg-primary shadow-[2px_0_10px_rgba(244,157,37,0.3)]';
     };
 
     const stageStatusMapping = {
@@ -151,343 +257,338 @@ export default function LeadCenter() {
                 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
             </Head>
 
-            <div className="flex flex-col h-[calc(100vh-140px)] -m-8 bg-[#0f0b08] text-slate-100 font-sans antialiased overflow-hidden">
-                {/* Header */}
-                <header className="h-16 border-b border-[#2d241a] bg-[#0f0b08]/50 backdrop-blur-md px-6 flex items-center justify-between shrink-0 z-30">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-xl font-bold text-white tracking-tight">Lead Center</h2>
-                        <div className="h-4 w-px bg-[#2d241a] mx-2"></div>
-                        <div className="flex items-center bg-[#1a140e]/50 border border-[#2d241a] rounded-lg px-3 py-1.5 cursor-pointer hover:border-[#f49d25]/50 transition-all group">
-                            <span className="material-symbols-outlined text-slate-400 text-[18px] mr-2">search</span>
-                            <span className="text-xs text-slate-400 font-medium mr-4">Quick Group Jump...</span>
-                            <span className="text-[10px] bg-[#2d241a] px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">⌘K</span>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center bg-[#1a140e] rounded-lg px-3 py-1.5 border border-[#2d241a]">
-                            <span className="material-symbols-outlined text-slate-400 text-[20px] mr-2">calendar_today</span>
-                            <span className="text-sm font-medium text-slate-200">Last 30 Days</span>
-                        </div>
-                        <button className="relative p-2 text-slate-400 hover:text-white transition-colors">
-                            <span className="material-symbols-outlined">notifications</span>
-                            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#f49d25]"></span>
-                        </button>
-                    </div>
-                </header>
-
-                {/* Tab Bar Container */}
-                <div className="bg-[#0f0b08]/80 backdrop-blur-sm border-b border-[#2d241a] px-6 py-2 flex items-center justify-between sticky top-0 z-20">
-                    <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-1">
-                        <div className="relative group">
-                            <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1a140e] border border-[#2d241a] text-white text-xs font-semibold hover:border-[#f49d25]/50 transition-all mr-2">
-                                <span className="material-symbols-outlined text-[16px] text-[#f49d25]">grid_view</span>
-                                <span>All Groups</span>
-                                <span className="material-symbols-outlined text-[16px] text-slate-500">expand_more</span>
-                            </button>
-                        </div>
-                        <div className="h-6 w-px bg-[#2d241a] mx-2"></div>
-                        <button
-                            onClick={() => { setActiveStage('all'); setSelectedStatus('All'); }}
-                            className={`px-4 py-2 text-sm font-semibold whitespace-nowrap border-b-2 transition-all ${activeStage === 'all' ? 'text-white border-[#f49d25]' : 'text-slate-400 border-transparent hover:text-white'}`}
-                        >
-                            Default View <span className="ml-1 text-slate-400 font-normal">({leads.length})</span>
-                        </button>
-                        {stages.map((stage) => (
-                            <button
-                                key={stage.name}
-                                onClick={() => { setActiveStage(stage.name); setSelectedStatus('All'); }}
-                                className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap group ${activeStage === stage.name ? 'text-white border-b-2 border-[#f49d25]' : 'text-slate-400 border-b-2 border-transparent hover:text-white'}`}
-                            >
-                                <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.4)] ${stage.name === 'Screening' ? 'bg-indigo-500' : stage.name === 'Sourcing' ? 'bg-purple-500' : stage.name === 'Walk-in' ? 'bg-pink-500' : stage.name === 'Closure' ? 'bg-emerald-500' : 'bg-[#f49d25]'}`}></span>
-                                {stage.name} <span className="text-slate-500 group-hover:text-slate-400 transition-colors font-normal">({stage.count})</span>
-                            </button>
-                        ))}
-
-                        {/* Restore Create Group Button */}
-                        <button
-                            onClick={() => { setShowManageGroups(true); setShowCreateGroup(true); }}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-dashed border-[#2d241a] text-slate-500 text-xs font-semibold hover:border-[#f49d25]/50 hover:text-white transition-all ml-2"
-                        >
-                            <span className="material-symbols-outlined text-[16px]">add_circle</span>
-                            <span>Create Group</span>
-                        </button>
-                    </div>
-
-                    <button
-                        onClick={() => setShowManageGroups(!showManageGroups)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ml-4 ${showManageGroups ? 'bg-[#f49d25] text-[#0f0b08] border-[#f49d25]' : 'bg-[#1a140e] border-[#2d241a] text-slate-300 hover:border-[#f49d25]/50'}`}
-                    >
-                        <span className="material-symbols-outlined text-[16px]">drag_indicator</span>
-                        Manage Groups
-                    </button>
+            <div className="relative min-h-screen bg-[#0D1117] text-white selection:bg-primary/30 overflow-x-hidden">
+                <div className="fixed inset-0 pointer-events-none z-0">
+                    <div className="absolute inset-0 bg-[url('/images/noise.svg')] opacity-[0.02] mix-blend-overlay"></div>
+                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-primary/[0.03] via-transparent to-transparent"></div>
                 </div>
 
-                {/* Filter Bar */}
-                <div className="px-6 py-3 bg-[#0f0b08] flex items-center gap-4 border-b border-[#2d241a] shrink-0">
-                    <div className="flex-1 relative">
-                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-[20px]">search</span>
-                        <input
-                            className="w-full bg-[#1a140e]/40 border-[#2d241a] rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-[#f49d25]/20 focus:border-[#f49d25] transition-all text-slate-200 outline-none"
-                            placeholder={`Search leads in ${activeStage === 'all' ? 'All Leads' : activeStage}...`}
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <select
-                            value={selectedStatus}
-                            onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="bg-[#1a140e] border-[#2d241a] rounded-lg text-xs font-medium text-slate-300 px-3 py-2 outline-none focus:border-[#f49d25]"
-                        >
-                            <option value="All">Status: All</option>
-                            {(activeStage === 'all'
-                                ? Array.from(new Set(Object.values(stageStatusMapping).flat()))
-                                : stageStatusMapping[activeStage] || []
-                            ).map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <select className="bg-[#1a140e] border-[#2d241a] rounded-lg text-xs font-medium text-slate-300 px-3 py-2 outline-none focus:border-[#f49d25]">
-                            <option>Sorting: Recently Active</option>
-                            <option>Budget: High to Low</option>
-                            <option>Name: A-Z</option>
-                        </select>
-                    </div>
-                </div>
-
-                {/* Main Content */}
-                <main className="flex-1 overflow-hidden flex relative">
-                    {/* Lead List */}
-                    <div className="flex-1 overflow-y-auto p-6 scrollbar-hide bg-gradient-to-br from-[#0f0b08] via-[#14100c] to-[#0f0b08]">
-                        <div className="max-w-6xl mx-auto flex flex-col gap-3 pb-24">
-                            {loading && leads.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-50">
-                                    <div className="w-8 h-8 border-2 border-[#f49d25] border-t-transparent rounded-full animate-spin"></div>
-                                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Loading Leads...</span>
-                                </div>
-                            ) : error ? (
-                                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-8 text-center max-w-md mx-auto mt-10">
-                                    <span className="material-symbols-outlined text-red-500 text-4xl mb-4">error_outline</span>
-                                    <h3 className="text-white font-bold mb-2">Sync Interrupted</h3>
-                                    <p className="text-red-400/80 text-xs mb-6 px-4">{error}</p>
-                                    <button onClick={fetchLeads} className="px-6 py-2 bg-red-500 text-white rounded-lg text-xs font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-red-900/40">Retry Connection</button>
-                                </div>
-                            ) : leads.length === 0 ? (
-                                <div className="bg-white/5 border border-white/10 rounded-xl p-20 text-center opacity-40 max-w-md mx-auto mt-10">
-                                    <span className="material-symbols-outlined text-4xl mb-4 text-slate-500">group_off</span>
-                                    <p className="font-bold text-slate-300">No leads found</p>
-                                    <p className="text-[10px] mt-2 text-slate-500 uppercase tracking-widest">Adjust filters or create a new lead entry</p>
-                                </div>
-                            ) : (
-                                leads.map((lead) => (
-                                    <div
-                                        key={lead._id || lead.id}
-                                        onClick={() => router.push(`/lms/leads?id=${lead._id || lead.id}`)}
-                                        className={`bg-gradient-to-br from-[#251c12]/80 to-[#1a140e]/90 backdrop-blur-md border border-[#3d2f1d]/60 shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] rounded-xl p-4 flex items-center justify-between group transition-all relative overflow-hidden pl-12 cursor-pointer ${getBorderColor(lead.stage)}`}
-                                    >
-                                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${getAccentBg(lead.stage)}`}></div>
-                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center" onClick={(e) => e.stopPropagation()}>
-                                            <input
-                                                checked={selectedLeads.includes(lead._id || lead.id)}
-                                                onChange={(e) => {
-                                                    e.stopPropagation();
-                                                    toggleLeadSelection(lead._id || lead.id);
-                                                }}
-                                                className="w-5 h-5 rounded border-[#2d241a] bg-[#1a140e] text-[#f49d25] focus:ring-[#f49d25]/40 focus:ring-offset-0 cursor-pointer"
-                                                type="checkbox"
-                                            />
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 rounded-full bg-slate-800 border border-[#2d241a] flex items-center justify-center text-slate-400 font-bold overflow-hidden shadow-inner">
-                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900 text-sm">
-                                                    {lead.name?.charAt(0)?.toUpperCase()}
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <h4 className="text-white font-semibold flex items-center gap-2">
-                                                    {lead.name}
-                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${getStageStyles(lead.stage)}`}>
-                                                        {lead.stage || 'Screening'}
-                                                    </span>
-                                                </h4>
-                                                <p className="text-[11px] text-slate-400 flex items-center gap-3 mt-1 font-medium">
-                                                    <span className="flex items-center gap-1 text-orange-200/80">
-                                                        <span className="material-symbols-outlined text-[14px]">payments</span>
-                                                        {lead.budget_min ? `₹${(lead.budget_min / 100000).toFixed(1)}L` : 'Call for'} Budget
-                                                    </span>
-                                                    <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                                                    <span className="flex items-center gap-1 text-slate-300">
-                                                        <span className="material-symbols-outlined text-[14px]">
-                                                            {lead.property_type?.toLowerCase().includes('comm') ? 'corporate_fare' : 'home'}
-                                                        </span>
-                                                        {lead.property_type || 'Residential'}
-                                                    </span>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-8">
-                                            <div className="text-right hidden sm:block">
-                                                <p className="text-[9px] text-slate-500 uppercase font-black tracking-[0.15em] mb-1">Source Pipeline</p>
-                                                <div className="flex flex-col items-end gap-1">
-                                                    <p className="text-[10px] text-white font-bold bg-white/5 px-2.5 py-1 rounded border border-white/10 uppercase tracking-tighter">
-                                                        {lead.source || 'Direct Channel'}
-                                                    </p>
-                                                    {lead.form_name && (
-                                                        <p className="text-[8px] text-indigo-400 font-black uppercase tracking-widest truncate max-w-[120px]" title={lead.form_name}>
-                                                            {lead.form_name}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="text-right hidden sm:block">
-                                                <p className="text-[9px] text-slate-500 uppercase font-black tracking-[0.15em] mb-1">Status Update</p>
-                                                <p className="text-xs text-slate-200 font-medium">
-                                                    {lead.status || 'Active Sync'}
-                                                </p>
-                                            </div>
-                                            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                                                <button className="h-8 w-8 rounded-lg bg-[#1a140e] border border-[#2d241a] flex items-center justify-center text-slate-400 hover:text-[#f49d25] hover:border-[#f49d25] transition-all active:scale-90 shadow-lg">
-                                                    <span className="material-symbols-outlined text-[18px]">call</span>
-                                                </button>
-                                                <button className="h-8 w-8 rounded-lg bg-[#1a140e] border border-[#2d241a] flex items-center justify-center text-slate-400 hover:text-[#f49d25] hover:border-[#f49d25] transition-all active:scale-90 shadow-lg">
-                                                    <span className="material-symbols-outlined text-[18px]">more_vert</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Right Panel: Manage Groups */}
-                    {showManageGroups && (
-                        <div className="w-80 bg-[#1a140e] border-l border-[#2d241a] flex flex-col shrink-0 z-40">
-                            <div className="p-5 border-b border-[#2d241a] flex justify-between items-center bg-[#0f0b08]/30">
-                                <h3 className="text-white font-bold text-base flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-[#f49d25]">settings_suggest</span>
-                                    Manage Groups
-                                </h3>
-                                <button
-                                    onClick={() => setShowManageGroups(false)}
-                                    className="text-slate-500 hover:text-white transition-colors"
-                                >
-                                    <span className="material-symbols-outlined uppercase">close</span>
-                                </button>
+                <div className="relative z-10 flex flex-col h-screen overflow-hidden">
+                    <header className="h-20 border-b border-white/[0.05] bg-white/[0.02] backdrop-blur-xl px-8 flex items-center justify-between shrink-0 z-30">
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-3 mb-1 text-left">
+                                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[10px] font-black text-emerald-500/80 uppercase tracking-[0.3em] font-mono">Lead Intelligence Online</span>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
-                                {/* Group Architecture Section */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between px-1">
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Group Architecture</p>
+                            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tighter uppercase leading-none text-left">
+                                Lead <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-600">Center</span>
+                            </h2>
+                        </div>
+
+                        <div className="flex items-center gap-6">
+                            <div className="hidden lg:flex items-center gap-4 bg-white/[0.03] border border-white/[0.05] rounded-2xl px-6 py-3 backdrop-blur-md shadow-xl text-right">
+                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1.5 text-right">Last Pipeline Sync</p>
+                                <p className="text-xs font-black text-white font-mono uppercase tracking-tighter text-right">
+                                    {mountTime ? format(mountTime, 'HH:mm:ss') : '--:--:--'} UTC
+                                </p>
+                                <div className="h-6 w-px bg-white/10 mx-1" />
+                                <motion.button
+                                    whileHover={{ rotate: 180 }}
+                                    transition={{ duration: 0.5 }}
+                                    onClick={() => window.location.reload()}
+                                    className="h-8 w-8 flex items-center justify-center rounded-xl bg-white/[0.03] border border-white/[0.05] hover:bg-white/10 transition-colors"
+                                >
+                                    <ArrowPathIcon className="h-4 w-4 text-gray-500" />
+                                </motion.button>
+                            </div>
+
+                            <div className="flex items-center bg-white/[0.03] border border-white/[0.05] rounded-xl p-1">
+                                <button className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 rounded-lg">Pipeline</button>
+                                <button className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors">Analytics</button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div className="bg-white/[0.01] border-b border-white/[0.05] px-8 py-2 flex items-center justify-between sticky top-0 z-20 backdrop-blur-sm shrink-0">
+                        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide flex-1 py-1">
+                            <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => { setActiveStage('all'); setSelectedStatus('All'); }}
+                                className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all whitespace-nowrap border ${activeStage === 'all'
+                                    ? 'bg-primary/10 text-primary border-primary/20 shadow-glow-sm'
+                                    : 'bg-white/[0.03] text-gray-500 border-white/[0.05] hover:border-white/20 hover:text-white'}`}
+                            >
+                                All Leads <span className="ml-1 opacity-60">({leads.length})</span>
+                            </motion.button>
+
+                            <div className="h-6 w-px bg-white/10 mx-2" />
+
+                            {stages.map((stage) => (
+                                <motion.button
+                                    key={stage.name}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => { setActiveStage(stage.name); setSelectedStatus('All'); }}
+                                    className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-3 whitespace-nowrap border group ${activeStage === stage.name
+                                        ? 'bg-white/[0.08] text-white border-white/20 shadow-xl'
+                                        : 'bg-white/[0.03] text-gray-500 border-white/[0.05] hover:border-white/20 hover:text-white'}`}
+                                >
+                                    <span className={`w-2 h-2 rounded-full shadow-lg ${stage.name === 'Screening' ? 'bg-indigo-500 shadow-indigo-500/50' : stage.name === 'Sourcing' ? 'bg-purple-500 shadow-purple-500/50' : stage.name === 'Walk-in' ? 'bg-pink-500 shadow-pink-500/50' : stage.name === 'Closure' ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-primary shadow-primary/50'}`}></span>
+                                    {stage.name} <span className="opacity-40 group-hover:opacity-60 transition-colors font-normal">({stage.count})</span>
+                                </motion.button>
+                            ))}
+
+                            <button
+                                onClick={() => { setShowManageGroups(true); setShowCreateGroup(true); }}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-white/10 text-gray-500 text-[10px] font-black uppercase tracking-widest hover:border-primary/50 hover:text-primary transition-all ml-2"
+                            >
+                                <PlusCircleIcon className="h-4 w-4" />
+                                <span>New Stage</span>
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => setShowManageGroups(!showManageGroups)}
+                            className={`flex items-center gap-3 px-5 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-[0.2em] transition-all ml-6 ${showManageGroups
+                                ? 'bg-primary text-black border-primary'
+                                : 'bg-white/[0.03] border-white/[0.05] text-gray-400 hover:border-white/20'}`}
+                        >
+                            <AdjustmentsHorizontalIcon className="h-4 w-4" />
+                            Management
+                        </button>
+                    </div>
+
+                    <div className="px-8 py-4 bg-white/[0.01] flex items-center gap-6 border-b border-white/[0.05] shrink-0">
+                        <div className="flex-1 relative group">
+                            <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 h-5 w-5 group-focus-within:text-primary transition-colors" />
+                            <input
+                                className="w-full bg-white/[0.03] border-white/[0.05] rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-primary/20 transition-all text-white outline-none placeholder:text-gray-600 shadow-xl"
+                                placeholder={`Search intelligence in ${activeStage === 'all' ? 'Universal Pipeline' : activeStage}...`}
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="relative">
+                                <FunnelIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
+                                <select
+                                    value={selectedStatus}
+                                    onChange={(e) => setSelectedStatus(e.target.value)}
+                                    className="bg-white/[0.03] border-white/[0.05] rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 pl-9 pr-6 py-3 outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer"
+                                >
+                                    <option value="All">Status: All</option>
+                                    {(activeStage === 'all'
+                                        ? Array.from(new Set(Object.values(stageStatusMapping).flat()))
+                                        : stageStatusMapping[activeStage] || []
+                                    ).map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                            <div className="relative">
+                                <ArrowsUpDownIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500" />
+                                <select className="bg-white/[0.03] border-white/[0.05] rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-400 pl-9 pr-6 py-3 outline-none focus:border-primary/50 transition-all appearance-none cursor-pointer">
+                                    <option>Sorting: Recently Active</option>
+                                    <option>Budget: High to Low</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <main className="flex-1 overflow-hidden flex relative">
+                        <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+                            <div className="max-w-6xl mx-auto flex flex-col gap-3 pb-24">
+                                {loading && leads.length === 0 ? (
+                                    <div className="flex items-center justify-center py-32">
+                                        <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                ) : error ? (
+                                    <div className="p-12 text-center text-red-400 opacity-60 font-black uppercase tracking-widest">{error}</div>
+                                ) : leads.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-32 text-gray-600 bg-white/[0.01] rounded-[3rem] border border-white/[0.05] border-dashed">
+                                        <AcademicCapIcon className="h-10 w-10 mb-4 opacity-20" />
+                                        <p className="text-[10px] font-black uppercase tracking-widest">No Intelligence Detected</p>
+                                    </div>
+                                ) : (
+                                    leads.map((lead) => (
+                                        <LeadCard
+                                            key={lead._id || lead.id}
+                                            lead={lead}
+                                            onClick={() => router.push(`/lms/leads/${lead._id || lead.id}`)}
+                                            isSelected={selectedLeads.includes(lead._id || lead.id)}
+                                            onSelect={() => toggleLeadSelection(lead._id || lead.id)}
+                                            stages={stages}
+                                        />
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        <AnimatePresence>
+                            {showManageGroups && (
+                                <motion.div
+                                    initial={{ x: 320 }}
+                                    animate={{ x: 0 }}
+                                    exit={{ x: 320 }}
+                                    className="w-96 bg-white/[0.01] border-l border-white/[0.05] backdrop-blur-3xl flex flex-col shrink-0 z-40"
+                                >
+                                    <div className="p-8 border-b border-white/[0.05] flex justify-between items-center bg-white/[0.02]">
+                                        <div className="flex flex-col text-left">
+                                            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">Architecture</p>
+                                            <h3 className="text-xl font-black text-white uppercase tracking-tighter">Manage Groups</h3>
+                                        </div>
                                         <button
-                                            onClick={() => setShowCreateGroup(!showCreateGroup)}
-                                            className="text-[10px] font-black text-[#f49d25] uppercase tracking-tighter hover:text-orange-400"
+                                            onClick={() => setShowManageGroups(false)}
+                                            className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/[0.03] border border-white/[0.05] text-gray-400 hover:text-white transition-colors"
                                         >
-                                            {showCreateGroup ? 'Cancel' : '+ Custom Stage'}
+                                            <span className="material-symbols-outlined uppercase text-[20px]">close</span>
                                         </button>
                                     </div>
-
-                                    {/* Create Stage Form */}
-                                    {showCreateGroup && (
-                                        <form onSubmit={handleCreateStage} className="p-3 bg-white/5 rounded-xl border border-[#f49d25]/30 space-y-2 animate-in slide-in-from-top duration-200">
-                                            <input
-                                                autoFocus
-                                                type="text"
-                                                value={newGroupName}
-                                                onChange={(e) => setNewGroupName(e.target.value)}
-                                                placeholder="Stage Name (e.g. Follow Up)"
-                                                className="w-full bg-[#0f0b08] border-[#2d241a] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#f49d25]"
-                                            />
-                                            <div className="flex items-center gap-2">
+                                    <div className="flex-1 overflow-y-auto p-8 space-y-8 scrollbar-hide">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between px-1">
+                                                <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Pipeline Structure</p>
                                                 <button
-                                                    type="submit"
-                                                    disabled={!newGroupName || loading}
-                                                    className="flex-1 py-1.5 bg-[#f49d25] text-[#0f0b08] rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-orange-500 disabled:opacity-50"
+                                                    onClick={() => setShowCreateGroup(!showCreateGroup)}
+                                                    className="text-[10px] font-black text-primary uppercase tracking-widest hover:text-orange-400 transition-colors"
                                                 >
-                                                    Add Stage
+                                                    {showCreateGroup ? '[ Cancel ]' : '[ + New Stage ]'}
                                                 </button>
                                             </div>
-                                        </form>
-                                    )}
 
-                                    <div className="space-y-1.5">
-                                        <div className="flex items-center justify-between p-3 bg-[#0f0b08]/50 border border-[#2d241a] rounded-xl cursor-move hover:border-[#f49d25]/30 transition-colors">
-                                            <div className="flex items-center gap-3">
-                                                <span className="material-symbols-outlined text-slate-600 text-[18px]">drag_indicator</span>
-                                                <span className="text-sm font-medium text-slate-200">Default View</span>
+                                            <AnimatePresence>
+                                                {showCreateGroup && (
+                                                    <motion.form
+                                                        initial={{ opacity: 0, scale: 0.95 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        exit={{ opacity: 0, scale: 0.95 }}
+                                                        onSubmit={handleCreateStage}
+                                                        className="p-5 bg-white/[0.03] rounded-2xl border border-primary/20 space-y-4"
+                                                    >
+                                                        <div className="space-y-1.5 text-left">
+                                                            <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">Stage Designation</label>
+                                                            <input
+                                                                autoFocus
+                                                                type="text"
+                                                                value={newGroupName}
+                                                                onChange={(e) => setNewGroupName(e.target.value)}
+                                                                placeholder="e.g. Qualified Lead"
+                                                                className="w-full bg-white/[0.05] border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-primary/50 transition-all"
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            type="submit"
+                                                            disabled={!newGroupName || loading}
+                                                            className="w-full py-3 bg-primary text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-500 disabled:opacity-50 transition-all shadow-glow-sm"
+                                                        >
+                                                            Authorize New Stage
+                                                        </button>
+                                                    </motion.form>
+                                                )}
+                                            </AnimatePresence>
+
+                                            <div className="space-y-3">
+                                                {stages.map((stage) => (
+                                                    <div key={stage.name} className="group/item flex items-center justify-between p-4 bg-white/[0.02] border border-white/[0.05] rounded-[1.5rem] hover:border-white/20 transition-all hover:bg-white/[0.04]">
+                                                        <div className="flex items-center gap-4 text-left">
+                                                            <div className={`w-2.5 h-2.5 rounded-full shadow-lg ${stage.name === 'Screening' ? 'bg-indigo-500 shadow-indigo-500/50' : stage.name === 'Sourcing' ? 'bg-purple-500 shadow-purple-500/50' : stage.name === 'Walk-in' ? 'bg-pink-500 shadow-pink-500/50' : stage.name === 'Closure' ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-primary shadow-primary/50'}`}></div>
+                                                            <span className="text-xs font-black text-gray-300 uppercase tracking-tighter">{stage.name} <span className="text-gray-600 font-normal ml-1 font-mono tracking-normal">({stage.count})</span></span>
+                                                        </div>
+                                                        <button onClick={() => { setActiveStage(stage.name); setShowManageGroups(false); }} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-gray-500 hover:text-white transition-colors">
+                                                            <ArrowRightIcon className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <button onClick={() => { setActiveStage('all'); setShowManageGroups(false); }} className="material-symbols-outlined text-slate-600 text-[18px] hover:text-[#f49d25] transition-colors">visibility</button>
                                         </div>
-                                        {stages.map((stage) => (
-                                            <div key={stage.name} className="flex items-center justify-between p-3 bg-[#0f0b08]/50 border border-[#2d241a] rounded-xl cursor-move hover:border-[#f49d25]/30 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="material-symbols-outlined text-slate-600 text-[18px]">drag_indicator</span>
-                                                    <div className={`w-2.5 h-2.5 rounded-full ${stage.name === 'Screening' ? 'bg-indigo-500' : stage.name === 'Sourcing' ? 'bg-purple-500' : stage.name === 'Walk-in' ? 'bg-pink-500' : stage.name === 'Closure' ? 'bg-emerald-500' : 'bg-[#f49d25]'}`}></div>
-                                                    <span className="text-sm font-medium text-slate-200">{stage.name} <span className="text-slate-500 font-normal">({stage.count})</span></span>
-                                                </div>
-                                                <button onClick={() => { setActiveStage(stage.name); setShowManageGroups(false); }} className="material-symbols-outlined text-slate-600 text-[18px] hover:text-[#f49d25] transition-colors">visibility</button>
-                                            </div>
-                                        ))}
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
-                    {/* Floating Selection Bar */}
-                    <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${selectedLeads.length > 0 ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}>
-                        <div className="bg-[#1a140e]/95 backdrop-blur-md rounded-2xl px-6 py-3 border border-[#f49d25]/30 flex items-center gap-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                            <div className="flex items-center gap-3">
-                                <span className="h-6 w-6 rounded-full bg-[#f49d25] flex items-center justify-center text-[#0f0b08] text-[10px] font-black">{selectedLeads.length}</span>
-                                <span className="text-xs font-bold text-white uppercase tracking-widest">Active Selection</span>
-                            </div>
-                            <div className="h-8 w-px bg-[#2d241a]"></div>
-                            <div className="flex items-center gap-4">
-                                <div className="relative group">
-                                    <button className="flex items-center gap-2 px-4 py-2 bg-[#f49d25] text-[#0f0b08] rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-orange-500 transition-all">
-                                        <span className="material-symbols-outlined text-[18px]">drive_file_move</span>
-                                        Move Group
-                                        <span className="material-symbols-outlined text-[16px]">expand_more</span>
-                                    </button>
-                                    <div className="absolute bottom-full mb-2 left-0 bg-[#1a140e] border border-[#2d241a] rounded-lg shadow-xl hidden group-hover:block min-w-[150px]">
-                                        {stages.filter(s => s.name !== activeStage).map(s => (
-                                            <button
-                                                key={s.name}
-                                                onClick={() => handleBulkMove(s.name)}
-                                                className="w-full text-left px-4 py-2 text-[10px] font-bold text-slate-300 hover:bg-[#f49d25] hover:text-[#0f0b08] first:rounded-t-lg last:rounded-b-lg transition-colors border-b border-white/5 last:border-0"
-                                            >
-                                                Move to {s.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <button className="p-2 text-slate-400 hover:text-white transition-colors" title="Download Pipeline">
-                                    <span className="material-symbols-outlined text-[20px]">download</span>
-                                </button>
-                                <button className="p-2 text-slate-400 hover:text-red-400 transition-colors" title="Purge Selection">
-                                    <span className="material-symbols-outlined text-[20px]">delete</span>
-                                </button>
-                                <button
-                                    onClick={() => setSelectedLeads([])}
-                                    className="text-slate-500 hover:text-white ml-2"
+                        <AnimatePresence>
+                            {selectedLeads.length > 0 && (
+                                <motion.div
+                                    initial={{ y: 100, x: '-50%', opacity: 0 }}
+                                    animate={{ y: 0, x: '-50%', opacity: 1 }}
+                                    exit={{ y: 100, x: '-50%', opacity: 0 }}
+                                    className="fixed bottom-12 left-1/2 z-50 min-w-[500px]"
                                 >
-                                    <span className="material-symbols-outlined text-[20px]">close</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                                    <div className="bg-[#0D1117]/80 backdrop-blur-3xl rounded-[2rem] px-8 py-4 border border-white/[0.1] flex items-center gap-8 shadow-[0_30px_100px_rgba(0,0,0,0.8)]">
+                                        <div className="flex items-center gap-4 text-left">
+                                            <div className="h-10 w-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-glow-sm">
+                                                <span className="text-sm font-black">{selectedLeads.length}</span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Selection Mode</span>
+                                                <span className="text-xs font-black text-white uppercase tracking-tighter">Manage {selectedLeads.length} selected leads</span>
+                                            </div>
+                                        </div>
+                                        <div className="h-10 w-px bg-white/[0.05]"></div>
+                                        <div className="flex items-center gap-4 flex-1">
+                                            <div
+                                                className="relative"
+                                                onMouseEnter={() => setShowMoveDropdown(true)}
+                                                onMouseLeave={() => setShowMoveDropdown(false)}
+                                            >
+                                                <button className="flex items-center gap-3 px-6 py-2.5 bg-white/[0.03] border border-white/[0.1] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">
+                                                    <ArrowPathIcon className="h-4 w-4 text-primary" />
+                                                    Move to Stage
+                                                    <ChevronDownIcon className={`h-3 w-3 text-gray-500 transition-transform duration-300 ${showMoveDropdown ? 'rotate-180' : ''}`} />
+                                                </button>
+                                                <AnimatePresence>
+                                                    {showMoveDropdown && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                                            className="absolute bottom-full left-0 min-w-[200px] z-50 pb-2"
+                                                        >
+                                                            <div className="bg-[#0D1117] border border-white/[0.1] rounded-2xl shadow-2xl overflow-hidden backdrop-blur-3xl">
+                                                                {stages.filter(s => s.name !== activeStage).map(s => (
+                                                                    <button
+                                                                        key={s.name}
+                                                                        onClick={() => {
+                                                                            handleBulkMove(s.name);
+                                                                            setShowMoveDropdown(false);
+                                                                        }}
+                                                                        className="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-white/5 hover:text-white transition-colors border-b border-white/[0.05] last:border-0"
+                                                                    >
+                                                                        To {s.name}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setSelectedLeads([])}
+                                            className="h-10 w-10 flex items-center justify-center rounded-xl bg-white/[0.03] border border-white/[0.1] text-gray-500 hover:text-white"
+                                        >
+                                            <span className="material-symbols-outlined text-[20px]">close</span>
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
-                    {/* Floating Action Button */}
-                    <div className="absolute right-6 bottom-6 z-40 flex flex-col gap-3">
-                        <button
-                            onClick={() => router.push('/lms/leads/new')}
-                            className="flex items-center justify-center gap-2 bg-[#f49d25] hover:bg-orange-500 text-[#0f0b08] font-black py-4 px-8 rounded-full transition-all shadow-[0_10px_40px_rgba(244,157,37,0.4)] hover:scale-105 active:scale-95 uppercase text-[11px] tracking-[0.2em]"
+                        <motion.div
+                            animate={{
+                                right: showManageGroups ? 480 : 48,
+                            }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                            className="fixed bottom-12 z-40"
+                            whileHover={{ scale: 1.02, y: -5 }}
+                            whileTap={{ scale: 0.98 }}
                         >
-                            <span className="material-symbols-outlined text-[22px]">person_add</span>
-                            New Discovery
-                        </button>
-                    </div>
-                </main>
+                            <button
+                                onClick={() => router.push('/lms/leads/new')}
+                                className="group relative flex items-center gap-5 bg-gradient-to-br from-primary to-orange-600 p-1.5 pr-10 rounded-[2.5rem] transition-all shadow-[0_20px_50px_rgba(244,157,37,0.2)] hover:shadow-[0_30px_70px_rgba(244,157,37,0.4)] overflow-hidden"
+                            >
+                                <div className="h-14 w-14 rounded-[2.2rem] bg-black/40 backdrop-blur-md flex items-center justify-center text-white group-hover:bg-black/60 transition-all duration-500 border border-white/10">
+                                    <PlusCircleIcon className="h-7 w-7" />
+                                </div>
+                                <div className="flex flex-col items-start text-left">
+                                    <span className="text-[10px] font-black text-black/40 uppercase tracking-[0.25em] leading-none mb-1">Action</span>
+                                    <span className="text-xs font-black text-black uppercase tracking-widest">Create New Lead</span>
+                                </div>
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                            </button>
+                        </motion.div>
+                    </main>
+                </div>
             </div>
         </Layout>
     );

@@ -16,9 +16,22 @@ const logger = require('../../../config/logger');
 router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
 
 // Defensive helper to ensure client context exists before using req.client.id
-const ensureClient = (req) => {
-    // Super admins can skip client context check for listing (GET)
-    if (req.user?.is_super_admin && req.method === 'GET') {
+const ensureClient = async (req) => {
+    // Attempt to extract client_id from body if missing (for POSTs)
+    if (req.user?.is_super_admin && !req.client && req.body && req.body.client_id) {
+        req.client = { id: req.body.client_id };
+    }
+
+    // Attempt to dynamically resolve client_id from target document if missing (for PUT/DELETE)
+    if (req.user?.is_super_admin && !req.client && req.params.id) {
+        const campaign = await require('../../../models').Campaign.findById(req.params.id).select('client_id');
+        if (campaign && campaign.client_id) {
+            req.client = { id: campaign.client_id.toString() };
+        }
+    }
+
+    // Super admins can skip strict client context blocking completely ("super admin can do what ever they want")
+    if (req.user?.is_super_admin) {
         return;
     }
 
@@ -40,10 +53,11 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
     logger.info(`Resolving ${localLeadIds.length} local leads to external contact IDs...`);
 
     // 1. Fetch leads from local DB
-    const leads = await Lead.find({
-        _id: { $in: localLeadIds },
-        client_id: clientId
-    });
+    const query = { _id: { $in: localLeadIds } };
+    if (clientId) {
+        query.client_id = clientId;
+    }
+    const leads = await Lead.find(query);
 
     console.log(`[DEBUG_SYNC] Found ${leads.length} leads in database out of ${localLeadIds.length} requested.`);
 
@@ -151,7 +165,7 @@ const syncAudienceContacts = async (localLeadIds, clientId) => {
  */
 router.get('/', requireFeature('campaigns'), async (req, res, next) => {
     try {
-        ensureClient(req);
+        await ensureClient(req);
         const pagination = getPagination(req.query);
         const sorting = getSorting(req.query, ['name', 'status', 'type', 'created_at', 'scheduled_at'], 'created_at');
 
@@ -264,15 +278,14 @@ router.post('/',
     auditAction('create', 'campaign'),
     async (req, res, next) => {
         try {
-            ensureClient(req);
+            await ensureClient(req);
             const {
                 name, type, template_name, template_data,
                 target_audience, scheduled_at, metadata
             } = req.body;
 
             // 1. Create Local Campaign
-            const campaign = await Campaign.create({
-                client_id: req.client.id,
+            const campaignPayload = {
                 name,
                 type: type || 'broadcast',
                 status: 'draft', // Start as draft
@@ -282,7 +295,11 @@ router.post('/',
                 scheduled_at: scheduled_at ? new Date(scheduled_at) : null,
                 created_by: req.user.id,
                 metadata: metadata || {}
-            });
+            };
+            if (req.client?.id) {
+                campaignPayload.client_id = req.client.id;
+            }
+            const campaign = await Campaign.create(campaignPayload);
 
             // 2. Trigger External API if launching
             // Check if user intends to launch (immediate or scheduled)
@@ -303,26 +320,36 @@ router.post('/',
             if (targetStatus !== 'draft') {
                 try {
                     let validContactIds = [];
+                    let isExternalBypass = false;
 
                     if (target_audience?.type === 'all') {
-                        console.log(`[DEBUG_CAMPAIGN] Expanding 'all' audience for client ${req.client.id}`);
-                        const allLeads = await Lead.find({ client_id: req.client.id }).select('_id');
+                        console.log(`[DEBUG_CAMPAIGN] Expanding 'all' audience for client ${req.client?.id || 'GLOBAL'}`);
+                        const query = req.client?.id ? { client_id: req.client.id } : {};
+                        const allLeads = await Lead.find(query).select('_id');
                         validContactIds = allLeads.map(l => l._id.toString());
                         console.log(`[DEBUG_CAMPAIGN] expanded 'all' to ${validContactIds.length} contacts`);
-                    } else {
-                        const contactIds = target_audience?.include || [];
+                    } else if (target_audience?.include && target_audience.include.length > 0) {
+                        const contactIds = target_audience.include;
                         validContactIds = contactIds
                             .filter(id => id && (typeof id === 'string' || typeof id === 'object'))
                             .map(id => id.toString());
+                    } else if (req.body.external_contact_ids && req.body.external_contact_ids.length > 0) {
+                        // Bypass local lead resolution for explicitly external relaunches
+                        isExternalBypass = true;
+                        validContactIds = req.body.external_contact_ids;
+                        console.log(`[DEBUG_CAMPAIGN] Bypassing native resolution. Using ${validContactIds.length} explicit external contacts.`);
                     }
 
                     if (validContactIds.length === 0) {
                         throw new Error('No valid contact IDs provided or found for this audience.');
                     }
 
-                    console.log(`[DEBUG_CAMPAIGN] Validating ${validContactIds.length} contact IDs for client ${req.client.id}`);
-                    const syncedContactIds = await syncAudienceContacts(validContactIds, req.client.id);
-                    console.log(`[DEBUG_CAMPAIGN] Synced ${syncedContactIds.length} contact IDs`);
+                    console.log(`[DEBUG_CAMPAIGN] Validating ${validContactIds.length} contact IDs for client ${req.client?.id || 'GLOBAL'}`);
+
+                    let syncedContactIds = validContactIds;
+                    if (!isExternalBypass) {
+                        syncedContactIds = await syncAudienceContacts(validContactIds, req.client?.id);
+                    }
 
                     if (syncedContactIds.length === 0) {
                         console.error(`[DEBUG_CAMPAIGN] SYNC FAILED: No leads found in DB for the provided IDs or they belong to a different client.`);
@@ -379,7 +406,10 @@ router.post('/',
                                 { $unset: { 'metadata.external_contact_id': '' } }
                             );
 
-                            const reSyncedIds = await syncAudienceContacts(validContactIds, req.client.id);
+                            let reSyncedIds = validContactIds;
+                            if (!isExternalBypass) {
+                                reSyncedIds = await syncAudienceContacts(validContactIds, req.client?.id);
+                            }
 
                             if (reSyncedIds.length > 0) {
                                 externalPayload.contact_ids = reSyncedIds;
@@ -456,7 +486,7 @@ router.post('/',
  */
 router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
     try {
-        ensureClient(req);
+        await ensureClient(req);
         const query = { _id: req.params.id };
         if (req.client?.id) {
             query.client_id = req.client.id;
@@ -529,11 +559,12 @@ router.put('/:id',
     auditAction('update', 'campaign'),
     async (req, res, next) => {
         try {
-            ensureClient(req);
-            const campaign = await Campaign.findOne({
-                _id: req.params.id,
-                client_id: req.client.id
-            });
+            await ensureClient(req);
+            const query = { _id: req.params.id };
+            if (req.client?.id) {
+                query.client_id = req.client.id;
+            }
+            const campaign = await Campaign.findOne(query);
 
             if (!campaign) {
                 throw ApiError.notFound('Campaign not found');
@@ -572,11 +603,12 @@ router.put('/:id/status',
     auditAction('update_status', 'campaign'),
     async (req, res, next) => {
         try {
-            ensureClient(req);
-            const campaign = await Campaign.findOne({
-                _id: req.params.id,
-                client_id: req.client.id
-            });
+            await ensureClient(req);
+            const query = { _id: req.params.id };
+            if (req.client?.id) {
+                query.client_id = req.client.id;
+            }
+            const campaign = await Campaign.findOne(query);
 
             if (!campaign) {
                 throw ApiError.notFound('Campaign not found');
@@ -610,8 +642,9 @@ router.put('/:id/status',
                         let validContactIds = [];
 
                         if (campaign.target_audience?.type === 'all') {
-                            console.log(`[DEBUG_CAMPAIGN] Expanding 'all' audience for campaign ${campaign._id} (client: ${req.client.id})`);
-                            const allLeads = await Lead.find({ client_id: req.client.id }).select('_id');
+                            console.log(`[DEBUG_CAMPAIGN] Expanding 'all' audience for campaign ${campaign._id} (client: ${req.client?.id || 'GLOBAL'})`);
+                            const leadQuery = req.client?.id ? { client_id: req.client.id } : {};
+                            const allLeads = await Lead.find(leadQuery).select('_id');
                             validContactIds = allLeads.map(l => l._id.toString());
                             console.log(`[DEBUG_CAMPAIGN] expanded 'all' to ${validContactIds.length} contacts`);
                         } else {
@@ -625,7 +658,7 @@ router.put('/:id/status',
                             throw new Error('No valid contact IDs found for this campaign.');
                         }
 
-                        const syncedContactIds = await syncAudienceContacts(validContactIds, req.client.id);
+                        const syncedContactIds = await syncAudienceContacts(validContactIds, req.client?.id);
 
                         if (syncedContactIds.length === 0) {
                             // The error is already thrown inside syncAudienceContacts if all failed, 
@@ -704,11 +737,12 @@ router.delete('/:id',
     auditAction('delete', 'campaign'),
     async (req, res, next) => {
         try {
-            ensureClient(req);
-            const campaign = await Campaign.findOne({
-                _id: req.params.id,
-                client_id: req.client.id
-            });
+            await ensureClient(req);
+            const query = { _id: req.params.id };
+            if (req.client?.id) {
+                query.client_id = req.client.id;
+            }
+            const campaign = await Campaign.findOne(query);
 
             if (!campaign) {
                 throw ApiError.notFound('Campaign not found');
@@ -737,11 +771,12 @@ router.delete('/:id',
  */
 router.get('/:id/stats', requireFeature('campaigns'), async (req, res, next) => {
     try {
-        ensureClient(req);
-        const campaign = await Campaign.findOne({
-            _id: req.params.id,
-            client_id: req.client.id
-        });
+        await ensureClient(req);
+        const query = { _id: req.params.id };
+        if (req.client?.id) {
+            query.client_id = req.client.id;
+        }
+        const campaign = await Campaign.findOne(query);
 
         if (!campaign) {
             throw ApiError.notFound('Campaign not found');

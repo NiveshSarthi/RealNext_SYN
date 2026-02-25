@@ -15,11 +15,12 @@ import {
   ClockIcon,
   XCircleIcon,
   ChatBubbleLeftRightIcon,
-  PaperAirplaneIcon
+  PaperAirplaneIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '../../components/ui/Button';
 
-const CampaignCard = ({ campaign, onEdit, onSend, onView, onDelete, onAnalytics }) => {
+const CampaignCard = ({ campaign, onEdit, onSend, onView, onDelete, onAnalytics, onRelaunch }) => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'completed': return <CheckCircleIcon className="h-5 w-5 text-green-400" />;
@@ -66,13 +67,13 @@ const CampaignCard = ({ campaign, onEdit, onSend, onView, onDelete, onAnalytics 
           <div>
             <p className="text-[10px] font-semibold text-gray-500">RECIPIENTS</p>
             <p className="text-lg font-bold text-white">
-              {campaign.total_contacts || 0}
+              {campaign.total_contacts || campaign.contacts || campaign.recipient_count || 0}
             </p>
           </div>
           <div>
             <p className="text-[10px] font-semibold text-gray-500">SENT</p>
             <p className="text-lg font-bold text-primary">
-              {campaign.stats?.sent || 0}
+              {campaign.stats?.sent || campaign.sent_count || campaign.messages_sent || 0}
             </p>
           </div>
         </div>
@@ -140,6 +141,17 @@ const CampaignCard = ({ campaign, onEdit, onSend, onView, onDelete, onAnalytics 
                 title="Delete"
               >
                 <TrashIcon className="h-4 w-4" />
+              </button>
+            )}
+
+            {/* Relaunch (Completed, Failed, Cancelled) */}
+            {['completed', 'failed', 'cancelled'].includes(campaign.status) && (
+              <button
+                onClick={() => onRelaunch(campaign)}
+                className="p-2 rounded-lg text-gray-400 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
+                title="Relaunch Campaign"
+              >
+                <ArrowPathIcon className="h-4 w-4" />
               </button>
             )}
           </div>
@@ -276,9 +288,57 @@ export default function Campaigns() {
     }
   };
 
-  const handleEdit = (campaign) => router.push(`/campaigns/${campaign._id || campaign.id}/edit`);
-  const handleView = (campaign) => router.push(`/campaigns/${campaign._id || campaign.id}`);
-  const handleAnalytics = (campaign) => router.push(`/campaigns/${campaign._id || campaign.id}/${campaign.is_ab_test ? 'ab-test-results' : 'analytics'}`);
+  const handleRelaunch = async (campaign) => {
+    if (!confirm(`Are you sure you want to relaunch "${campaign.name}"? This will dispatch the campaign immediately.`)) {
+      return;
+    }
+
+    try {
+      if (campaign.status === 'failed' || campaign.status === 'paused') {
+        await campaignsAPI.sendCampaign(campaign._id || campaign.id);
+        toast.success('Campaign relaunched successfully!');
+      } else {
+        toast.loading('Duplicating and launching...', { id: 'relaunch' });
+        const res = await campaignsAPI.getCampaign(campaign._id || campaign.id);
+        const fullCampaign = res.data.data;
+
+        const payload = {
+          name: `${fullCampaign.name} (Relaunch)`,
+          type: fullCampaign.type || 'broadcast',
+          template_name: fullCampaign.template_name,
+          template_data: fullCampaign.template_data || {},
+          target_audience: fullCampaign.target_audience || {},
+          metadata: fullCampaign.metadata || {},
+          scheduled_at: null, // Send immediately
+          client_id: fullCampaign.client_id || campaign.client_id // Explicitly pass context for Super Admins
+        };
+
+        // If the campaign lacks native target_audience mapping (e.g. externally synchronized), 
+        // aggressively pass raw external contacts to bypass local resolution
+        const hasNoNativeAudience = !payload.target_audience?.type && (!payload.target_audience?.include || payload.target_audience.include.length === 0);
+
+        if (hasNoNativeAudience) {
+          if (Array.isArray(fullCampaign.contacts) && fullCampaign.contacts.length > 0) {
+            payload.external_contact_ids = fullCampaign.contacts.map(c => typeof c === 'object' ? (c.id || c.wa_id || c.phone) : c).filter(Boolean);
+          } else if (Array.isArray(fullCampaign.contact_ids) && fullCampaign.contact_ids.length > 0) {
+            payload.external_contact_ids = fullCampaign.contact_ids.filter(Boolean);
+          }
+        }
+
+        await campaignsAPI.createCampaign(payload);
+        toast.success('Campaign duplicated and launched successfully!', { id: 'relaunch' });
+      }
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Failed to relaunch campaign:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to relaunch campaign';
+      toast.error(errorMessage, { id: 'relaunch' });
+    }
+  };
+
+  const handleEdit = (campaign) => router.push(`/wa-marketing/campaigns/${campaign._id || campaign.id}/edit`);
+  const handleView = (campaign) => router.push(`/wa-marketing/campaigns/${campaign._id || campaign.id}`);
+  const handleAnalytics = (campaign) => router.push(`/wa-marketing/campaigns/${campaign._id || campaign.id}/${campaign.is_ab_test ? 'ab-test-results' : 'analytics'}`);
 
   if (loading || authLoading) {
     return (
@@ -375,6 +435,7 @@ export default function Campaigns() {
                 onView={handleView}
                 onDelete={handleDelete}
                 onAnalytics={handleAnalytics}
+                onRelaunch={handleRelaunch}
               />
             ))
           )}

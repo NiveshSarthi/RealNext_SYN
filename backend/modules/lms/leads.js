@@ -18,15 +18,19 @@ const DEFAULT_STAGES = ['Screening', 'Sourcing', 'Walk-in', 'Closure'];
 router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
 
 // Defensive helper to ensure client context exists before using req.client.id
-const ensureClient = (req) => {
-    // Super admins can bypass client context check
-    if (req.user?.is_super_admin) {
+const ensureClient = (req, force = false) => {
+    // Regular users always need client context
+    if (!req.user?.is_super_admin) {
+        if (!req.client?.id) {
+            console.error('[LEADS-API] Missing client context. User:', req.user?.email);
+            throw ApiError.unauthorized('Client context missing');
+        }
         return;
     }
 
-    if (!req.client?.id) {
-        console.error('[LEADS-API] Missing client context. User:', req.user?.email);
-        throw ApiError.unauthorized('Client context missing');
+    // Super admins only restricted if explicitly forced (e.g. for Stage Management)
+    if (force && !req.client?.id) {
+        throw ApiError.badRequest('Client context required for this operation. Please select a client.');
     }
 };
 
@@ -206,9 +210,12 @@ router.get('/stage-metadata', async (req, res, next) => {
     try {
         ensureClient(req);
 
-        // 1. Get custom stages for client
-        const clientFilter = req.client?.id ? { client_id: req.client.id } : {};
-        const customStages = await LeadStage.find(clientFilter).sort('order');
+        // 1. Get custom stages for client AND global stages
+        const stageFilter = req.client?.id
+            ? { $or: [{ client_id: req.client.id }, { client_id: null }] }
+            : { client_id: null };
+
+        const customStages = await LeadStage.find(stageFilter).sort('order');
 
         // 2. Build full list: Default + Custom
         const allStageNames = [...DEFAULT_STAGES, ...customStages.map(s => s.name)];
@@ -247,8 +254,11 @@ router.get('/stage-metadata', async (req, res, next) => {
  */
 router.get('/stages', async (req, res, next) => {
     try {
-        ensureClient(req);
-        const filter = req.client?.id ? { client_id: req.client.id } : {};
+        ensureClient(req); // Allow Super Admin without client
+        const filter = req.client?.id
+            ? { $or: [{ client_id: req.client.id }, { client_id: null }] }
+            : { client_id: null };
+
         const stages = await LeadStage.find(filter).sort('order');
         res.json({ success: true, data: stages });
     } catch (error) {
@@ -262,19 +272,21 @@ router.get('/stages', async (req, res, next) => {
  */
 router.post('/stages', async (req, res, next) => {
     try {
-        ensureClient(req);
+        ensureClient(req); // Allow Super Admin to create global stages
         const { name, color, status_mapping } = req.body;
 
         if (!name) throw ApiError.badRequest('Stage name is required');
 
-        const existing = await LeadStage.findOne({ client_id: req.client.id, name });
+        const clientId = req.client?.id || null;
+
+        const existing = await LeadStage.findOne({ client_id: clientId, name });
         if (existing) throw ApiError.conflict('Stage already exists');
 
-        const lastStage = await LeadStage.findOne({ client_id: req.client.id }).sort('-order');
+        const lastStage = await LeadStage.findOne({ client_id: clientId }).sort('-order');
         const order = lastStage ? lastStage.order + 1 : 10;
 
         const stage = await LeadStage.create({
-            client_id: req.client.id,
+            client_id: clientId,
             name,
             color,
             order,
@@ -293,13 +305,15 @@ router.post('/stages', async (req, res, next) => {
  */
 router.put('/stages/reorder', async (req, res, next) => {
     try {
-        ensureClient(req);
+        ensureClient(req); // Allow Super Admin
         const { ids } = req.body;
         if (!Array.isArray(ids)) throw ApiError.badRequest('IDs array is required');
 
+        const clientId = req.client?.id || null;
+
         const operations = ids.map((id, index) => ({
             updateOne: {
-                filter: { _id: id, client_id: req.client.id },
+                filter: { _id: id, client_id: clientId },
                 update: { $set: { order: index } }
             }
         }));

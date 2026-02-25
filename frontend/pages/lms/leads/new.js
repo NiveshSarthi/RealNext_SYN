@@ -51,6 +51,13 @@ export default function NewLead() {
         }
     }, [user, authLoading]);
 
+    // Listen for Voice Command prefill parameters
+    useEffect(() => {
+        if (router.query.prefillName) {
+            setFormData(prev => ({ ...prev, name: router.query.prefillName }));
+        }
+    }, [router.query.prefillName]);
+
     if (authLoading) {
         return (
             <Layout>
