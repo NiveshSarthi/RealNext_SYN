@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { leadsAPI, teamAPI } from '../../../utils/api';
+import { leadsAPI, teamAPI, followupsAPI } from '../../../utils/api';
 import toast from 'react-hot-toast';
 import {
   Plus,
@@ -48,9 +48,11 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Globe,
+  UserCheck,
   Building2,
   Check,
   Loader2,
+  BellRing,
   ChevronLeft
 } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
@@ -94,6 +96,136 @@ const statusColors = {
   'Done': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   'Token expected': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
   'Re-Walkin': 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+};
+
+// Modal Component for Schedule Follow-Up
+const ScheduleFollowUpModal = ({ isOpen, onClose, onSchedule, lead }) => {
+  const today = new Date().toISOString().split('T')[0];
+  const nowTime = new Date().toTimeString().slice(0, 5);
+  const [form, setForm] = useState({
+    follow_up_date: today,
+    follow_up_time: nowTime,
+    notes: '',
+    reminder_minutes: ''
+  });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setForm({ follow_up_date: today, follow_up_time: nowTime, notes: '', reminder_minutes: '' });
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const reminderOptions = [
+    { label: 'No reminder', value: '' },
+    { label: '15 minutes before', value: 15 },
+    { label: '30 minutes before', value: 30 },
+    { label: '1 hour before', value: 60 },
+    { label: '1 day before', value: 1440 },
+  ];
+
+  const handleSubmit = async () => {
+    if (!form.follow_up_date || !form.follow_up_time) {
+      toast.error('Please select a date and time');
+      return;
+    }
+    setLoading(true);
+    try {
+      await onSchedule(lead, form);
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md bg-[#0D1117] border border-white/10 rounded-2xl shadow-2xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-violet-500/10 border border-violet-500/20">
+              <BellRing className="w-5 h-5 text-violet-400" />
+            </div>
+            <div>
+              <h2 className="text-white font-black text-base tracking-tight">Schedule Follow-Up</h2>
+              <p className="text-gray-400 text-xs mt-0.5">For: <span className="text-white font-semibold">{lead?.name || lead?.phone}</span></p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Date */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Date</label>
+            <input
+              type="date"
+              value={form.follow_up_date}
+              min={today}
+              onChange={e => setForm(f => ({ ...f, follow_up_date: e.target.value }))}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+            />
+          </div>
+          {/* Time */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Time</label>
+            <input
+              type="time"
+              value={form.follow_up_time}
+              onChange={e => setForm(f => ({ ...f, follow_up_time: e.target.value }))}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+            />
+          </div>
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Notes / Comments</label>
+            <textarea
+              value={form.notes}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              placeholder="Add any follow-up context..."
+              rows={3}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 resize-none"
+            />
+          </div>
+          {/* Reminder */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Reminder (optional)</label>
+            <select
+              value={form.reminder_minutes}
+              onChange={e => setForm(f => ({ ...f, reminder_minutes: e.target.value }))}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
+            >
+              {reminderOptions.map(opt => (
+                <option key={opt.value} value={opt.value} className="bg-[#0D1117]">{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-gray-400 text-sm font-bold hover:bg-white/5 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
+            {loading ? 'Scheduling...' : 'Schedule Follow-Up'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // Modal Component for Assignment
@@ -152,17 +284,17 @@ const StatsCard = ({ title, value, icon: Icon, colorClass, bgClass, delay = 0 })
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
-    className="bg-[#161B22]/40 backdrop-blur-xl border border-white/5 rounded-2xl p-4 sm:p-5 flex flex-col justify-between h-32 sm:h-36 relative overflow-hidden group hover:border-indigo-500/30 transition-all shadow-xl"
+    className="bg-[#161B22]/40 backdrop-blur-xl border border-white/5 rounded-2xl p-3 sm:p-4 flex flex-col justify-between h-20 sm:h-24 relative overflow-hidden group hover:border-indigo-500/30 transition-all shadow-xl"
   >
-    <div className={`absolute -top-4 -right-4 p-3 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity ${colorClass}`}>
-      <Icon className="h-20 w-20 sm:h-24 sm:w-24" />
+    <div className={`absolute -top-2 -right-2 p-2 opacity-[0.02] group-hover:opacity-[0.06] transition-opacity ${colorClass}`}>
+      <Icon className="h-12 w-12 sm:h-16 sm:w-16" />
     </div>
-    <div className={`h-10 w-10 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center ${bgClass} ${colorClass} bg-opacity-10 mb-2 sm:mb-4 border border-white/5`}>
-      <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
+    <div className={`h-8 w-8 sm:h-9 sm:w-9 rounded-lg flex items-center justify-center ${bgClass} ${colorClass} bg-opacity-10 mb-1 sm:mb-2 border border-white/5`}>
+      <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
     </div>
     <div>
-      <p className="text-gray-500 text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em]">{title}</p>
-      <h3 className="text-xl sm:text-3xl font-black text-white mt-0.5 sm:mt-1 tabular-nums">{value}</h3>
+      <p className="text-gray-500 text-[7px] sm:text-[9px] font-black uppercase tracking-[0.2em]">{title}</p>
+      <h3 className="text-lg sm:text-xl font-black text-white mt-0.5 tabular-nums">{value}</h3>
     </div>
   </motion.div>
 );
@@ -274,77 +406,103 @@ const LeadCard = ({ lead, onEdit, onDelete, onView, onStatusChange, onAssign, ca
 const CommunicationButton = ({ icon: Icon, label, color, onClick, sublabel }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border transition-all active:scale-95 group relative overflow-hidden ${color}`}
+    className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-2xl border transition-all active:scale-95 group relative overflow-hidden shadow-lg hover:shadow-xl ${color}`}
   >
-    <div className="relative z-10 flex flex-col items-center">
-      <Icon className="h-5 w-5 sm:h-6 sm:w-6 mb-1.5 sm:mb-2 group-hover:scale-110 transition-transform" />
-      <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">{label}</span>
-      {sublabel && <span className="text-[7px] sm:text-[8px] opacity-60 mt-0.5 hidden sm:inline">{sublabel}</span>}
+    <div className="relative z-10 flex flex-col items-center w-full">
+      <div className="p-2 sm:p-3 rounded-xl bg-white/5 mb-2 group-hover:scale-110 transition-transform duration-300">
+        <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
+      </div>
+      <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-widest text-center leading-none">{label}</span>
+      {sublabel && <span className="text-[7px] sm:text-[8px] opacity-50 mt-1 hidden sm:inline font-bold uppercase tracking-tighter">{sublabel}</span>}
     </div>
-    <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+    <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
   </button>
 );
 
-const LeadListItem = ({ lead, isSelected, onClick, canEdit }) => {
-  const isMetaLead = lead.source === 'Facebook Ads' || (lead.tags && lead.tags.includes('Meta'));
+const LeadListItem = ({ lead, isSelected, onClick }) => {
   const score = lead.ai_score || lead.lead_score || 0;
 
-  const scoreColor = score > 80 ? 'text-emerald-400' : score > 50 ? 'text-yellow-400' : 'text-red-400';
-  const scoreBg = score > 80 ? 'bg-emerald-400/10 border-emerald-400/20' : score > 50 ? 'bg-yellow-400/10 border-yellow-400/20' : 'bg-red-400/10 border-red-400/20';
+  // Refined Color Palette for Professional Feel
+  const scoreStyles = score > 80
+    ? { text: 'text-emerald-400', bg: 'bg-emerald-400/5', border: 'border-emerald-500/20' }
+    : score > 50
+      ? { text: 'text-amber-400', bg: 'bg-amber-400/5', border: 'border-amber-500/20' }
+      : { text: 'text-rose-400', bg: 'bg-rose-400/5', border: 'border-rose-500/20' };
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
       onClick={onClick}
-      className={`p-4 rounded-[1.5rem] border cursor-pointer transition-all mb-2 group relative overflow-hidden ${isSelected
-        ? 'bg-indigo-600/10 border-indigo-500/40 shadow-xl'
-        : 'bg-[#161B22]/40 border-white/5 hover:border-white/10 hover:bg-[#161B22]/60'
+      className={`group relative flex flex-col lg:flex-row lg:items-center p-4 lg:p-5 rounded-2xl border transition-all cursor-pointer select-none ${isSelected
+        ? 'bg-[#1C2128] border-indigo-500/50 shadow-lg shadow-black/20'
+        : 'bg-transparent border-transparent hover:bg-[#161B22] hover:border-white/10 hover:shadow-xl'
         }`}
     >
-      <div className="flex items-center gap-4 relative z-10">
-        <div className={`h-12 w-12 rounded-2xl bg-[#161B22] border border-white/10 flex items-center justify-center text-indigo-400 font-black text-lg shadow-2xl relative overflow-hidden ${isSelected ? 'scale-105 border-indigo-500/30' : ''}`}>
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50" />
-          <span className="relative z-10">{lead.name?.charAt(0)?.toUpperCase() || '?'}</span>
+      {/* Contact Col (30%) */}
+      <div className="lg:w-[30%] flex items-center gap-4 mb-3 lg:mb-0">
+        {/* Active Indicator Bar */}
+        {isSelected && (
+          <motion.div
+            layoutId="active-bar"
+            className="absolute left-0 top-2 bottom-2 w-1.5 bg-indigo-500 rounded-r-full shadow-[0_0_12px_rgba(99,102,241,0.4)]"
+          />
+        )}
+
+        {/* Compact Avatar */}
+        <div className={`relative flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg transition-transform duration-300 ${isSelected ? 'bg-indigo-500/20 text-indigo-400 scale-105' : 'bg-[#0D1117] text-gray-500 border border-white/5 group-hover:border-white/10'
+          }`}>
+          {lead.name?.charAt(0)?.toUpperCase() || '?'}
+          {/* Connection Status Dot */}
+          <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-[3px] border-[#0D1117] bg-emerald-500" />
         </div>
+
+        {/* Name/Phone */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <h4 className={`text-md font-black truncate tracking-tight ${isSelected ? 'text-white' : 'text-gray-200'}`}>
-              {lead.name || 'Anonymous'}
-            </h4>
-            <div className={`px-2.5 py-1 rounded-full text-[8px] font-black border tracking-widest uppercase flex items-center gap-1.5 ${scoreBg} ${scoreColor}`}>
-              <div className="w-1 h-1 rounded-full bg-current opacity-40" />
-              {score}
-            </div>
-          </div>
-          <div className="flex items-center justify-between mt-1">
-            <div className="flex flex-col">
-              <p className="text-[10px] text-gray-500 font-bold tracking-tight truncate max-w-[120px]">
-                {lead.phone || 'No Phone Sync'}
-              </p>
-              {lead.form_name && (
-                <p className="text-[8px] text-indigo-400 font-black uppercase tracking-tighter truncate max-w-[120px]" title={lead.form_name}>
-                  {lead.form_name}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[8px] text-gray-500 font-black uppercase tracking-[0.2em]">
-                {lead.status}
-              </span>
-              <ChevronRight className={`h-3 w-3 text-gray-800 transition-transform ${isSelected ? 'translate-x-1 text-indigo-500' : 'group-hover:translate-x-0.5'}`} />
-            </div>
+          <h4 className={`text-[15px] font-black truncate tracking-tight transition-colors ${isSelected ? 'text-white' : 'text-gray-200 group-hover:text-white'
+            }`}>
+            {lead.name || 'Anonymous Lead'}
+          </h4>
+          <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest mt-1 truncate">
+            {lead.phone || 'No Phone Sync'}
+          </p>
+        </div>
+      </div>
+
+      {/* Stage Col (20%) */}
+      <div className="lg:w-[20%] flex flex-col mb-3 lg:mb-0 lg:px-4">
+        <span className="lg:hidden text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Stage</span>
+        <span className="text-[13px] text-white font-bold uppercase tracking-wider">{lead.stage || 'Sourcing'}</span>
+      </div>
+
+      {/* Status Col (20%) */}
+      <div className="lg:w-[20%] flex flex-col mb-3 lg:mb-0 lg:px-4">
+        <span className="lg:hidden text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Status</span>
+        <span className="text-[13px] text-gray-400 font-bold uppercase tracking-widest">{lead.status || 'Uncontacted'}</span>
+      </div>
+
+      {/* Array Score Col (20%) */}
+      <div className="lg:w-[20%] flex flex-col mb-3 lg:mb-0 lg:px-4">
+        <span className="lg:hidden text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Score</span>
+        <div className="flex items-center">
+          <div className={`px-2.5 py-1 rounded-md border text-[11px] font-black tracking-widest ${scoreStyles.bg} ${scoreStyles.text} ${scoreStyles.border}`}>
+            {score}
           </div>
         </div>
       </div>
-      {isSelected && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-r-full shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
-      )}
+
+      {/* Action Col (10%) */}
+      <div className="lg:w-[10%] flex justify-end items-center mt-2 lg:mt-0">
+        <div className={`p-2 rounded-xl transition-all ${isSelected ? 'bg-indigo-500/20 text-indigo-400' : 'bg-white/5 text-gray-400 group-hover:bg-indigo-500/20 group-hover:text-indigo-400'}`}>
+          <ChevronRight className="h-5 w-5" />
+        </div>
+      </div>
     </motion.div>
   );
 };
 
-const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, canEdit, onUpdate }) => {
+const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, onScheduleFollowUp, canEdit, onUpdate }) => {
   if (!lead) return (
     <div className="h-full flex flex-col items-center justify-center text-gray-500">
       <Users className="h-16 w-16 mb-4 opacity-10" />
@@ -370,6 +528,24 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
     form_name: '',
     campaign_name: ''
   });
+  const [noteContent, setNoteContent] = useState('');
+
+  const handleAddNote = async () => {
+    if (!noteContent.trim()) return;
+    try {
+      const content = noteContent;
+      setNoteContent('');
+      await leadsAPI.addNote(lead.id, content);
+      toast.success('Sync Successful');
+      const res = await leadsAPI.getLead(lead.id);
+      if (res.data?.success && onUpdate) {
+        onUpdate(res.data.data);
+      }
+    } catch (err) {
+      toast.error('Sync Interrupted');
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     if (lead) {
@@ -425,144 +601,141 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
 
   return (
     <div className="h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-300">
-      {/* Detail Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-10">
-        <div className="flex items-center gap-6">
-          <div className="h-20 w-20 rounded-3xl bg-[#161B22] border border-white/10 flex items-center justify-center text-indigo-400 font-black text-3xl shadow-2xl relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50" />
-            <span className="relative z-10">{lead.name?.charAt(0)?.toUpperCase() || '?'}</span>
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xl sm:text-2xl font-black text-white focus:outline-none focus:border-indigo-500/50 w-full sm:w-auto"
-                  placeholder="Lead Name"
-                />
-              ) : (
-                <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight">{lead.name || 'Anonymous'}</h2>
-              )}
-              <div className={`px-2 sm:px-4 py-1.5 rounded-full text-[8px] sm:text-[10px] font-black border tracking-[0.2em] uppercase flex items-center gap-1 sm:gap-2 ${score > 80 ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400' :
-                score > 50 ? 'bg-yellow-400/10 border-yellow-400/20 text-yellow-400' :
-                  'bg-red-400/10 border-red-400/20 text-red-400'
-                }`}>
-                <span className="opacity-60">Score:</span>
-                <span className="text-sm sm:text-lg leading-none">{score}</span>
-              </div>
+      <div className="flex flex-col gap-6 mb-8 pb-8 border-b border-white/5 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            {/* Back to Index Toggle */}
+            {onUpdate && (
+              <Button
+                variant="ghost"
+                onClick={() => onUpdate({ isListCollapsed: false })}
+                className="h-10 w-10 p-0 rounded-lg bg-white/5 border border-white/5 text-gray-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all group/back"
+                title="Back to Master Index"
+              >
+                <ChevronLeft className="h-5 w-5 group-hover/back:-translate-x-0.5 transition-transform" />
+              </Button>
+            )}
+
+            {/* Professional Avatar */}
+            <div className="h-16 w-16 rounded-xl bg-gradient-to-br from-[#1C2128] to-[#0D1117] border border-white/10 flex items-center justify-center text-indigo-400 font-bold text-2xl shadow-xl relative overflow-hidden group/detail-avatar transition-all hover:scale-105">
+              <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover/detail-avatar:opacity-100 transition-opacity" />
+              {lead.name?.charAt(0)?.toUpperCase() || '?'}
             </div>
-            <div className="flex flex-wrap items-center gap-3 mt-4">
-              <span className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em] flex items-center gap-2">
-                <MapPin className="h-3.5 w-3.5 opacity-40" />
+
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-3">
                 {isEditing ? (
                   <input
                     type="text"
-                    value={editForm.location}
-                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500/50 min-w-[150px]"
-                    placeholder="Location"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="bg-white/5 border border-indigo-500/30 rounded-lg px-3 py-1 text-xl font-bold text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/50 w-full sm:w-auto transition-all"
                   />
                 ) : (
-                  lead.location || 'Unknown Location'
+                  <h2 className="text-2xl font-bold text-white tracking-tight leading-tight">{lead.name || 'Anonymous Lead'}</h2>
                 )}
-              </span>
-              <div className="h-1 w-1 rounded-full bg-gray-800" />
-              {isEditing ? (
-                <div className="flex items-center gap-2">
-                  <select
-                    value={editForm.stage}
-                    onChange={(e) => setEditForm({ ...editForm, stage: e.target.value, status: stageStatusMapping[e.target.value][0] })}
-                    className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-widest text-indigo-400 focus:outline-none focus:border-indigo-500/50"
-                  >
-                    {Object.keys(stageStatusMapping).map(stage => (
-                      <option key={stage} value={stage} className="bg-[#161B22]">{stage}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-400 focus:outline-none focus:border-emerald-500/50"
-                  >
-                    {(stageStatusMapping[editForm.stage] || stageStatusMapping['Screening']).map(status => (
-                      <option key={status} value={status} className="bg-[#161B22]">{status}</option>
-                    ))}
-                  </select>
+
+                <div className={`px-2 py-0.5 rounded border text-[10px] font-bold tracking-widest uppercase flex items-center gap-1.5 shadow-sm ${score > 80 ? 'bg-emerald-400/5 border-emerald-500/20 text-emerald-400' :
+                  score > 50 ? 'bg-amber-400/5 border-amber-500/20 text-amber-400' :
+                    'bg-rose-400/5 border-rose-500/20 text-rose-400'
+                  }`}>
+                  <Sparkles className="h-3 w-3 opacity-50" />
+                  Score: {score}
                 </div>
-              ) : (
-                <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] border flex items-center gap-2 ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-white/5'}`}>
-                  <div className="w-1.5 h-1.5 rounded-full bg-current opacity-40 animate-pulse" />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2">
+                <span className="text-[11px] text-gray-400 font-medium flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-md border border-white/5 hover:border-white/10 transition-colors">
+                  <MapPin className="h-3.5 w-3.5 text-indigo-400/70" />
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editForm.location}
+                      onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                      className="bg-transparent border-0 p-0 text-[11px] font-medium text-white outline-none focus:ring-0 w-[140px]"
+                    />
+                  ) : (
+                    lead.location || 'No Location Set'
+                  )}
+                </span>
+
+                <div className="w-px h-3 bg-white/10" />
+
+                <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border flex items-center gap-2 transition-all hover:brightness-110 ${statusColors[lead.status] || 'bg-gray-500/10 text-gray-400 border-white/5'}`}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />
                   {lead.status}
                 </span>
-              )}
-              <div className="h-1 w-1 rounded-full bg-gray-800" />
-              <span className="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] bg-indigo-500/5 text-indigo-400 border border-indigo-500/20 flex items-center gap-2">
-                {isMetaLead ? <Facebook className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
-                {lead.source || 'Lead Ads'}
-                {(lead.form_name || lead.campaign_name) && (
-                  <>
-                    <div className="h-2 w-px bg-indigo-500/20" />
-                    <span className="text-indigo-300 font-bold tracking-normal opacity-80">{lead.form_name || lead.campaign_name}</span>
-                  </>
-                )}
-              </span>
+
+                <div className="w-px h-3 bg-white/10" />
+
+                <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest bg-indigo-500/5 text-indigo-400 border border-indigo-500/10 flex items-center gap-2">
+                  {lead.source?.includes('Facebook') ? <Facebook className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
+                  {lead.source || 'Direct Source'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
-          {canEdit && (
-            <>
-              {isEditing ? (
-                <div className="flex items-center gap-2">
+
+          {/* Action Toolbar */}
+          <div className="flex items-center gap-2 bg-[#161B22] p-1.5 rounded-xl border border-white/5 shadow-inner">
+            {canEdit && (
+              <>
+                {isEditing ? (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setIsEditing(false)}
+                      variant="ghost"
+                      className="h-10 text-[11px] font-bold uppercase tracking-widest px-4 hover:bg-white/5 text-gray-400 rounded-lg"
+                    >
+                      <X className="h-3.5 w-3.5 mr-2" /> Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="h-10 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold uppercase tracking-widest px-6 rounded-lg shadow-lg shadow-indigo-500/10 transition-all active:scale-95"
+                    >
+                      {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-2" />}
+                      Sync Matrix
+                    </Button>
+                  </div>
+                ) : (
                   <Button
-                    onClick={() => setIsEditing(false)}
-                    variant="outline"
-                    className="h-10 sm:h-12 border-white/10 bg-transparent hover:bg-white/5 text-gray-400 rounded-2xl px-4 sm:px-6 font-black uppercase tracking-widest text-[10px] sm:text-[11px]"
+                    onClick={() => setIsEditing(true)}
+                    variant="ghost"
+                    className="h-10 text-[11px] font-bold uppercase tracking-widest px-4 hover:bg-indigo-500/10 hover:text-indigo-400 text-gray-300 rounded-lg group/edit"
                   >
-                    <X className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Cancel</span>
+                    <Pencil className="h-3.5 w-3.5 mr-2 opacity-50 text-indigo-400 group-hover/edit:scale-110 transition-transform" /> Edit Record
                   </Button>
-                  <Button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="h-10 sm:h-12 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl px-6 sm:px-8 shadow-2xl shadow-emerald-900/40 font-black uppercase tracking-widest text-[10px] sm:text-[11px] border-0"
-                  >
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 sm:mr-2" />}
-                    Save
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  onClick={() => setIsEditing(true)}
-                  variant="outline"
-                  className="h-10 sm:h-12 border-white/10 bg-transparent hover:bg-white/5 text-white rounded-2xl px-6 sm:px-8 font-black uppercase tracking-widest text-[10px] sm:text-[11px]"
-                >
-                  <Pencil className="h-4 w-4 sm:mr-2 opacity-50" /> <span className="hidden sm:inline">Edit</span>
-                </Button>
-              )}
-            </>
-          )}
-          <Button
-            className="h-10 sm:h-12 bg-[#FF7A19] hover:bg-[#FF8B33] text-white rounded-2xl px-6 sm:px-10 shadow-2xl shadow-orange-900/40 font-black uppercase tracking-widest text-[10px] sm:text-[11px] border-0"
-          >
-            <Zap className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Action</span>
-          </Button>
+                )}
+              </>
+            )}
+
+            <div className="w-px h-6 bg-white/5 mx-1" />
+
+            <Button
+              onClick={() => onScheduleFollowUp && onScheduleFollowUp(lead)}
+              className="h-10 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white text-[11px] font-bold uppercase tracking-widest px-6 rounded-lg shadow-xl shadow-violet-500/10 transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
+            >
+              <BellRing className="h-3.5 w-3.5" /> Schedule Follow-Up
+            </Button>
+          </div>
         </div>
       </div>
+
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 overflow-y-auto pr-2 custom-scrollbar pb-10">
         <div className="space-y-6">
           {/* Real Estate Property Requirements */}
-          <div className="bg-[#0D1117] border border-white/5 rounded-3xl p-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-[0.03] rotate-12">
+          <div className="bg-[#0D1117] border border-white/10 rounded-3xl p-6 relative overflow-hidden group/card transition-all hover:bg-[#0D1117]/80">
+            <div className="absolute top-0 right-0 p-8 opacity-[0.03] rotate-12 group-hover/card:scale-110 transition-transform duration-500">
               <Building2 className="h-32 w-32" />
             </div>
             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-6 flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 text-yellow-400" />
               Property Analysis
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 relative z-10">
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 sm:gap-6 relative z-10">
+              <div className="space-y-1.5 min-w-0">
                 <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Property Interest</p>
                 {isEditing ? (
                   <div className="flex flex-col gap-2 mt-1">
@@ -578,12 +751,12 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                     </select>
                   </div>
                 ) : (
-                  <p className="text-sm font-bold text-white leading-tight">
-                    {lead.location || 'No Location'} - {lead.property_type || lead.custom_fields?.p_type || 'Residential'}
+                  <p className="text-sm font-bold text-white leading-tight break-words">
+                    {lead.location || 'Location Not Identified'} <br /><span className="text-indigo-400/80">{lead.property_type || lead.custom_fields?.p_type || 'Residential'}</span>
                   </p>
                 )}
               </div>
-              <div className="space-y-1 sm:text-right">
+              <div className="space-y-1.5 sm:text-right min-w-0">
                 <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Budget Range</p>
                 {isEditing ? (
                   <div className="flex flex-col sm:flex-row gap-2 sm:justify-end mt-1">
@@ -591,7 +764,7 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                       type="number"
                       value={editForm.budget_min}
                       onChange={(e) => setEditForm({ ...editForm, budget_min: e.target.value })}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 focus:outline-none focus:border-indigo-500/50 w-full sm:w-32 sm:text-right"
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 focus:outline-none focus:border-indigo-500/50 w-full sm:w-28 sm:text-right"
                       placeholder="Min"
                     />
                     <span className="text-gray-600 self-center hidden sm:inline">-</span>
@@ -599,170 +772,166 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
                       type="number"
                       value={editForm.budget_max}
                       onChange={(e) => setEditForm({ ...editForm, budget_max: e.target.value })}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 focus:outline-none focus:border-indigo-500/50 w-full sm:w-32 sm:text-right"
+                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 focus:outline-none focus:border-indigo-500/50 w-full sm:w-28 sm:text-right"
                       placeholder="Max"
                     />
                   </div>
                 ) : (
-                  <p className="text-base sm:text-lg font-black text-emerald-400">
+                  <p className="text-lg sm:text-xl font-black text-emerald-400 tracking-tight">
                     ₹{lead.budget_min?.toLocaleString() || '0'} - ₹{lead.budget_max?.toLocaleString() || 'Ask'}
                   </p>
                 )}
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5 min-w-0">
                 <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Inquiry Source</p>
-                <div className="flex flex-col gap-1 mt-1">
+                <div className="flex flex-col gap-1.5 mt-1">
                   <div className="flex items-center gap-2">
-                    <Globe className="h-3.5 w-3.5 text-blue-400" />
-                    <span className="text-xs font-black text-gray-300 uppercase tracking-widest">{lead.source || 'Direct'}</span>
+                    <div className="h-6 w-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <Globe className="h-3.5 w-3.5 text-blue-400" />
+                    </div>
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{lead.source || 'Direct Channel'}</span>
                   </div>
                   {lead.form_name && (
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-3 w-3 text-indigo-400" />
-                      <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-tight truncate max-w-[150px]" title={lead.form_name}>
+                    <div className="flex items-center gap-2 bg-indigo-500/5 border border-indigo-500/10 rounded-lg px-2 py-1 w-fit max-w-full">
+                      <FileText className="h-3 w-3 text-indigo-400 shrink-0" />
+                      <span className="text-[9px] text-indigo-300 font-black uppercase tracking-widest truncate" title={lead.form_name}>
                         {lead.form_name}
                       </span>
                     </div>
                   )}
                 </div>
               </div>
-              <div className="space-y-1 sm:text-right">
-                <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Priority</p>
+              <div className="space-y-1.5 sm:text-right min-w-0">
+                <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Priority Rating</p>
                 <div className="flex items-center sm:justify-end gap-2 mt-1">
-                  <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest border ${score > 70 ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-gray-500/10 border-white/5 text-gray-500'
+                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border shadow-sm ${score > 70 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 shadow-orange-900/10' : 'bg-white/5 border-white/10 text-gray-500'
                     }`}>
-                    {score > 70 ? 'High Intent' : 'Monitoring'}
+                    {score > 70 ? '🔥 High Intent' : '⚡ Monitoring'}
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Communication Dashboard */}
-          <div className="bg-[#0D1117] border border-white/5 rounded-3xl p-6">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-6 flex items-center gap-2">
-              <PhoneCall className="h-3.5 w-3.5" />
-              Communication Dashboard
+          {/* Professional Communication Dashboard */}
+          <div className="bg-[#1C2128] border border-white/5 rounded-xl p-5 shadow-sm hover:border-white/10 transition-colors relative overflow-hidden group/comm">
+            <div className="absolute -top-12 -right-12 h-32 w-32 bg-indigo-500/5 rounded-full blur-3xl group-hover/comm:bg-indigo-500/10 transition-all duration-700" />
+
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-5 flex items-center gap-2 relative z-10">
+              <PhoneCall className="h-3.5 w-3.5 text-indigo-400/80" />
+              Unified Communications Hub
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <CommunicationButton
-                icon={MessageSquare}
-                label="WhatsApp"
-                color="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20"
-                onClick={() => window.open(`https://wa.me/${lead.phone}`, '_blank')}
-                sublabel="Active Now"
-              />
-              <CommunicationButton
-                icon={Phone}
-                label="Dialer"
-                color="bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20"
-                onClick={() => window.location.href = `tel:${lead.phone}`}
-                sublabel="Mobile"
-              />
-              <CommunicationButton
-                icon={MessageCircle}
-                label="SMS"
-                color="bg-orange-500/10 border-orange-500/20 text-orange-400 hover:bg-orange-500/20"
-                onClick={() => toast.success('SMS interface opening...')}
-                sublabel="Local Gateway"
-              />
-              <CommunicationButton
-                icon={Mail}
-                label="Email"
-                color="bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20"
-                onClick={() => window.location.href = `mailto:${lead.email}`}
-                sublabel="RealNext Mail"
-              />
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 relative z-10">
+              {[
+                { icon: MessageSquare, label: 'WhatsApp', sub: 'API Sync', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', action: () => window.open(`https://wa.me/${lead.phone}`, '_blank') },
+                { icon: Phone, label: 'Direct Call', sub: 'CRM Dialer', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20', action: () => window.location.href = `tel:${lead.phone}` },
+                { icon: MessageCircle, label: 'Broadcast', sub: 'SMS Matrix', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20', action: () => toast.success('SMS Bridge Opening...') },
+                { icon: Mail, label: 'Enterprise', sub: 'SMTP Link', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20', action: () => window.location.href = `mailto:${lead.email}` },
+              ].map((btn, i) => (
+                <button
+                  key={i}
+                  onClick={btn.action}
+                  className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all active:scale-95 group/btn relative overflow-hidden shadow-sm hover:shadow-md ${btn.color}`}
+                >
+                  <div className="relative z-10 flex flex-col items-center w-full">
+                    <div className="p-2 rounded-lg bg-black/10 mb-2 group-hover/btn:scale-110 transition-transform duration-300">
+                      <btn.icon className="h-5 w-5" />
+                    </div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-center leading-none">{btn.label}</span>
+                    <span className="text-[8px] opacity-40 mt-1 font-bold uppercase tracking-tighter whitespace-nowrap">{btn.sub}</span>
+                  </div>
+                  <div className="absolute inset-0 bg-white/5 opacity-0 group-hover/btn:opacity-100 transition-opacity" />
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Key Contact Information */}
-          <div className="bg-[#161B22]/40 border border-white/5 rounded-3xl p-6 space-y-4">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-4">Contact Breakdown</h4>
-            <div className="flex items-center justify-between p-3 bg-black/20 rounded-2xl border border-white/5 group hover:border-white/10 transition-all">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-gray-800 flex items-center justify-center text-gray-400 group-hover:text-indigo-400">
-                  <User className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-none mb-1">Full Name</p>
-                  <p className="text-sm font-bold text-white">{lead.name || 'N/A'}</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-black/20 rounded-2xl border border-white/5 group hover:border-white/10 transition-all">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-gray-800 flex items-center justify-center text-gray-400 group-hover:text-indigo-400">
-                  <Phone className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-none mb-1">Primary Phone</p>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editForm.phone}
-                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 w-full"
-                      placeholder="Phone Number"
-                    />
-                  ) : (
-                    <p className="text-sm font-bold text-white">{lead.phone || 'No phone'}</p>
-                  )}
+          <div className="bg-[#161B22]/40 border border-white/10 rounded-3xl p-6 space-y-4 shadow-sm hover:bg-[#161B22]/50 transition-colors">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-4 flex items-center gap-2">
+              <UserCheck className="h-3.5 w-3.5 text-indigo-400" />
+              Contact Breakdown
+            </h4>
+            <div className="grid grid-cols-1 gap-3">
+              <div className="flex items-center justify-between p-3 bg-black/20 rounded-2xl border border-white/5 group/row hover:border-white/10 transition-all overflow-hidden">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-9 w-9 shrink-0 rounded-xl bg-gray-800 flex items-center justify-center text-gray-400 group-hover/row:text-indigo-400 transition-colors">
+                    <User className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-none mb-1">Lead Identity</p>
+                    <p className="text-sm font-bold text-white truncate">{lead.name || 'Anonymous'}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-black/20 rounded-2xl border border-white/5 group hover:border-white/10 transition-all">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-gray-800 flex items-center justify-center text-gray-400 group-hover:text-indigo-400">
-                  <Mail className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-none mb-1">Email Address</p>
-                  {isEditing ? (
-                    <input
-                      type="email"
-                      value={editForm.email}
-                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                      className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 w-full"
-                      placeholder="Email Address"
-                    />
-                  ) : (
-                    <p className="text-sm font-bold text-white truncate max-w-[200px]">{lead.email || 'No email'}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-            {/* Form Info Section */}
-            <div className="flex items-center justify-between p-3 bg-black/20 rounded-2xl border border-white/5 group hover:border-white/10 transition-all">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-gray-800 flex items-center justify-center text-gray-400 group-hover:text-indigo-400">
-                  <Megaphone className="h-4 w-4" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-none mb-1">Marketing Identification</p>
-                  {isEditing ? (
-                    <div className="flex flex-col gap-2 mt-1">
+              <div className="flex items-center justify-between p-3 bg-black/20 rounded-2xl border border-white/5 group/row hover:border-white/10 transition-all overflow-hidden">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-9 w-9 shrink-0 rounded-xl bg-gray-800 flex items-center justify-center text-gray-400 group-hover/row:text-indigo-400 transition-colors">
+                    <Phone className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-none mb-1">Active Phone</p>
+                    {isEditing ? (
                       <input
                         type="text"
-                        value={editForm.form_name}
-                        onChange={(e) => setEditForm({ ...editForm, form_name: e.target.value })}
-                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-xs font-bold text-indigo-300 focus:outline-none focus:border-indigo-500/50 w-full"
-                        placeholder="Form Name"
+                        value={editForm.phone}
+                        onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                        className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 w-full"
+                        placeholder="Phone..."
                       />
+                    ) : (
+                      <p className="text-sm font-bold text-white truncate">{lead.phone || 'No Phone Registered'}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-black/20 rounded-2xl border border-white/5 group/row hover:border-white/10 transition-all overflow-hidden">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-9 w-9 shrink-0 rounded-xl bg-gray-800 flex items-center justify-center text-gray-400 group-hover/row:text-indigo-400 transition-colors">
+                    <Mail className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-none mb-1">Email Sync</p>
+                    {isEditing ? (
                       <input
-                        type="text"
-                        value={editForm.campaign_name}
-                        onChange={(e) => setEditForm({ ...editForm, campaign_name: e.target.value })}
-                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-xs font-bold text-gray-400 focus:outline-none focus:border-indigo-500/50 w-full"
-                        placeholder="Campaign Name"
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                        className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-sm font-bold text-white focus:outline-none focus:border-indigo-500/50 w-full"
+                        placeholder="Email..."
                       />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col">
-                      <p className="text-sm font-bold text-indigo-300">{lead.form_name || 'No Form Identified'}</p>
-                      <p className="text-[10px] text-gray-500 font-medium">{lead.campaign_name || 'Unassigned Campaign'}</p>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="text-sm font-bold text-white truncate">{lead.email || 'No Email Registered'}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {/* Form Info Section */}
+              <div className="flex items-center justify-between p-3 bg-black/20 rounded-2xl border border-white/5 group/row hover:border-white/10 transition-all overflow-hidden">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-9 w-9 shrink-0 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                    <Megaphone className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest leading-none mb-1">Marketing Attribution</p>
+                    {isEditing ? (
+                      <div className="flex flex-col gap-2 mt-1">
+                        <input
+                          type="text"
+                          value={editForm.form_name}
+                          onChange={(e) => setEditForm({ ...editForm, form_name: e.target.value })}
+                          className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-indigo-300 focus:outline-none focus:border-indigo-500/50 w-full"
+                          placeholder="Form Name"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex flex-col min-w-0">
+                        <p className="text-sm font-bold text-indigo-300 truncate" title={lead.form_name}>{lead.form_name || 'Direct Organic'}</p>
+                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-tighter truncate">{lead.campaign_name || 'General Campaign'}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -770,137 +939,204 @@ const LeadDetailPane = ({ lead, onEdit, onStatusChange, teamMembers, onAssign, c
         </div>
 
         <div className="space-y-6">
-          {/* Assignment & Management */}
-          <div className="bg-[#161B22]/40 border border-white/5 rounded-3xl p-6">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-6">Management Matrix</h4>
-            <div className="space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20">
+          {/* Professional Property Analysis */}
+          <div className="bg-[#1C2128] border border-white/5 rounded-xl p-5 shadow-sm hover:border-white/10 transition-colors group/analysis">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-5 flex items-center gap-2">
+              <Building2 className="h-3.5 w-3.5 text-indigo-400/80" />
+              Strategic Portfolio Analysis
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="bg-black/20 p-3 rounded-lg border border-white/5">
+                  <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    <Globe className="h-3 w-3 opacity-40" /> Asset Location
+                  </p>
+                  <p className="text-xs font-bold text-white flex items-center gap-2">
+                    {lead.location_interest || 'Location Not Identified'}
+                  </p>
+                </div>
+
+                <div className="bg-black/20 p-3 rounded-lg border border-white/5">
+                  <p className="text-[9px] text-gray-600 font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                    <FileText className="h-3 w-3 opacity-40" /> Configuration Sync
+                  </p>
+                  <p className="text-xs font-bold text-white">
+                    {lead.configuration_interest || 'Awaiting Property Coordinates'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-center items-center bg-indigo-500/5 rounded-xl border border-indigo-500/10 p-4 border-dashed relative overflow-hidden group/budget">
+                <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover/budget:scale-110 transition-transform duration-700">
+                  <TrendingUp className="h-24 w-24 text-indigo-400" />
+                </div>
+                <div className="relative z-10 text-center">
+                  <p className="text-[9px] text-indigo-400/70 font-bold uppercase tracking-[0.25em] mb-2 font-mono">Current Budget Matrix</p>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-xs font-medium text-indigo-300 opacity-60">₹</span>
+                    <span className="text-3xl font-black text-white tracking-tighter tabular-nums drop-shadow-lg">
+                      {lead.budget_range || '0.00'}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                    <span className="text-[9px] text-indigo-300 font-bold uppercase tracking-widest">Market Alignment: High</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Professional Management Matrix */}
+          <div className="bg-[#1C2128] border border-white/5 rounded-xl p-5 shadow-sm hover:border-white/10 transition-colors group/matrix">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-5 flex items-center gap-2">
+              <Users className="h-3.5 w-3.5 text-indigo-400/80" />
+              Operational Lifecycle Matrix
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col p-5 bg-black/20 rounded-xl border border-white/5 shadow-inner group/row hover:bg-black/30 transition-all gap-5 justify-between h-full">
+                <div className="flex items-start gap-4 flex-1">
+                  <div className="h-10 w-10 shrink-0 rounded-lg bg-[#0D1117] border border-white/5 flex items-center justify-center text-amber-400/70 group-hover/row:scale-105 transition-transform mt-0.5">
                     <TrendingUp className="h-5 w-5" />
                   </div>
-                  <div>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Stage & Status</p>
+                  <div className="min-w-0">
+                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-[0.2em] leading-none mb-2 font-mono truncate">Stage & Health</p>
                     {isEditing ? (
-                      <div className="flex gap-2 mt-1">
+                      <div className="flex flex-col gap-2 mt-1">
                         <select
                           value={editForm.stage}
-                          onChange={(e) => setEditForm({ ...editForm, stage: e.target.value, status: stageStatusMapping[e.target.value][0] })}
-                          className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-400 focus:outline-none focus:border-indigo-500/50"
+                          onChange={(e) => {
+                            const newStage = e.target.value;
+                            setEditForm({ ...editForm, stage: newStage, status: stageStatusMapping[newStage][0] });
+                          }}
+                          className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-indigo-500/50"
                         >
-                          {Object.keys(stageStatusMapping).map(stage => (
-                            <option key={stage} value={stage} className="bg-[#161B22]">{stage}</option>
+                          {Object.keys(stageStatusMapping).map(stg => (
+                            <option key={stg} value={stg} className="bg-[#0D1117]">{stg}</option>
                           ))}
                         </select>
                         <select
                           value={editForm.status}
                           onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                          className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-400 focus:outline-none focus:border-emerald-500/50"
+                          className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-amber-400 focus:outline-none focus:border-indigo-500/50"
                         >
-                          {(stageStatusMapping[editForm.stage] || stageStatusMapping['Screening']).map(status => (
-                            <option key={status} value={status} className="bg-[#161B22]">{status}</option>
+                          {(stageStatusMapping[editForm.stage || 'Screening'] || []).map(stt => (
+                            <option key={stt} value={stt} className="bg-[#0D1117]">{stt}</option>
                           ))}
                         </select>
                       </div>
                     ) : (
-                      <p className="text-sm font-black text-white">{lead.stage} - <span className="opacity-50">{lead.status}</span></p>
+                      <div className="flex items-center gap-2 flex-wrap mt-1">
+                        <span className="text-[14px] font-black text-white tracking-tight truncate">{lead.stage || 'Discovery'}</span>
+                        <span className="text-[10px] text-gray-600 font-black px-1.5 py-0.5 bg-white/5 rounded shrink-0">/</span>
+                        <span className="text-[14px] font-bold text-amber-400/90 tracking-tight truncate">{lead.status}</span>
+                      </div>
                     )}
                   </div>
                 </div>
-                {!isEditing && (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="w-fit px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-indigo-400 hover:bg-indigo-500/10 transition-all"
-                  >
-                    Change
-                  </button>
-                )}
+                <Button
+                  onClick={() => setIsEditing(true)}
+                  variant="ghost"
+                  className="h-10 w-full text-[10px] font-black uppercase tracking-[0.2em] bg-[#0D1117]/80 hover:bg-indigo-500/20 text-gray-400 hover:text-indigo-400 border border-white/5 hover:border-indigo-500/30 rounded-lg transition-all"
+                >
+                  Change Status
+                </Button>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+              <div className="flex flex-col p-5 bg-black/20 rounded-xl border border-white/5 shadow-inner group/row hover:bg-black/30 transition-all gap-5 justify-between h-full">
+                <div className="flex items-start gap-4 flex-1">
+                  <div className="h-10 w-10 shrink-0 rounded-lg bg-[#0D1117] border border-white/5 flex items-center justify-center text-indigo-400/70 group-hover/row:scale-105 transition-transform mt-0.5">
                     <Users className="h-5 w-5" />
                   </div>
-                  <div>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Ownership</p>
-                    <p className="text-sm font-black text-white">{lead.assigned_to?.name || 'Unassigned'}</p>
+                  <div className="min-w-0">
+                    <p className="text-[9px] text-gray-500 font-bold uppercase tracking-[0.2em] leading-none mb-2 font-mono truncate">Owner Assignment</p>
+                    <p className="text-[14px] font-black text-white tracking-tight truncate mt-1">
+                      {lead.assigned_to?.name || 'Unassigned Node'}
+                    </p>
                   </div>
                 </div>
-                <button
+                <Button
                   onClick={() => onAssign(lead)}
-                  className="w-fit px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:bg-emerald-500/10 transition-all"
+                  variant="ghost"
+                  className="h-10 w-full text-[10px] font-black uppercase tracking-[0.2em] bg-[#0D1117]/80 hover:bg-indigo-500/20 text-gray-400 hover:text-indigo-400 border border-white/5 hover:border-indigo-500/30 rounded-lg transition-all flex items-center justify-center gap-2"
                 >
-                  Assign
-                </button>
+                  {lead.assigned_to ? 'Reassign Owner' : 'Assign Owner'}
+                </Button>
               </div>
             </div>
           </div>
+          {/* Professional Activity Sync */}
+          <div className="bg-[#1C2128] border border-white/5 rounded-xl p-5 sm:p-6 flex flex-col h-[650px] shadow-sm relative overflow-hidden group/sync">
+            <div className="absolute top-0 right-0 p-12 opacity-[0.015] -rotate-12 pointer-events-none group-hover/sync:opacity-[0.03] transition-opacity duration-1000">
+              <Activity className="h-56 w-56 text-indigo-400" />
+            </div>
 
-          {/* Activity Timeline */}
-          <div className="bg-[#0D1117] border border-white/5 rounded-3xl p-4 sm:p-6 flex flex-col h-[450px] sm:h-[600px]">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-6 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Live Pulse</span> Timeline
-              </div>
-              <span className="bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md border border-indigo-500/20 lowercase text-[8px] font-bold">Live Sync</span>
-            </h4>
+            <div className="flex items-center justify-between mb-8 relative z-10">
+              <h4 className="text-[10px] font-bold uppercase tracking-[0.25em] text-gray-500 flex items-center gap-2.5">
+                <div className="h-2 w-2 rounded-full bg-indigo-500 animate-[pulse_2s_infinite] shadow-[0_0_8px_rgba(99,102,241,0.6)]" />
+                Operational Activity Stream
+              </h4>
+              <span className="bg-[#161B22] text-indigo-400/80 px-2.5 py-1 rounded-md border border-white/5 text-[8px] font-bold uppercase tracking-widest shadow-inner">
+                Real-Time Access
+              </span>
+            </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-4 space-y-6 relative z-10">
               {lead.activity_logs && lead.activity_logs.length > 0 ? (
                 lead.activity_logs.slice().reverse().map((log, index) => (
-                  <div key={index} className="relative pl-8 group">
-                    <div className="absolute left-3 top-0 bottom-0 w-px bg-white/5 group-hover:bg-indigo-500/20 transition-colors" />
-                    <div className={`absolute left-0 top-0 h-6 w-6 rounded-lg bg-[#0E1117] border-2 flex items-center justify-center z-10 ${log.type === 'note' ? 'border-indigo-500/30 text-indigo-400' :
+                  <div key={index} className="relative pl-10 group/log">
+                    <div className="absolute left-[13px] top-0 bottom-0 w-px bg-white/5 group-hover/log:bg-indigo-500/20 transition-all duration-500" />
+                    <div className={`absolute left-0 top-0 h-[26px] w-[26px] rounded-lg bg-[#0D1117] border flex items-center justify-center z-10 shadow-lg transition-all duration-300 group-hover/log:scale-105 ${log.type === 'note' ? 'border-indigo-500/30 text-indigo-400' :
                       log.type === 'status_change' ? 'border-emerald-500/30 text-emerald-400' :
-                        'border-gray-700 text-gray-500'
+                        'border-white/10 text-gray-600'
                       }`}>
-                      {log.type === 'note' ? <Pencil className="h-2.5 w-2.5" /> :
-                        log.type === 'status_change' ? <TrendingUp className="h-2.5 w-2.5" /> :
-                          <User className="h-2.5 w-2.5" />}
+                      {log.type === 'note' ? <Pencil className="h-3 w-3" /> :
+                        log.type === 'status_change' ? <TrendingUp className="h-3 w-3" /> :
+                          <User className="h-3 w-3" />}
                     </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{log.user_id?.name || 'System'}</span>
-                        <span className="text-[9px] text-gray-600 font-bold uppercase">{format(new Date(log.created_at), 'MMM dd, HH:mm')}</span>
+                    <div className="bg-[#161B22]/40 border border-white/5 rounded-lg p-4 group-hover/log:bg-[#161B22]/60 group-hover/log:border-white/10 transition-all shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest leading-none">
+                          {log.user_id?.name || 'Network Node'}
+                        </span>
+                        <span className="text-[9px] text-gray-600 font-medium uppercase font-mono">
+                          {format(new Date(log.created_at), 'MMM dd | HH:mm:ss')}
+                        </span>
                       </div>
-                      <p className="text-xs text-gray-500 leading-relaxed font-medium bg-white/[0.01] p-2 rounded-lg border border-white/5">
+                      <p className="text-[12px] text-gray-400 leading-relaxed font-medium">
                         {log.content}
                       </p>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="h-full flex flex-col items-center justify-center opacity-20">
-                  <Activity className="h-10 w-10 mb-2" />
-                  <p className="text-[10px] uppercase font-black tracking-widest">No activity logs recorded</p>
+                <div className="h-full flex flex-col items-center justify-center opacity-10">
+                  <Activity className="h-14 w-14 mb-4" />
+                  <p className="text-[10px] uppercase font-bold tracking-[0.4em] font-mono">Matrix Offline</p>
                 </div>
               )}
             </div>
 
-            <div className="mt-6">
-              <div className="relative">
+            <div className="mt-8 relative z-10">
+              <div className="relative group/input">
                 <input
                   type="text"
-                  placeholder="Drop a quick note or internal log..."
-                  className="w-full bg-[#161B22] border border-white/5 rounded-2xl pl-4 pr-12 py-4 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 transition-all shadow-inner"
-                  onKeyDown={async (e) => {
-                    if (e.key === 'Enter' && e.target.value.trim()) {
-                      try {
-                        const content = e.target.value;
-                        e.target.value = '';
-                        await leadsAPI.addNote(lead.id, content);
-                        toast.success('Note added to timeline');
-                        const res = await leadsAPI.getLead(lead.id);
-                        if (res.data?.success) setSelectedLead(res.data.data);
-                      } catch (err) {
-                        toast.error('Sync failure');
-                      }
+                  placeholder="Record sync coordinate or internal log entry..."
+                  className="w-full bg-[#161B22] border border-white/10 rounded-xl pl-5 pr-14 py-4 text-xs text-white placeholder-gray-700 focus:outline-none focus:border-indigo-500/40 focus:bg-[#1C2128] transition-all shadow-inner"
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddNote();
                     }
                   }}
                 />
-                <button className="absolute right-2 top-2 p-2 bg-indigo-600 rounded-xl text-white hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-900/40">
+                <button
+                  onClick={handleAddNote}
+                  className="absolute right-2 top-2 h-10 w-10 bg-indigo-600/90 text-white rounded-lg hover:bg-indigo-500 transition-all shadow-lg flex items-center justify-center active:scale-90 group-hover/input:scale-105"
+                >
                   <SendHorizontal className="h-4 w-4" />
                 </button>
               </div>
@@ -945,6 +1181,10 @@ export default function Leads() {
   const [selectedLeadForAssign, setSelectedLeadForAssign] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
 
+  // Follow-Up Scheduling State
+  const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
+  const [selectedLeadForFollowUp, setSelectedLeadForFollowUp] = useState(null);
+
   // Quick Update Modal State
   const [selectedLeadForUpdate, setSelectedLeadForUpdate] = useState(null);
   const [quickUpdateForm, setQuickUpdateForm] = useState({
@@ -964,6 +1204,7 @@ export default function Leads() {
 
   const [selectedLead, setSelectedLead] = useState(null);
   const [isSelectionLoading, setIsSelectionLoading] = useState(false);
+  const [isListCollapsed, setIsListCollapsed] = useState(false);
   const [mobileSubView, setMobileSubView] = useState('list'); // 'list' or 'detail'
   // Dynamic Filter Options
   const [filterOptions, setFilterOptions] = useState({
@@ -1029,25 +1270,7 @@ export default function Leads() {
     }
   };
 
-  // Auto-refresh leads every 30 seconds for real-time updates
-  useEffect(() => {
-    if (!user || authLoading) return;
 
-    const interval = setInterval(() => {
-      // Only auto-refresh if user is not actively interacting (no modals open)
-      if (!showAdvancedFilters && !isAssignModalOpen && !isUpdateModalOpen && !isImportModalOpen) {
-        console.log('[LEADS-FRONTEND] Auto-refreshing leads data');
-        fetchLeads(false).catch(error => {
-          console.error('[LEADS-FRONTEND] Auto-refresh failed:', error);
-        });
-        fetchStats().catch(error => {
-          console.error('[LEADS-FRONTEND] Auto-refresh stats failed:', error);
-        });
-      }
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(interval);
-  }, [user, authLoading, showAdvancedFilters, isAssignModalOpen, isUpdateModalOpen, isImportModalOpen]);
 
   const fetchTeamMembers = async () => {
     try {
@@ -1123,7 +1346,7 @@ export default function Leads() {
 
       // Auto-select first lead on first load if none selected
       if (leadsArray.length > 0 && !selectedLead && currentPage === 1) {
-        handleLeadSelection(leadsArray[0]);
+        onSelectLead(leadsArray[0]);
       }
 
       setTotalPages(data.pagination?.totalPages || Math.ceil((data.total || 0) / 12));
@@ -1135,19 +1358,25 @@ export default function Leads() {
     }
   };
 
-  const handleLeadSelection = async (lead) => {
-    if (!lead) return;
+  const onSelectLead = async (lead) => {
+    if (!lead) {
+      setSelectedLead(null);
+      setIsListCollapsed(false);
+      return;
+    }
+
     setIsSelectionLoading(true);
     setSelectedLead(lead);
-    setMobileSubView('detail'); // Switch to detail view on mobile
+    setIsListCollapsed(true); // Automatically collapse for immersive view
+    setMobileSubView('detail');
+
     try {
-      // Fetch full details for the selected lead to ensure timeline and notes are fresh
-      const res = await leadsAPI.getLead(lead.id || lead._id);
+      const res = await leadsAPI.getLead(lead.id);
       if (res.data?.success) {
         setSelectedLead(res.data.data);
       }
     } catch (err) {
-      console.error("Failed to sync selection", err);
+      console.error("Failed to fetch lead details", err);
     } finally {
       setIsSelectionLoading(false);
     }
@@ -1178,6 +1407,32 @@ export default function Leads() {
     setIsAssignModalOpen(true);
   };
 
+  const handleScheduleFollowUpClick = (lead) => {
+    setSelectedLeadForFollowUp(lead);
+    setIsFollowUpModalOpen(true);
+  };
+
+  const handleScheduleFollowUpSubmit = async (lead, form) => {
+    try {
+      const payload = {
+        lead_id: lead.id || lead._id,
+        follow_up_date: form.follow_up_date,
+        follow_up_time: form.follow_up_time,
+        notes: form.notes || '',
+        reminder_minutes: form.reminder_minutes ? parseInt(form.reminder_minutes) : null,
+      };
+      const res = await followupsAPI.createFollowUp(payload);
+      if (res.data?.success) {
+        toast.success('Follow-up scheduled!');
+        setIsFollowUpModalOpen(false);
+      }
+    } catch (error) {
+      toast.error('Failed to schedule follow-up');
+      console.error(error);
+      throw error; // re-throw so modal knows it failed
+    }
+  };
+
   const handleAssignSubmit = async (leadId, userId) => {
     try {
       const res = await leadsAPI.assignLead(leadId, { user_id: userId });
@@ -1185,7 +1440,7 @@ export default function Leads() {
         const updatedLead = res.data.data;
         toast.success(userId ? "Lead assigned successfully" : "Lead unassigned");
         setIsAssignModalOpen(false);
-        // Silent local update
+        // Silent local update — use the full object from response to get activity logs
         setSelectedLead(updatedLead);
         setLeads(prev => prev.map(l => (l.id === leadId || l._id === leadId) ? updatedLead : l));
       }
@@ -1204,10 +1459,12 @@ export default function Leads() {
       const updateData = { status: newStatus };
       if (newStage) updateData.stage = newStage;
 
-      await leadsAPI.updateLead(lead.id, updateData);
+      const res = await leadsAPI.updateLead(lead.id, updateData);
       toast.success(`Updated to ${newStage || lead.stage} - ${newStatus}`);
-      fetchLeads(false); // Silent refresh
-      fetchStats();
+      // Real-time local update — use the full object from response to get activity logs
+      const updatedLead = res.data?.data || { ...lead, ...updateData };
+      setSelectedLead(prev => prev?.id === lead.id ? updatedLead : prev);
+      setLeads(prev => prev.map(l => (l.id === lead.id || l._id === lead._id) ? updatedLead : l));
     } catch (error) {
       toast.error('Failed to update status');
       console.error(error);
@@ -1237,10 +1494,12 @@ export default function Leads() {
     if (!selectedLeadForUpdate) return;
 
     try {
-      await leadsAPI.updateLead(selectedLeadForUpdate.id, quickUpdateForm);
+      const res = await leadsAPI.updateLead(selectedLeadForUpdate.id, quickUpdateForm);
       toast.success('Lead updated successfully');
-      fetchLeads(false);
-      fetchStats();
+      const updatedLead = res.data?.data || { ...selectedLeadForUpdate, ...quickUpdateForm };
+      // Real-time local update — use the full object from response to get activity logs
+      setSelectedLead(prev => prev?.id === selectedLeadForUpdate.id ? updatedLead : prev);
+      setLeads(prev => prev.map(l => (l.id === selectedLeadForUpdate.id || l._id === selectedLeadForUpdate._id) ? updatedLead : l));
       setIsUpdateModalOpen(false);
       setSelectedLeadForUpdate(null);
     } catch (error) {
@@ -1252,7 +1511,7 @@ export default function Leads() {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-[#0E1117] p-6 md:p-10 space-y-10 w-full mx-auto pb-24">
+      <div className="min-h-screen bg-[#0E1117] p-4 md:p-6 space-y-6 w-full mx-auto pb-24">
 
         <AssignModal
           isOpen={isAssignModalOpen}
@@ -1262,27 +1521,36 @@ export default function Leads() {
           members={teamMembers}
         />
 
+        <ScheduleFollowUpModal
+          isOpen={isFollowUpModalOpen}
+          onClose={() => setIsFollowUpModalOpen(false)}
+          onSchedule={handleScheduleFollowUpSubmit}
+          lead={selectedLeadForFollowUp}
+        />
+
         {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-8">
           <motion.div
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="space-y-3"
+            className="space-y-1.5"
           >
-            <div className="flex items-center gap-3">
-              <div className="px-3 py-1 bg-indigo-500/10 border border-white/5 rounded-full">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Database Engine</span>
+            <div className="flex items-center gap-2">
+              <div className="px-2.5 py-0.5 bg-indigo-500/10 border border-white/5 rounded-full">
+                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-400">Database Engine</span>
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+              <div className="flex items-center gap-1 text-[8px] font-bold text-gray-500 uppercase tracking-widest">
+                <div className="w-1 h-1 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
                 Live Sync Active
               </div>
             </div>
-            <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight flex items-center gap-4">
-              Lead Center
-              <Sparkles className="w-10 h-10 text-yellow-400/80 animate-pulse hidden md:block" />
-            </h1>
-            <p className="text-gray-500 text-lg max-w-xl font-medium leading-relaxed">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+                Lead Center
+                <Sparkles className="w-5 h-5 text-yellow-400/80 animate-pulse hidden md:block" />
+              </h1>
+            </div>
+            <p className="text-gray-500 text-xs max-w-lg font-medium">
               Real-time monitoring and lifecycle management for your cross-channel leads.
             </p>
           </motion.div>
@@ -1290,20 +1558,20 @@ export default function Leads() {
           <motion.div
             initial={{ x: 20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="flex items-center gap-4"
+            className="flex items-center gap-3"
           >
             <Button
               onClick={() => router.push('/lms/leads/new')}
-              className="bg-[#FF7A19] hover:bg-[#FF8B33] text-white shadow-2xl shadow-orange-900/20 h-14 px-8 font-black uppercase tracking-widest rounded-2xl active:scale-95 transition-all text-sm border-0"
+              className="bg-[#FF7A19] hover:bg-[#FF8B33] text-white shadow-xl shadow-orange-900/20 h-10 px-6 font-black uppercase tracking-widest rounded-xl active:scale-95 transition-all text-[11px] border-0"
             >
-              <Plus className="w-5 h-5 mr-3" /> Create Lead
+              <Plus className="w-4 h-4 mr-2" /> Create Lead
             </Button>
             <Button
               onClick={() => setIsImportModalOpen(true)}
               variant="outline"
-              className="bg-transparent border border-white/10 hover:bg-white/5 text-white h-14 px-8 font-black uppercase tracking-widest rounded-2xl active:scale-95 transition-all text-sm"
+              className="bg-transparent border border-white/10 hover:bg-white/5 text-white h-10 px-6 font-black uppercase tracking-widest rounded-xl active:scale-95 transition-all text-[11px]"
             >
-              <Zap className="w-5 h-5 mr-3 text-white/40" /> Import
+              <Zap className="w-4 h-4 mr-2 text-white/40" /> Import
             </Button>
           </motion.div>
         </div>
@@ -1618,72 +1886,103 @@ export default function Leads() {
               </motion.div>
             ) : (
               <motion.div
-                key={viewMode}
+                key="content"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="w-full"
               >
                 {leads.length > 0 ? (
                   viewMode === 'table' ? (
-                    <div className="flex flex-col xl:flex-row gap-8 min-h-[600px] xl:h-[800px]">
-                      {/* Left Panel: Compact List */}
-                      <div className={`w-full xl:w-[380px] flex flex-col h-full bg-[#161B22]/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-4 shadow-2xl ${mobileSubView === 'detail' ? 'hidden xl:flex' : 'flex'}`}>
-                        <div className="flex items-center justify-between mb-4 px-2">
-                          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Master Index</h4>
-                          <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
-                            {leads.length} Records
-                          </span>
-                        </div>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1 max-h-[500px] xl:max-h-none">
-                          {leads.map((lead) => (
-                            <LeadListItem
-                              key={lead.id}
-                              lead={lead}
-                              isSelected={selectedLead?.id === lead.id}
-                              onClick={() => handleLeadSelection(lead)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Right Panel: Enhanced Detail Visualization */}
-                      <div className={`flex-1 bg-[#161B22]/60 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] p-6 sm:p-8 shadow-2xl relative overflow-hidden ${mobileSubView === 'list' ? 'hidden xl:block' : 'block'}`}>
-                        {/* Mobile Back Button */}
-                        <div className="xl:hidden mb-6">
-                          <button
-                            onClick={() => setMobileSubView('list')}
-                            className="flex items-center gap-2 text-indigo-400 font-bold uppercase tracking-widest text-xs hover:text-indigo-300 transition-colors"
+                    <div className="relative min-h-[800px]">
+                      <AnimatePresence mode="wait">
+                        {!isListCollapsed ? (
+                          <motion.div
+                            key="master-index"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            transition={{ duration: 0.3 }}
+                            className="w-full flex flex-col gap-6"
                           >
-                            <ChevronLeft className="h-4 w-4" />
-                            Back to Index
-                          </button>
-                        </div>
+                            <div className="bg-[#161B22]/60 backdrop-blur-xl border border-white/10 rounded-[2rem] p-6 flex flex-col shadow-2xl relative group/index min-h-[600px]">
+                              <div className="absolute top-0 right-0 p-8 opacity-5 text-gray-500 pointer-events-none group-hover/index:scale-110 transition-transform duration-1000">
+                                <LayoutGrid className="h-40 w-40" />
+                              </div>
 
-                        {/* Background Decorative Gradient */}
-                        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/5 blur-[120px] rounded-full -mr-48 -mt-48 z-0" />
+                              <div className="flex items-center justify-between mb-8 relative z-10 px-2 lg:px-4">
+                                <h3 className="text-sm font-black uppercase tracking-[0.3em] text-gray-500 flex items-center gap-3">
+                                  <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                                  Master Index
+                                </h3>
+                                <div className="px-5 py-2 bg-indigo-500/10 rounded-full border border-indigo-500/20">
+                                  <span className="text-xs font-black text-indigo-400">{leads.length} Records</span>
+                                </div>
+                              </div>
 
-                        <div className="relative z-10 h-full">
-                          {isSelectionLoading ? (
-                            <div className="h-full flex flex-col items-center justify-center text-indigo-500/30 py-20">
-                              <div className="w-10 h-10 border-2 border-indigo-500/10 border-t-indigo-500/50 rounded-full animate-spin mb-4" />
-                              <p className="text-[10px] uppercase font-black tracking-widest">Syncing Matrix...</p>
+                              <div className="overflow-x-auto lg:overflow-visible focus:outline-none">
+                                {/* Table Header Row */}
+                                <div className="hidden lg:flex items-center px-6 py-4 mb-4 rounded-xl bg-[#0D1117]/80 border border-white/5 shadow-inner min-w-[800px]">
+                                  <div className="w-[30%] text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 pl-4">Contact Profile</div>
+                                  <div className="w-[20%] text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 pl-4">Lifecycle Stage</div>
+                                  <div className="w-[20%] text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 pl-4">Current Status</div>
+                                  <div className="w-[20%] text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 pl-4">AI Score</div>
+                                  <div className="w-[10%] text-right text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 pr-4">Action</div>
+                                </div>
+
+                                <div className="flex flex-col gap-3 min-w-[300px] lg:min-w-[800px]">
+                                  {leads.map((lead) => (
+                                    <LeadListItem
+                                      key={lead.id}
+                                      lead={lead}
+                                      isSelected={selectedLead?.id === lead.id}
+                                      onClick={() => onSelectLead(lead)}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
                             </div>
-                          ) : (
-                            <LeadDetailPane
-                              lead={selectedLead}
-                              canEdit={canEditLead(selectedLead)}
-                              onEdit={(l) => router.push(`/lms/leads/${l.id}/edit`)}
-                              onStatusChange={handleStatusChange}
-                              onAssign={handleAssignClick}
-                              teamMembers={teamMembers}
-                              onUpdate={(updatedLead) => {
-                                setSelectedLead(updatedLead);
-                                setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-                              }}
-                            />
-                          )}
-                        </div>
-                      </div>
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            key="detail-pane"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                            className="w-full flex-1 min-w-0"
+                          >
+                            <div className="bg-[#161B22]/40 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] p-6 lg:p-10 shadow-2xl min-h-full">
+                              {isSelectionLoading ? (
+                                <div className="h-full flex flex-col items-center justify-center space-y-4 py-32">
+                                  <div className="relative">
+                                    <Loader2 className="h-16 w-16 text-indigo-500 animate-spin" />
+                                    <div className="absolute inset-0 bg-indigo-500/20 blur-2xl rounded-full" />
+                                  </div>
+                                  <p className="text-[12px] font-black uppercase tracking-[0.5em] text-gray-500 animate-pulse mt-4">Syncing Full Matrix...</p>
+                                </div>
+                              ) : (
+                                <LeadDetailPane
+                                  lead={selectedLead}
+                                  onStatusChange={handleStatusChange}
+                                  teamMembers={teamMembers}
+                                  onAssign={handleAssignClick}
+                                  onScheduleFollowUp={handleScheduleFollowUpClick}
+                                  canEdit={selectedLead ? canEditLead(selectedLead) : false}
+                                  onUpdate={(updates) => {
+                                    if (updates.hasOwnProperty('isListCollapsed')) {
+                                      setIsListCollapsed(updates.isListCollapsed);
+                                      if (updates.isListCollapsed === false) {
+                                        // Clear selection entirely when returning to master index
+                                        setSelectedLead(null);
+                                      }
+                                    }
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -1696,7 +1995,8 @@ export default function Leads() {
                           onView={() => {
                             setSelectedLead(lead);
                             setViewMode('table');
-                            handleLeadSelection(lead);
+                            setIsListCollapsed(true);
+                            onSelectLead(lead);
                           }}
                           onEdit={() => router.push(`/lms/leads/${lead.id}/edit`)}
                           onDelete={() => handleDelete(lead)}
@@ -1721,36 +2021,38 @@ export default function Leads() {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex justify-center items-center gap-6 mt-16 pt-10 border-t border-white/5"
-          >
-            <Button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              variant="outline"
-              className="px-8 h-12 rounded-xl bg-[#161B22]/40 border-white/5 text-gray-500 hover:text-white transition-all disabled:opacity-20"
+        {
+          totalPages > 1 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex justify-center items-center gap-6 mt-16 pt-10 border-t border-white/5"
             >
-              Previous
-            </Button>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-black uppercase tracking-widest text-indigo-500 pb-0.5">Page</span>
-              <span className="text-xl font-black text-white tabular-nums">{currentPage}</span>
-              <span className="text-xs font-black uppercase tracking-widest text-gray-600 pb-0.5">of {totalPages}</span>
-            </div>
-            <Button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              variant="outline"
-              className="px-8 h-12 rounded-xl bg-[#161B22]/40 border-white/5 text-gray-500 hover:text-white transition-all disabled:opacity-20"
-            >
-              Next
-            </Button>
-          </motion.div>
-        )}
-      </div>
+              <Button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                variant="outline"
+                className="px-8 h-12 rounded-xl bg-[#161B22]/40 border-white/5 text-gray-500 hover:text-white transition-all disabled:opacity-20"
+              >
+                Previous
+              </Button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-widest text-indigo-500 pb-0.5">Page</span>
+                <span className="text-xl font-black text-white tabular-nums">{currentPage}</span>
+                <span className="text-xs font-black uppercase tracking-widest text-gray-600 pb-0.5">of {totalPages}</span>
+              </div>
+              <Button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                variant="outline"
+                className="px-8 h-12 rounded-xl bg-[#161B22]/40 border-white/5 text-gray-500 hover:text-white transition-all disabled:opacity-20"
+              >
+                Next
+              </Button>
+            </motion.div>
+          )
+        }
+      </div >
       <Dialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
         <DialogContent className="sm:max-w-[600px] bg-[#161B22] border-[#1F2937] text-white">
           <DialogHeader>
@@ -1883,6 +2185,6 @@ export default function Leads() {
           fetchStats();
         }}
       />
-    </Layout>
+    </Layout >
   );
 }

@@ -26,6 +26,7 @@ const Permission = require('./Permission');
 const FacebookPageConnection = require('./FacebookPageConnection');
 const FacebookLeadForm = require('./FacebookLeadForm');
 const LeadStage = require('./LeadStage');
+const FollowUp = require('./FollowUp');
 
 // New WFB Models
 const WaSetting = require('./WaSetting');
@@ -67,6 +68,7 @@ module.exports = {
     FacebookPageConnection,
     FacebookLeadForm,
     LeadStage,
+    FollowUp,
     WaSetting,
     WaContact,
     WaConversation,

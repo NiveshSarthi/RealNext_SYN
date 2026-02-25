@@ -22,6 +22,7 @@ router.use('/roles', require('./roles'));
 
 // Feature module routes
 router.use('/leads', require('../modules/lms/leads'));
+router.use('/followups', require('../modules/lms/followups'));
 router.use('/wa-marketing/contacts', require('../modules/wa-marketing/routes/contacts'));
 router.use('/wa-marketing/conversations', require('../modules/wa-marketing/routes/conversations'));
 router.use('/campaigns', require('../modules/wa-marketing/routes/campaigns'));

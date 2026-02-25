@@ -171,7 +171,7 @@ router.get('/', async (req, res, next) => {
 router.post('/invite', async (req, res, next) => {
     try {
         ensureClient(req);
-        const { email, name, password, role, role_id, department } = req.body;
+        const { email, name, password, role, role_id, department, assigned_features, assigned_modules } = req.body;
         const clientId = req.client.id;
 
         // Validate required fields
@@ -221,6 +221,8 @@ router.post('/invite', async (req, res, next) => {
             role: role || 'user',
             role_id: role_id || null,
             department: department || null,
+            assigned_features: assigned_features || [],
+            assigned_modules: assigned_modules || [],
             is_owner: false
         });
 
@@ -268,6 +270,8 @@ router.post('/invite', async (req, res, next) => {
             custom_role: newMember.role_id,
             department: newMember.department,
             is_owner: newMember.is_owner,
+            assigned_features: newMember.assigned_features,
+            assigned_modules: newMember.assigned_modules,
             email_sent: emailSent,
         };
 
@@ -305,7 +309,7 @@ router.patch('/:userId', async (req, res, next) => {
     try {
         ensureClient(req);
         const { userId } = req.params;
-        const { role, role_id, department, status } = req.body;
+        const { role, role_id, department, status, assigned_features, assigned_modules } = req.body;
         const clientId = req.client.id;
 
         const clientUser = await ClientUser.findOne({
@@ -326,6 +330,8 @@ router.patch('/:userId', async (req, res, next) => {
         if (role !== undefined) clientUser.role = role;
         if (role_id !== undefined) clientUser.role_id = role_id;
         if (department !== undefined) clientUser.department = department;
+        if (assigned_features !== undefined) clientUser.assigned_features = assigned_features;
+        if (assigned_modules !== undefined) clientUser.assigned_modules = assigned_modules;
 
         await clientUser.save();
 

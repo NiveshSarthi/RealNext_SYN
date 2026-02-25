@@ -25,6 +25,7 @@ export const USER_NAVIGATION = [
         icon: AcademicCapIcon,
         children: [
             { id: 'lms.leads', label: 'Leads', href: '/lms/leads', icon: UsersIcon },
+            { id: 'lms.followups', label: 'Follow-Ups', href: '/lms/followups', icon: QueueListIcon },
             { id: 'lms.lead_center', label: 'Lead Center', href: '/lms/lead-center', icon: UserGroupIcon },
             { id: 'lms.lms', label: 'LMS', href: '/lms', icon: AcademicCapIcon },
             { id: 'lms.network', label: 'Network', href: '/network', icon: UserGroupIcon },
@@ -79,6 +80,7 @@ export const ADMIN_NAVIGATION = [
         icon: AcademicCapIcon,
         children: [
             { id: 'lms.leads', label: 'Leads', href: '/lms/leads', icon: UsersIcon },
+            { id: 'lms.followups', label: 'Follow-Ups', href: '/lms/followups', icon: QueueListIcon },
             { id: 'lms.lead_center', label: 'Lead Center', href: '/lms/lead-center', icon: UserGroupIcon },
             { id: 'lms.lms', label: 'LMS', href: '/lms', icon: AcademicCapIcon },
             { id: 'lms.network', label: 'Network', href: '/network', icon: UserGroupIcon },

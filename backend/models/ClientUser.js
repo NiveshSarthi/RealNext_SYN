@@ -33,6 +33,14 @@ const clientUserSchema = new Schema({
     department: {
         type: String,
         required: false
+    },
+    assigned_features: {
+        type: [String],
+        default: []
+    },
+    assigned_modules: {
+        type: [String],
+        default: []
     }
 }, {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },

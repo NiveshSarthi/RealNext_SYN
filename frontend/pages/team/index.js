@@ -16,19 +16,38 @@ import { Button } from '../../components/ui/Button';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
+const MODULES = [
+    { id: 'lms', label: 'LMS (Leads)', icon: BriefcaseIcon },
+    { id: 'wa_marketing', label: 'WA Marketing', icon: EnvelopeIcon },
+    { id: 'inventory', label: 'Inventory', icon: BriefcaseIcon },
+];
+
 export default function TeamManagement() {
     const router = useRouter();
     const [teamMembers, setTeamMembers] = useState([]);
     const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showInviteModal, setShowInviteModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingMember, setEditingMember] = useState(null);
+
     const [inviteForm, setInviteForm] = useState({
         name: '',
         email: '',
         password: '',
         role: 'user',
         role_id: null,
-        department: ''
+        department: '',
+        assigned_modules: [],
+        assigned_features: []
+    });
+
+    const [editForm, setEditForm] = useState({
+        role: '',
+        role_id: null,
+        department: '',
+        assigned_modules: [],
+        assigned_features: []
     });
 
     // Check user permissions
@@ -38,12 +57,11 @@ export default function TeamManagement() {
             if (userStr) {
                 try {
                     const user = JSON.parse(userStr);
-                    const userRole = user?.context?.tenantRole;
+                    const userRole = user?.context?.tenantRole || user?.context?.clientRole;
 
-                    // Only admin and manager can access team management
                     if (userRole !== 'admin' && userRole !== 'manager') {
                         toast.error('You do not have permission to access this page');
-                        router.push('/analytics');
+                        router.push('/dashboard');
                         return;
                     }
                 } catch (e) {
@@ -96,20 +114,12 @@ export default function TeamManagement() {
             });
 
             setShowInviteModal(false);
-            setInviteForm({ name: '', email: '', password: '', role: 'user', role_id: null, department: '' });
+            setInviteForm({ name: '', email: '', password: '', role: 'user', role_id: null, department: '', assigned_modules: [], assigned_features: [] });
             fetchTeamMembers();
 
-            // Show appropriate success message
             if (response.data.data.generated_password) {
                 toast.success(`Team member created! Password: ${response.data.data.generated_password}`, {
-                    duration: 10000, // Show for 10 seconds
-                    action: {
-                        label: 'Copy',
-                        onClick: () => {
-                            navigator.clipboard.writeText(response.data.data.generated_password);
-                            toast.success('Password copied to clipboard!');
-                        }
-                    }
+                    duration: 10000,
                 });
             } else {
                 toast.success('Team member invited successfully!');
@@ -119,23 +129,44 @@ export default function TeamManagement() {
         }
     };
 
-    const handleUpdateRole = async (userId, newRoleId) => {
+    const handleUpdateMember = async (e) => {
+        e.preventDefault();
         try {
             const token = localStorage.getItem('access_token');
-            await axios.patch(`${API_URL}/api/team/${userId}`,
-                { role_id: newRoleId },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            await axios.patch(`${API_URL}/api/team/${editingMember.user_id}`, editForm, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setShowEditModal(false);
             fetchTeamMembers();
-            toast.success('Role updated successfully');
+            toast.success('Member updated successfully');
         } catch (error) {
-            toast.error(error.response?.data?.error || 'Failed to update role');
+            toast.error(error.response?.data?.error || 'Failed to update member');
+        }
+    };
+
+    const openEditModal = (member) => {
+        setEditingMember(member);
+        setEditForm({
+            role: member.role || 'user',
+            role_id: member.role_id || null,
+            department: member.department || '',
+            assigned_modules: member.assigned_modules || [],
+            assigned_features: member.assigned_features || []
+        });
+        setShowEditModal(true);
+    };
+
+    const toggleModule = (targetForm, setTargetForm, moduleId) => {
+        const current = targetForm.assigned_modules || [];
+        if (current.includes(moduleId)) {
+            setTargetForm({ ...targetForm, assigned_modules: current.filter(id => id !== moduleId) });
+        } else {
+            setTargetForm({ ...targetForm, assigned_modules: [...current, moduleId] });
         }
     };
 
     const handleRemoveMember = async (userId, memberName) => {
         if (!confirm(`Are you sure you want to remove ${memberName}?`)) return;
-
         try {
             const token = localStorage.getItem('access_token');
             await axios.delete(`${API_URL}/api/team/${userId}`, {
@@ -161,82 +192,50 @@ export default function TeamManagement() {
     return (
         <Layout>
             <div className="space-y-8 animate-fade-in content-container">
-                {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
                             <UserGroupIcon className="w-8 h-8 text-primary" />
                             Team Management
                         </h1>
-                        <p className="mt-1 text-sm text-gray-400">
-                            Manage your team members and their roles
-                        </p>
+                        <p className="mt-1 text-sm text-gray-400">Manage your team members and their roles</p>
                     </div>
-                    <Button
-                        onClick={() => setShowInviteModal(true)}
-                        variant="primary"
-                        className="shadow-glow-sm"
-                    >
+                    <Button onClick={() => setShowInviteModal(true)} variant="primary" className="shadow-glow-sm">
                         <PlusIcon className="h-5 w-5 mr-2" />
                         Invite Member
                     </Button>
                 </div>
 
-                {/* Team Members Table */}
                 <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-soft">
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-border/50">
                             <thead className="bg-[#0E1117]">
                                 <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                        Member
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                        Role
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                        Department
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                        Status
-                                    </th>
-                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                        Joined
-                                    </th>
-                                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                        Actions
-                                    </th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Member</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Role</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Department</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Status</th>
+                                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase">Joined</th>
+                                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-400 uppercase">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border/50">
                                 {teamMembers.length === 0 ? (
                                     <tr>
-                                        <td colSpan="6" className="px-6 py-12 text-center">
-                                            <div className="flex flex-col items-center">
-                                                <UserGroupIcon className="h-12 w-12 text-gray-600 mb-3" />
-                                                <p className="text-gray-400">No team members yet</p>
-                                                <p className="text-sm text-gray-500 mt-1">Invite your first team member to get started</p>
-                                            </div>
-                                        </td>
+                                        <td colSpan="6" className="px-6 py-12 text-center text-gray-400">No team members yet</td>
                                     </tr>
                                 ) : (
                                     teamMembers.map((member) => (
                                         <tr key={member.id} className="hover:bg-white/5 transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
-                                                    <div className="flex-shrink-0 h-10 w-10">
-                                                        <div className="h-10 w-10 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-primary font-semibold">
-                                                            {member.name.charAt(0).toUpperCase()}
-                                                        </div>
+                                                    <div className="flex-shrink-0 h-10 w-10 bg-primary/20 border border-primary/30 rounded-full flex items-center justify-center text-primary font-semibold">
+                                                        {member.name.charAt(0).toUpperCase()}
                                                     </div>
                                                     <div className="ml-4">
                                                         <div className="text-sm font-medium text-white flex items-center gap-2">
                                                             {member.name}
-                                                            {member.is_owner && (
-                                                                <span className="px-2 py-0.5 text-xs bg-yellow-500/10 text-yellow-400 rounded-full border border-yellow-500/20">
-                                                                    Owner
-                                                                </span>
-                                                            )}
+                                                            {member.is_owner && <span className="px-2 py-0.5 text-xs bg-yellow-500/10 text-yellow-400 rounded-full border border-yellow-500/20">Owner</span>}
                                                         </div>
                                                         <div className="text-sm text-gray-400 flex items-center gap-1">
                                                             <EnvelopeIcon className="h-3 w-3" />
@@ -246,55 +245,29 @@ export default function TeamManagement() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                {member.is_owner ? (
-                                                    <span className="text-sm text-white font-medium">Owner</span>
-                                                ) : (
-                                                    <select
-                                                        value={member.role_id || ''}
-                                                        onChange={(e) => handleUpdateRole(member.user_id, e.target.value || null)}
-                                                        className="text-sm bg-[#161B22] border border-border/50 rounded-lg px-3 py-1.5 text-white focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                    >
-                                                        <option value="">Select Role</option>
-                                                        {roles.map((role) => (
-                                                            <option key={role.id} value={role.id}>
-                                                                {role.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                )}
+                                                <span className="text-sm text-gray-300">{member.custom_role?.name || member.role}</span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm text-gray-400 flex items-center gap-1">
+                                                <div className="text-sm text-gray-400">
                                                     {member.department ? (
-                                                        <>
-                                                            <BriefcaseIcon className="h-3 w-3" />
-                                                            {member.department}
-                                                        </>
-                                                    ) : (
-                                                        <span className="text-gray-600">-</span>
-                                                    )}
+                                                        <div className="flex items-center gap-1"><BriefcaseIcon className="h-3 w-3" />{member.department}</div>
+                                                    ) : "-"}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full border ${member.status === 'active'
-                                                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                                                        : 'bg-red-500/10 text-red-400 border-red-500/20'
-                                                    }`}>
+                                                <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${member.status === 'active' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
                                                     {member.status}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                                                 {new Date(member.joined_at).toLocaleDateString()}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <td className="px-6 py-4 whitespace-nowrap text-right">
                                                 {!member.is_owner && (
-                                                    <button
-                                                        onClick={() => handleRemoveMember(member.user_id, member.name)}
-                                                        className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                                                        title="Remove member"
-                                                    >
-                                                        <TrashIcon className="w-4 h-4" />
-                                                    </button>
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button onClick={() => openEditModal(member)} className="p-2 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/10 transition-colors"><PencilIcon className="w-4 h-4" /></button>
+                                                        <button onClick={() => handleRemoveMember(member.user_id, member.name)} className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                                    </div>
                                                 )}
                                             </td>
                                         </tr>
@@ -311,94 +284,81 @@ export default function TeamManagement() {
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-card border border-border/50 rounded-xl shadow-2xl p-8 max-w-md w-full">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-bold text-white">Invite Team Member</h2>
-                            <button
-                                onClick={() => setShowInviteModal(false)}
-                                className="text-gray-400 hover:text-white transition-colors"
-                            >
-                                <XMarkIcon className="w-6 h-6" />
-                            </button>
+                            <h2 className="text-2xl font-bold text-white">Invite Member</h2>
+                            <button onClick={() => setShowInviteModal(false)} className="text-gray-400 hover:text-white"><XMarkIcon className="w-6 h-6" /></button>
                         </div>
                         <form onSubmit={handleInvite} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Name *</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={inviteForm.name}
-                                    onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                                    className="w-full px-4 py-2.5 bg-[#161B22] border border-border/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-primary focus:border-transparent"
-                                    placeholder="John Doe"
-                                />
+                                <input type="text" required value={inviteForm.name} onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })} className="w-full px-4 py-2 bg-[#161B22] border border-border/50 rounded-lg text-white" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
-                                <input
-                                    type="email"
-                                    required
-                                    value={inviteForm.email}
-                                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                                    className="w-full px-4 py-2.5 bg-[#161B22] border border-border/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-primary focus:border-transparent"
-                                    placeholder="john@company.com"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-                                <input
-                                    type="password"
-                                    value={inviteForm.password}
-                                    onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
-                                    className="w-full px-4 py-2.5 bg-[#161B22] border border-border/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-primary focus:border-transparent"
-                                    placeholder="Leave empty for auto-generated password"
-                                />
-                                <p className="text-xs text-gray-500 mt-1">
-                                    {inviteForm.password
-                                        ? "Custom password will be set for the user"
-                                        : "If left empty, a temporary password will be generated and shown to you"
-                                    }
-                                </p>
+                                <input type="email" required value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} className="w-full px-4 py-2 bg-[#161B22] border border-border/50 rounded-lg text-white" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
-                                <select
-                                    value={inviteForm.role_id || ''}
-                                    onChange={(e) => setInviteForm({ ...inviteForm, role_id: e.target.value || null })}
-                                    className="w-full px-4 py-2.5 bg-[#161B22] border border-border/50 rounded-lg text-white focus:ring-2 focus:ring-primary focus:border-transparent"
-                                >
+                                <select value={inviteForm.role_id || ''} onChange={(e) => setInviteForm({ ...inviteForm, role_id: e.target.value || null })} className="w-full px-4 py-2 bg-[#161B22] border border-border/50 rounded-lg text-white">
                                     <option value="">Select Role</option>
-                                    {roles.map((role) => (
-                                        <option key={role.id} value={role.id}>
-                                            {role.name}
-                                        </option>
-                                    ))}
+                                    {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Department (Optional)</label>
-                                <input
-                                    type="text"
-                                    value={inviteForm.department}
-                                    onChange={(e) => setInviteForm({ ...inviteForm, department: e.target.value })}
-                                    className="w-full px-4 py-2.5 bg-[#161B22] border border-border/50 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-primary focus:border-transparent"
-                                    placeholder="Sales, Marketing, etc."
-                                />
+                                <label className="block text-sm font-medium text-gray-300 mb-3">Assigned Modules</label>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {MODULES.map(mod => (
+                                        <label key={mod.id} className={`flex items-center p-3 rounded-lg border cursor-pointer ${inviteForm.assigned_modules.includes(mod.id) ? 'bg-primary/10 border-primary/50 text-white' : 'bg-[#161B22] border-border/50 text-gray-400'}`}>
+                                            <input type="checkbox" className="hidden" checked={inviteForm.assigned_modules.includes(mod.id)} onChange={() => toggleModule(inviteForm, setInviteForm, mod.id)} />
+                                            <mod.icon className="w-5 h-5 mr-3" />
+                                            <span className="text-sm font-medium">{mod.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
                             <div className="flex gap-3 mt-6">
-                                <Button
-                                    type="button"
-                                    onClick={() => setShowInviteModal(false)}
-                                    variant="outline"
-                                    className="flex-1"
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    variant="primary"
-                                    className="flex-1"
-                                >
-                                    {inviteForm.password ? 'Create Member' : 'Generate & Show Password'}
-                                </Button>
+                                <Button type="button" onClick={() => setShowInviteModal(false)} variant="outline" className="flex-1">Cancel</Button>
+                                <Button type="submit" variant="primary" className="flex-1">Invite</Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Modal */}
+            {showEditModal && editingMember && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-card border border-border/50 rounded-xl p-8 max-w-md w-full">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-bold text-white">Edit Member</h2>
+                            <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-white"><XMarkIcon className="w-6 h-6" /></button>
+                        </div>
+                        <form onSubmit={handleUpdateMember} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
+                                <select value={editForm.role_id || ''} onChange={(e) => setEditForm({ ...editForm, role_id: e.target.value || null })} className="w-full px-4 py-2 bg-[#161B22] border border-border/50 rounded-lg text-white">
+                                    <option value="">Select Role</option>
+                                    {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-3">Assigned Modules</label>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {MODULES.map(mod => (
+                                        <label key={mod.id} className={`flex items-center p-3 rounded-lg border cursor-pointer ${editForm.assigned_modules.includes(mod.id) ? 'bg-primary/10 border-primary/50 text-white' : 'bg-[#161B22] border-border/50 text-gray-400'}`}>
+                                            <input type="checkbox" className="hidden" checked={editForm.assigned_modules.includes(mod.id)} onChange={() => toggleModule(editForm, setEditForm, mod.id)} />
+                                            <mod.icon className="w-5 h-5 mr-3" />
+                                            <span className="text-sm font-medium">{mod.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Department</label>
+                                <input type="text" value={editForm.department} onChange={(e) => setEditForm({ ...editForm, department: e.target.value })} className="w-full px-4 py-2 bg-[#161B22] border border-border/50 rounded-lg text-white" />
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <Button type="button" onClick={() => setShowEditModal(false)} variant="outline" className="flex-1">Cancel</Button>
+                                <Button type="submit" variant="primary" className="flex-1">Save</Button>
                             </div>
                         </form>
                     </div>

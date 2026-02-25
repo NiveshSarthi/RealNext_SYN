@@ -9,41 +9,61 @@ const httpsAgent = new https.Agent({
     rejectUnauthorized: false
 });
 
-const WA_API_URL = process.env.WHATSAPP_API_URL || 'https://wfb.backend.niveshsarthi.com';
-// API base includes /api/v1 prefix as per API documentation
-const WA_API_BASE = `${WA_API_URL}/api/v1`;
-// Credentials read from environment variables
-const WA_CREDENTIALS = {
-    email: process.env.WA_EMAIL || 'testorg@gmail.com',
-    password: process.env.WA_PASSWORD || '123'
-};
+const WA_API_URL = process.env.WHATSAPP_API_URL || 'https://wfbbackend.niveshsarthi.com';
+// Credentials read from environment variables on demand in methods
 
 class WaService {
     constructor() {
-        this.token = null;
+        // Multi-layered authentication tokens
+        this.token = null; // Standard user / Org token
         this.tokenExpiry = null;
-        this.superAdminToken = null;
+        this.superAdminToken = null; // Master / Platform token
         this.superAdminTokenExpiry = null;
 
-        // Super Admin credentials as requested
-        this.SUPER_ADMIN_EMAIL = 'ratnaker@gmail.com';
-        this.SUPER_ADMIN_PASSWORD = '123';
+        // Base URL from env
+        this.WA_API_URL = process.env.WHATSAPP_API_URL || 'https://wfbbackend.niveshsarthi.com';
 
         this.api = axios.create({
-            baseURL: WA_API_URL, // Root URL: https://wfb.backend.niveshsarthi.com
+            baseURL: this.WA_API_URL,
             headers: { 'Content-Type': 'application/json' },
             timeout: 60000,
-            httpsAgent // Use custom agent for all requests
+            httpsAgent
         });
 
-        // Add interceptor to inject auth token to every non-login request
+        // Add interceptor to inject auth token to every request (except auth ones)
         this.api.interceptors.request.use(async (config) => {
-            const token = await this.getToken();
+            // Support passing useSuperAdminToken flag in the request config
+            const token = config.useSuperAdminToken
+                ? await this.getSuperAdminToken()
+                : await this.getToken();
+
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
             return config;
         });
+        // Buffer for master organization
+        this.masterOrgId = null;
+    }
+
+    async getMasterOrgId() {
+        if (this.masterOrgId) return this.masterOrgId;
+        try {
+            // Some endpoints might require it, but based on test_wfb_connect.js, 
+            // the master account can fetch global data without it.
+            // We'll still identify it for logging or specific requirements.
+            logger.info('Identifying Master Organization from WFB...');
+            const orgs = await this.getWfbOrganizations();
+            if (orgs && orgs.length > 0) {
+                const master = orgs.find(o => /master|admin|realnext/i.test(o.name)) || orgs[0];
+                this.masterOrgId = master._id || master.id;
+                logger.info(`Master Organization identified: ${this.masterOrgId} (${master.name})`);
+                return this.masterOrgId;
+            }
+        } catch (error) {
+            logger.warn('Could not identify Master Organization (might not be required for global view):', error.message);
+        }
+        return null;
     }
 
     async getToken() {
@@ -106,34 +126,52 @@ class WaService {
 
     async superAdminLogin() {
         try {
-            logger.info('Authenticating Super Admin with External WhatsApp API...');
-            console.log(`[DEBUG_AUTH] Attempting super-admin login for: ${this.SUPER_ADMIN_EMAIL}`);
+            // Per user request, use WA_EMAIL/PASSWORD from env as the master credentials
+            const credentials = {
+                email: process.env.WA_EMAIL,
+                password: process.env.WA_PASSWORD
+            };
 
-            const response = await axios.post(`${WA_API_URL}/super-admin/login`, {
-                email: this.SUPER_ADMIN_EMAIL,
-                password: this.SUPER_ADMIN_PASSWORD
-            }, {
+            if (!credentials.email || !credentials.password) {
+                logger.warn('Master WhatsApp credentials missing in .env');
+                return null;
+            }
+
+            logger.info('Authenticating Master WhatsApp Account for Super Admin...');
+            console.log(`[DEBUG_AUTH] Using /auth/login for master credentials: ${credentials.email}`);
+
+            const response = await axios.post(`${this.WA_API_URL}/auth/login`, credentials, {
                 timeout: 10000,
                 httpsAgent
             });
 
-            this.superAdminToken = response.data.access_token;
-            console.log(`[DEBUG_AUTH] Super Admin Login Success. Token snippet: ${this.superAdminToken?.substring(0, 15)}...`);
+            const token = response.data.access_token || response.data.token || response.data.data?.token;
 
-            this.superAdminTokenExpiry = new Date(new Date().getTime() + 25 * 60000); // 25 minutes buffer
-            return this.superAdminToken;
+            if (token) {
+                this.superAdminToken = token;
+                console.log(`[DEBUG_AUTH] Master Login Success. Token snippet: ${this.superAdminToken?.substring(0, 15)}...`);
+                // Token expiry - allow 30 mins buffer
+                this.superAdminTokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
+                return this.superAdminToken;
+            } else {
+                throw new Error('No token found in response body');
+            }
         } catch (error) {
             const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message;
-            logger.error('External WhatsApp API Super Admin Login Failed:', errorMsg);
-            throw new Error(`WFB Super Admin Auth Failed: ${errorMsg}`);
+            logger.error('External WhatsApp API Master Account Login Failed:', errorMsg);
+            if (error.response?.data) {
+                console.log('[DEBUG_AUTH] Error Response:', JSON.stringify(error.response.data));
+            }
+            throw new Error(`WFB Master Auth Failed: ${errorMsg}`);
         }
     }
 
+
     async getWfbOrganizations() {
         try {
-            const token = await this.getSuperAdminToken();
+            // Let the interceptor handle token injection via the flag
             const response = await this.api.get('/super-admin/organizations', {
-                headers: { Authorization: `Bearer ${token}` }
+                useSuperAdminToken: true
             });
             return response.data;
         } catch (error) {
@@ -254,22 +292,37 @@ class WaService {
     }
 
     // --- FLOWS (Root Path) ---
-    async getFlows() {
+    async getFlows(clientId = null) {
         try {
-            logger.info('Fetching flows from External API...');
-            const response = await this.api.get('/flows');
-            return response.data;
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
+            }
+
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            logger.info(`Fetching flows from External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
+
+            const response = await this.api.get('/flows', { headers, useSuperAdminToken: !clientId });
+            const data = response.data;
+
+            // Normalize to array
+            const flows = Array.isArray(data) ? data : (data?.data || data?.result || []);
+            return flows;
         } catch (error) {
             logger.error('Failed to fetch flows from External API:', error.message);
-            // Return empty array to prevent 500 errors on the route level
             return [];
         }
     }
 
-    async createFlow(flowData) {
+    async createFlow(flowData, clientId = null) {
         try {
-            logger.info('Creating flow in External API...');
-            const response = await this.api.post('/flows', flowData);
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
+            }
+            logger.info(`Creating flow in External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            const response = await this.api.post('/flows', flowData, { headers, useSuperAdminToken: !clientId });
             return response.data;
         } catch (error) {
             const msg = error.response?.data?.message || error.message;
@@ -281,10 +334,12 @@ class WaService {
         }
     }
 
-    async getFlow(id) {
+    async getFlow(id, clientId = null) {
         try {
-            logger.info(`Fetching flow ${id} from External API...`);
-            const response = await this.api.get(`/flows/${id}`);
+            const headers = clientId ? { 'x-client-id': clientId } : {};
+            logger.info(`Fetching flow ${id} from External API... ${clientId ? `(Client: ${clientId})` : 'MASTER/GLOBAL'}`);
+
+            const response = await this.api.get(`/flows/${id}`, { headers, useSuperAdminToken: !clientId });
             return response.data;
         } catch (error) {
             const msg = error.response?.data?.message || error.message;
@@ -300,10 +355,15 @@ class WaService {
         }
     }
 
-    async updateFlow(id, flowData) {
+    async updateFlow(id, flowData, clientId = null) {
         try {
-            logger.info(`Updating flow ${id} in External API...`);
-            const response = await this.api.put(`/flows/${id}`, flowData);
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
+            }
+            logger.info(`Updating flow ${id} in External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            const response = await this.api.put(`/flows/${id}`, flowData, { headers, useSuperAdminToken: !clientId });
             return response.data;
         } catch (error) {
             logger.error(`Failed to update flow ${id} in External API:`, error.message);
@@ -311,10 +371,15 @@ class WaService {
         }
     }
 
-    async deleteFlow(id) {
+    async deleteFlow(id, clientId = null) {
         try {
-            logger.info(`Deleting flow ${id} in External API...`);
-            const response = await this.api.delete(`/flows/${id}`);
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
+            }
+            logger.info(`Deleting flow ${id} in External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            const response = await this.api.delete(`/flows/${id}`, { headers, useSuperAdminToken: !clientId });
             return response.data;
         } catch (error) {
             logger.error(`Failed to delete flow ${id} in External API:`, error.message);
@@ -323,10 +388,15 @@ class WaService {
     }
 
     // --- TEMPLATES (/api/v1 Path) ---
-    async createTemplate(templateData) {
+    async createTemplate(templateData, clientId = null) {
         try {
-            logger.info('Sending template creation request to External API...');
-            const response = await this.api.post('/api/v1/templates', templateData);
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
+            }
+            logger.info(`Sending template creation request to External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            const response = await this.api.post('/api/v1/templates', templateData, { headers, useSuperAdminToken: !clientId });
             logger.info('External Template Created:', response.data);
             return response.data;
         } catch (error) {
@@ -339,11 +409,21 @@ class WaService {
         }
     }
 
-    async getTemplates(params = {}) {
+    async getTemplates(params = {}, clientId = null) {
         try {
-            logger.info('Fetching templates from External API...');
-            const response = await this.api.get('/api/v1/templates', { params, timeout: 10000 });
-            return response.data;
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
+            }
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            logger.info(`Fetching templates from External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
+
+            const response = await this.api.get('/api/v1/templates', { params, headers, timeout: 10000, useSuperAdminToken: !clientId });
+            const data = response.data;
+
+            // Normalize to array
+            const templates = Array.isArray(data) ? data : (data?.data || data?.result || []);
+            return templates;
         } catch (error) {
             const msg = error.response?.data?.message || error.message;
             logger.error(`Failed to fetch templates from External API: ${msg}`);
@@ -356,10 +436,15 @@ class WaService {
     }
 
     // --- CAMPAIGNS (/api/v1 Path) ---
-    async createCampaign(campaignData) {
+    async createCampaign(campaignData, clientId = null) {
         try {
-            logger.info('Sending campaign creation request to External API...');
-            const response = await this.api.post('/api/v1/campaigns', campaignData);
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
+            }
+            logger.info(`Sending campaign creation request to External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            const response = await this.api.post('/api/v1/campaigns', campaignData, { headers, useSuperAdminToken: !clientId });
             logger.info('External Campaign Created:', response.data);
             return response.data;
         } catch (error) {
@@ -372,40 +457,45 @@ class WaService {
         }
     }
 
-    async getCampaigns(params = {}) {
+    async getCampaigns(params = {}, clientId = null) {
         try {
-            logger.info('Fetching campaigns from External API...');
-            const response = await this.api.get('/api/v1/campaigns', { params, timeout: 10000 });
-            console.log(`[DEBUG_WFB_RAW] Campaigns Raw Keys:`, Object.keys(response.data));
-            // Log structure of first item if available
-            if (Array.isArray(response.data) && response.data.length > 0) {
-                console.log(`[DEBUG_WFB_RAW] First item structure:`, Object.keys(response.data[0]));
-            } else if (response.data.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
-                console.log(`[DEBUG_WFB_RAW] First item structure from .data:`, Object.keys(response.data.data[0]));
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
             }
-            return response.data;
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            logger.info(`Fetching campaigns from External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
+
+            const response = await this.api.get('/api/v1/campaigns', { params, headers, timeout: 10000, useSuperAdminToken: !clientId });
+            const innerData = response.data;
+            console.log(`[DEBUG_WFB_RAW] Campaigns Raw Keys:`, innerData ? Object.keys(innerData) : 'null');
+
+            // Normalize list extraction
+            const list = Array.isArray(innerData) ? innerData : (innerData?.data || innerData?.result || []);
+            return list;
         } catch (error) {
-            const msg = error.response?.data?.message || error.message;
-            logger.error(`Failed to fetch campaigns from External API: ${msg}`);
-            if (error.response?.data) {
-                logger.error('External API Response:', JSON.stringify(error.response.data));
-            }
-            throw error;
+            logger.error('Failed to fetch campaigns from External API:', error.message);
+            return [];
         }
     }
 
-    async getCampaignDetail(id) {
+    async getCampaignDetail(id, clientId = null) {
         try {
-            logger.info(`Fetching campaign detail for ${id} from External API...`);
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
+            }
+            logger.info(`Fetching campaign detail for ${id} from External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
             // Attempting direct detail endpoint
-            const response = await this.api.get(`/api/v1/campaigns/${id}`, { timeout: 5000 });
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            const response = await this.api.get(`/api/v1/campaigns/${id}`, { headers, timeout: 5000, useSuperAdminToken: !clientId });
             return response.data;
         } catch (error) {
             logger.warn(`Failed to fetch direct detail for campaign ${id}: ${error.message}. Attempting list fallback...`);
 
             // Fallback: Fetch list and find the item (inefficient but safe if detail endpoint missing)
             try {
-                const list = await this.getCampaigns({ limit: 100 });
+                const list = await this.getCampaigns({ limit: 100 }, clientId);
                 const campaigns = Array.isArray(list) ? list : (list.data || list.result || []);
                 const found = campaigns.find(c => (c._id === id || c.id === id));
                 if (found) return found;
@@ -417,10 +507,15 @@ class WaService {
         }
     }
 
-    async getCampaignLogs(id) {
+    async getCampaignLogs(id, clientId = null) {
         try {
-            logger.info(`Fetching campaign logs for ${id} from External API...`);
-            const response = await this.api.get(`/api/v1/campaigns/${id}/logs`, { timeout: 5000 });
+            let effectiveClientId = clientId;
+            if (!effectiveClientId) {
+                effectiveClientId = await this.getMasterOrgId();
+            }
+            logger.info(`Fetching campaign logs for ${id} from External API... ${effectiveClientId ? `(Client: ${effectiveClientId})` : 'GLOBAL'}`);
+            const headers = effectiveClientId ? { 'x-client-id': effectiveClientId } : {};
+            const response = await this.api.get(`/api/v1/campaigns/${id}/logs`, { headers, timeout: 5000, useSuperAdminToken: !clientId });
             return response.data;
         } catch (error) {
             logger.error(`Failed to fetch campaign logs for ${id} from External API:`, error.message);
@@ -430,11 +525,12 @@ class WaService {
 
 
     // --- CONTACTS (/api/v1 Path) ---
-    async createContact(payload) {
+    async createContact(payload, clientId = null) {
         const contactIdentifier = payload.number || payload.phone;
         try {
-            logger.info(`Syncing contact ${contactIdentifier} with External API...`);
-            const response = await this.api.post('/api/v1/contacts', payload);
+            logger.info(`Syncing contact ${contactIdentifier} with External API... ${clientId ? `(Client: ${clientId})` : ''}`);
+            const headers = clientId ? { 'x-client-id': clientId } : {};
+            const response = await this.api.post('/api/v1/contacts', payload, { headers });
             logger.info('External Contact Synced:', response.data);
             return response.data;
         } catch (error) {
@@ -449,7 +545,7 @@ class WaService {
 
                 try {
                     // Try to fetch the existing contact to get its ID
-                    const existingContacts = await this.getContacts({ search: contactIdentifier });
+                    const existingContacts = await this.getContacts({ search: contactIdentifier }, clientId);
 
                     // Handle response structure differences
                     const contacts = Array.isArray(existingContacts) ? existingContacts : (existingContacts?.contacts || []);
@@ -480,10 +576,11 @@ class WaService {
         }
     }
 
-    async getContacts(params = {}) {
+    async getContacts(params = {}, clientId = null) {
         try {
-            logger.info(`Fetching contacts from External API with params: ${JSON.stringify(params)}`);
-            const response = await this.api.get('/api/v1/contacts', { params });
+            logger.info(`Fetching contacts from External API with params: ${JSON.stringify(params)} ${clientId ? `(Client: ${clientId})` : ''}`);
+            const headers = clientId ? { 'x-client-id': clientId } : {};
+            const response = await this.api.get('/api/v1/contacts', { params, headers });
             return response.data;
         } catch (error) {
             logger.error('Failed to fetch contacts from External API:', error.message);
@@ -491,13 +588,15 @@ class WaService {
         }
     }
 
-    async uploadContacts(formData) {
+    async uploadContacts(formData, clientId = null) {
         try {
             // Note: Make sure the formData boundary is correctly serialized when passing to Axios
-            logger.info(`Uploading contacts CSV to External API...`);
-            const response = await this.api.post('/api/v1/contacts/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            logger.info(`Uploading contacts CSV to External API... ${clientId ? `(Client: ${clientId})` : ''}`);
+            const headers = {
+                'Content-Type': 'multipart/form-data',
+                ...(clientId ? { 'x-client-id': clientId } : {})
+            };
+            const response = await this.api.post('/api/v1/contacts/upload', formData, { headers });
             return response.data;
         } catch (error) {
             logger.error('Failed to upload contacts CSV:', error.message);
@@ -505,10 +604,11 @@ class WaService {
         }
     }
 
-    async deleteContact(id) {
+    async deleteContact(id, clientId = null) {
         try {
-            logger.info(`Deleting contact ${id} from External API...`);
-            const response = await this.api.delete(`/api/v1/contacts/${id}`);
+            logger.info(`Deleting contact ${id} from External API... ${clientId ? `(Client: ${clientId})` : ''}`);
+            const headers = clientId ? { 'x-client-id': clientId } : {};
+            const response = await this.api.delete(`/api/v1/contacts/${id}`, { headers });
             return response.data;
         } catch (error) {
             // Sometimes it's /contacts/:id and sometimes it's just not supported, fallback parsing handled here

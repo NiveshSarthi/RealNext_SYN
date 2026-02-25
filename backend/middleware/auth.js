@@ -148,7 +148,43 @@ const authenticate = async (req, res, next) => {
                     });
                 }
 
-                console.log(`[AUTH] Final features for user ${user.email}: ${Object.keys(req.features).join(', ')}`);
+                // --- NEW: Granular Feature/Module Assignment ---
+                // If it's a team member (not client owner/admin), restrict features to what's assigned
+                if (req.clientUser.role !== 'admin' && !req.user.is_super_admin) {
+                    const assignedFeatures = req.clientUser.assigned_features || [];
+                    const assignedModules = req.clientUser.assigned_modules || [];
+
+                    // If neither features nor modules are assigned, we take local assumption: 
+                    // ONLY restrict if at least one assignment exists? 
+                    // NO, the user says "Only the assigned features... should be accessible".
+                    // This implies if none are assigned, NONE are accessible.
+
+                    const allowedFeatures = new Set(assignedFeatures);
+
+                    // Add features from assigned modules
+                    assignedModules.forEach(mod => {
+                        if (mod === 'inventory') allowedFeatures.add('catalog');
+                        if (mod === 'lms') allowedFeatures.add('leads');
+                        if (mod === 'wa_marketing') {
+                            allowedFeatures.add('campaigns');
+                            allowedFeatures.add('workflows');
+                            allowedFeatures.add('templates');
+                            allowedFeatures.add('quick_replies');
+                            allowedFeatures.add('meta_ads');
+                        }
+                    });
+
+                    // Filter req.features
+                    Object.keys(req.features).forEach(code => {
+                        if (req.features[code] && !allowedFeatures.has(code)) {
+                            req.features[code] = false; // Disable feature for this user
+                        }
+                    });
+
+                    console.log(`[AUTH] Restricted features for ${user.email} based on assignments.`);
+                }
+
+                console.log(`[AUTH] Final features for user ${user.email}: ${Object.keys(req.features).filter(k => req.features[k]).join(', ')}`);
             } else {
                 console.log(`[AUTH] ❌ ClientUser link not found for user ${user.id} and client ${clientId}`);
             }

@@ -263,6 +263,16 @@ export const internalLeadsAPI = {
   reorderStages: (ids) => api.put('/api/leads/stages/reorder', { ids }),
 };
 
+// Follow-Ups API
+export const followupsAPI = {
+  getFollowUps: (params) => api.get('/api/followups', { params }),
+  getFollowUp: (id) => api.get(`/api/followups/${id}`),
+  createFollowUp: (data) => api.post('/api/followups', data),
+  updateFollowUp: (id, data) => api.put(`/api/followups/${id}`, data),
+  updateStatus: (id, status) => api.patch(`/api/followups/${id}/status`, { status }),
+  deleteFollowUp: (id) => api.delete(`/api/followups/${id}`),
+};
+
 // Aliasing contactsAPI to leadsAPI for backward compatibility
 export const leadsAPI = {
   ...internalLeadsAPI,

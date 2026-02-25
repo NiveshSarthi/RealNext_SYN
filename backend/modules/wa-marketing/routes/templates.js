@@ -39,39 +39,59 @@ router.get('/', requireFeature('templates'), async (req, res, next) => {
         const sorting = getSorting(req.query, ['name', 'status', 'category', 'created_at'], 'created_at');
 
         // --- START SYNC ---
-        try {
-            const externalTemplates = await waService.getTemplates();
-            if (Array.isArray(externalTemplates) && externalTemplates.length > 0) {
-                // Upsert logic
-                const bulkOps = externalTemplates.map(ext => ({
-                    updateOne: {
-                        filter: {
-                            client_id: req.client.id,
-                            name: ext.name
-                        },
-                        update: {
-                            $set: {
-                                status: ext.status,
-                                category: ext.category,
-                                language: ext.language,
-                                components: ext.components,
-                                wa_template_id: ext.id,
-                                metadata: { external_id: ext.id, external_response: ext }
-                            },
-                            $setOnInsert: {
-                                client_id: req.client.id,
-                                created_by: req.user.id,
-                                buttons: [] // Default if missing
-                            }
-                        },
-                        upsert: true
+        // Trigger sync: either for specific client OR master account for Super Admin
+        if (req.client?.id || req.user?.is_super_admin) {
+            const syncClientId = req.client?.id;
+            try {
+                // Fetch external templates (passing null if no client, triggers master sync in waService)
+                const externalTemplates = await waService.getTemplates({}, syncClientId);
+
+                if (Array.isArray(externalTemplates) && externalTemplates.length > 0) {
+                    // Determine which local client to map these templates to
+                    let localClientId = syncClientId;
+
+                    if (!localClientId && req.user?.is_super_admin) {
+                        // For Super Admin with no context, find the "Master" client
+                        const masterClient = await Client.findOne({ $or: [{ name: /Admin/i }, { email: /admin/i }] }) || await Client.findOne({});
+                        if (masterClient) {
+                            localClientId = masterClient._id;
+                            logger.info(`Using Master Client ${masterClient.name} (${localClientId}) for Super Admin sync`);
+                        }
                     }
-                }));
-                await Template.bulkWrite(bulkOps);
-                logger.info(`Synced ${externalTemplates.length} templates from external API`);
+
+                    if (localClientId) {
+                        // Upsert logic
+                        const bulkOps = externalTemplates.map(ext => ({
+                            updateOne: {
+                                filter: {
+                                    client_id: localClientId,
+                                    name: ext.name
+                                },
+                                update: {
+                                    $set: {
+                                        status: ext.status,
+                                        category: ext.category,
+                                        language: ext.language,
+                                        components: ext.components,
+                                        wa_template_id: ext.id,
+                                        metadata: { external_id: ext.id, external_response: ext }
+                                    },
+                                    $setOnInsert: {
+                                        client_id: localClientId,
+                                        created_by: req.user.id,
+                                        buttons: [] // Default if missing
+                                    }
+                                },
+                                upsert: true
+                            }
+                        }));
+                        await Template.bulkWrite(bulkOps);
+                        logger.info(`Synced ${externalTemplates.length} templates from external API for ${syncClientId ? 'client ' + syncClientId : 'MASTER account'}`);
+                    }
+                }
+            } catch (syncError) {
+                logger.warn(`Template sync failed for ${syncClientId || 'MASTER'}:`, syncError.message);
             }
-        } catch (syncError) {
-            logger.warn('Template sync failed (showing local data):', syncError.message);
         }
         // --- END SYNC ---
 
@@ -141,12 +161,13 @@ router.post('/',
             const languageCode = (language === 'en' || !language) ? 'en_US' : language;
 
             try {
-                externalTemplate = await waService.createTemplate({
+                const templatePayload = {
                     name: normalizedName,
                     category: normalizedCategory,
                     language: languageCode,
                     components: components || [],
-                });
+                };
+                externalTemplate = await waService.createTemplate(templatePayload, req.client?.id);
             } catch (extError) {
                 // Determine actual error message from WFB response
                 let errorMsg = extError.message;

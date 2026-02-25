@@ -10,14 +10,38 @@ const { ApiError } = require('../../../middleware/errorHandler');
 // Middleware chain for security and client context
 router.use(authenticate, requireClientAccess, setClientContext, enforceClientScope);
 
+// Defensive helper to ensure client context exists before using req.client.id
+const ensureClient = (req) => {
+    // Super admins can skip client context check for listing (GET)
+    if (req.user?.is_super_admin && req.method === 'GET') {
+        return;
+    }
+
+    if (!req.client || !req.client.id) {
+        throw new ApiError(400, 'Client context is required for this operation. Super Admins must provide a client ID.');
+    }
+};
+
 /**
  * @route GET /api/flows
  * @desc List all flows from WFB External API
  */
 router.get('/', async (req, res, next) => {
     try {
-        const flows = await waService.getFlows();
-        res.json(flows);
+        ensureClient(req);
+        logger.info(`Fetching flows for ${req.client?.id || 'GLOBAL (Super Admin)'}`);
+        const responseData = await waService.getFlows(req.client?.id);
+
+        // Normalize response: external API might return raw array OR { data: [], ... }
+        const flows = Array.isArray(responseData)
+            ? responseData
+            : (responseData?.data || responseData?.result || responseData?.flows || []);
+
+        res.json({
+            success: true,
+            data: flows,
+            count: flows.length
+        });
     } catch (error) {
         logger.error('Error fetching flows:', error.message);
         next(error);
@@ -44,7 +68,7 @@ router.post('/', async (req, res, next) => {
             metadata: metadata || { categories: categories || ['other'] }
         };
 
-        const result = await waService.createFlow(flowData);
+        const result = await waService.createFlow(flowData, req.client?.id);
 
         res.status(201).json({
             status: 'success',
@@ -64,7 +88,7 @@ router.post('/', async (req, res, next) => {
  */
 router.get('/:id', async (req, res, next) => {
     try {
-        const result = await waService.getFlow(req.params.id);
+        const result = await waService.getFlow(req.params.id, req.client?.id);
         // Flexible extraction logic
         let blocks = result.Message_Blocks || result.blocks || result.message_blocks || [];
         let routes = result.Message_Routes || result.routes || result.message_routes || [];
@@ -125,7 +149,7 @@ router.put('/:id', async (req, res, next) => {
             ]
         };
 
-        const result = await waService.updateFlow(req.params.id, wrappedPayload);
+        const result = await waService.updateFlow(req.params.id, wrappedPayload, req.client?.id);
         res.json({
             status: 'success',
             message: 'Flow updated successfully',
@@ -143,7 +167,7 @@ router.put('/:id', async (req, res, next) => {
  */
 router.delete('/:id', async (req, res, next) => {
     try {
-        await waService.deleteFlow(req.params.id);
+        await waService.deleteFlow(req.params.id, req.client?.id);
         res.json({
             status: 'success',
             message: 'Flow deleted successfully'

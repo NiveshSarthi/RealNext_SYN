@@ -178,12 +178,22 @@ router.get('/', requireFeature('campaigns'), async (req, res, next) => {
         // 2. Fetch External Campaigns
         let externalCampaigns = [];
         try {
-            const extResponse = await waService.getCampaigns({ limit: pagination.limit });
+            const extResponse = await waService.getCampaigns({ limit: pagination.limit }, req.client?.id);
             console.log(`[DEBUG_CAMPAIGN] Raw External Response Type: ${typeof extResponse}`);
-            console.log(`[DEBUG_CAMPAIGN] Raw External Response Keys:`, extResponse ? Object.keys(extResponse) : 'null');
 
-            externalCampaigns = Array.isArray(extResponse) ? extResponse : (extResponse?.data || extResponse?.result || []);
-            if (!Array.isArray(externalCampaigns)) externalCampaigns = [];
+            // Standardize extraction from various possible WFB response shapes
+            if (Array.isArray(extResponse)) {
+                externalCampaigns = extResponse;
+            } else if (extResponse?.data && Array.isArray(extResponse.data)) {
+                externalCampaigns = extResponse.data;
+            } else if (extResponse?.result && Array.isArray(extResponse.result)) {
+                externalCampaigns = extResponse.result;
+            } else if (extResponse?.campaigns && Array.isArray(extResponse.campaigns)) {
+                externalCampaigns = extResponse.campaigns;
+            } else {
+                externalCampaigns = [];
+            }
+
             console.log(`[DEBUG_CAMPAIGN] Extracted ${externalCampaigns.length} external campaigns.`);
         } catch (extError) {
             const errorMsg = extError.response?.data?.message || extError.message;
@@ -353,7 +363,7 @@ router.post('/',
 
                     let externalResponse;
                     try {
-                        externalResponse = await waService.createCampaign(externalPayload);
+                        externalResponse = await waService.createCampaign(externalPayload, req.client?.id);
                     } catch (firstTryError) {
                         const isNoContactsError =
                             firstTryError.response?.data?.detail === 'No contacts selected' ||
@@ -374,7 +384,7 @@ router.post('/',
                             if (reSyncedIds.length > 0) {
                                 externalPayload.contact_ids = reSyncedIds;
                                 console.log(`[DEBUG_CAMPAIGN] Retrying with ${reSyncedIds.length} re-synced IDs...`);
-                                externalResponse = await waService.createCampaign(externalPayload);
+                                externalResponse = await waService.createCampaign(externalPayload, req.client?.id);
                             } else {
                                 throw firstTryError;
                             }
@@ -447,10 +457,11 @@ router.post('/',
 router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
     try {
         ensureClient(req);
-        const localCampaign = await Campaign.findOne({
-            _id: req.params.id,
-            client_id: req.client.id
-        });
+        const query = { _id: req.params.id };
+        if (req.client?.id) {
+            query.client_id = req.client.id;
+        }
+        const localCampaign = await Campaign.findOne(query);
 
         let data = localCampaign ? localCampaign.toObject() : null;
 
@@ -458,8 +469,8 @@ router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
         if (data && data.metadata?.external_id) {
             try {
                 const [liveData, logs] = await Promise.all([
-                    waService.getCampaignDetail(data.metadata.external_id).catch(() => ({})),
-                    waService.getCampaignLogs(data.metadata.external_id).catch(() => [])
+                    waService.getCampaignDetail(data.metadata.external_id, req.client?.id).catch(() => ({})),
+                    waService.getCampaignLogs(data.metadata.external_id, req.client?.id).catch(() => [])
                 ]);
 
                 // Normalize liveData (if it's an array, it's malformed or a log response)
@@ -480,8 +491,8 @@ router.get('/:id', requireFeature('campaigns'), async (req, res, next) => {
             // Try fetching directly as external ID
             try {
                 const [liveData, logs] = await Promise.all([
-                    waService.getCampaignDetail(req.params.id),
-                    waService.getCampaignLogs(req.params.id)
+                    waService.getCampaignDetail(req.params.id, req.client?.id),
+                    waService.getCampaignLogs(req.params.id, req.client?.id)
                 ]);
 
                 // Normalize
