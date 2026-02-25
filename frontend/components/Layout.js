@@ -27,11 +27,13 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { USER_NAVIGATION, ADMIN_NAVIGATION } from '../utils/navigationConfig';
+import InteractiveAvatar from './InteractiveAvatar';
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
+  const [showAvatar, setShowAvatar] = useState(true);
   const { user, router } = useAuth();
 
   let navigation = [];
@@ -359,6 +361,12 @@ export default function Layout({ children }) {
           </div>
         </main>
       </div>
+
+      {/* Global Interactive Avatar Instance */}
+      <InteractiveAvatar
+        isVisible={showAvatar}
+        onClose={() => setShowAvatar(false)}
+      />
     </div>
   );
 }

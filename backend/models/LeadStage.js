@@ -4,7 +4,7 @@ const leadStageSchema = new mongoose.Schema({
     client_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Client',
-        required: true,
+        required: false, // Optional for global stages
         index: true
     },
     name: {
@@ -38,9 +38,8 @@ const leadStageSchema = new mongoose.Schema({
 });
 
 // Update the updated_at field on save
-leadStageSchema.pre('save', function (next) {
+leadStageSchema.pre('save', function () {
     this.updated_at = Date.now();
-    next();
 });
 
 module.exports = mongoose.model('LeadStage', leadStageSchema);
