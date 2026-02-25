@@ -10,16 +10,19 @@ import api from '../../../../utils/api'; // Adjust path to root utils/api
 export const flowApi = {
     getFlows: async () => {
         const response = await api.get('/api/flows');
-        return response.data;
+        // Backend returns { success: true, data: [], count: n }
+        return response.data?.data || [];
     },
 
     createFlow: async (flowData) => {
         const response = await api.post('/api/flows', flowData);
+        // Backend returns { status: 'success', flow_id: '...', data: result }
         return response.data;
     },
 
     getFlow: async (flowId) => {
         const response = await api.get(`/api/flows/${flowId}`);
+        // Backend returns { status: 'success', data: { b, r }, meta: { ... } }
         return response.data;
     },
 

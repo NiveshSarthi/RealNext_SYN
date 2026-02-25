@@ -3,6 +3,7 @@ const router = express.Router();
 const logger = require('../config/logger');
 const authService = require('../services/authService');
 const emailService = require('../services/emailService');
+const otpService = require('../services/otpService');
 const { authenticate } = require('../middleware/auth');
 const { authLimiter, passwordResetLimiter } = require('../middleware/rateLimiter');
 const { auditAction } = require('../middleware/auditLogger');
@@ -39,28 +40,80 @@ router.post('/login', authLimiter, async (req, res, next) => {
 });
 
 /**
- * @route POST /api/auth/register
- * @desc Register new user
+ * @route POST /api/auth/send-otp
+ * @desc Send verification OTP to email
  * @access Public
  */
-router.post('/register', authLimiter, register, async (req, res, next) => {
-    try {
-        const { name, email, password, phone, company_name, partner_code } = req.body;
+router.post('/send-otp',
+    [validators.email(), validate],
+    async (req, res, next) => {
+        try {
+            const { email } = req.body;
+            const { User } = require('../models');
 
-        const result = await authService.register(
-            { name, email, password, phone, company_name },
-            req,
-            partner_code
-        );
+            // Check if user already exists
+            const existingUser = await User.findOne({ email: email.toLowerCase() });
+            if (existingUser && existingUser.email_verified) {
+                throw ApiError.conflict('Email already registered and verified');
+            }
 
-        res.status(201).json({
-            success: true,
-            data: result
-        });
-    } catch (error) {
-        next(error);
+            // Generate and send OTP
+            const otp = await otpService.generateOTP(email, 'registration');
+            await emailService.sendRegistrationOTP(email, otp);
+
+            res.json({
+                success: true,
+                message: 'Verification code sent to email'
+            });
+        } catch (error) {
+            next(error);
+        }
     }
-});
+);
+
+/**
+ * @route POST /api/auth/register
+ * @desc Register new user (requires OTP)
+ * @access Public
+ */
+router.post('/register',
+    authLimiter,
+    [
+        ...register, // Original validators
+        body('otp_code').isLength({ min: 6, max: 6 }).withMessage('Valid 6-digit OTP is required'),
+        validate
+    ],
+    async (req, res, next) => {
+        try {
+            const { name, email, password, phone, company_name, partner_code, otp_code } = req.body;
+
+            // 1. Verify OTP first
+            const isOtpValid = await otpService.verifyOTP(email, otp_code, 'registration');
+            if (!isOtpValid) {
+                throw ApiError.badRequest('Invalid or expired verification code');
+            }
+
+            // 2. Proceed with registration
+            const result = await authService.register(
+                { name, email: email.toLowerCase(), password, phone, company_name },
+                req,
+                partner_code
+            );
+
+            // 3. Mark user as verified immediately (since OTP was valid)
+            const { User } = require('../models');
+            await User.findByIdAndUpdate(result.user.id, { email_verified: true });
+            result.user.email_verified = true;
+
+            res.status(201).json({
+                success: true,
+                data: result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+);
 
 /**
  * @route POST /api/auth/google

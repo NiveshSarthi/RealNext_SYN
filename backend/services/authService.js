@@ -74,48 +74,67 @@ class AuthService {
      */
     async register(userData, req, partnerCode = null) {
         // Check if user exists
-        const existingUser = await User.findOne({ email: userData.email });
-        if (existingUser) {
-            throw ApiError.conflict('Email already registered');
+        let user = await User.findOne({ email: userData.email });
+
+        if (user) {
+            // If user is already verified, we cannot register again
+            if (user.email_verified) {
+                throw ApiError.conflict('Email already registered');
+            }
+
+            // If user is unverified, update their details so they can try again
+            user.password_hash = userData.password;
+            user.name = userData.name;
+            user.phone = userData.phone;
+            user.status = 'active';
+            await user.save();
+
+            logger.info(`Updated existing unverified user: ${userData.email}`);
+        } else {
+            // Create new user
+            user = await User.create({
+                email: userData.email,
+                password_hash: userData.password,
+                name: userData.name,
+                phone: userData.phone,
+                email_verified: false,
+                status: 'active'
+            });
         }
 
-        // Create user
-        const user = await User.create({
-            email: userData.email,
-            password_hash: userData.password,
-            name: userData.name,
-            phone: userData.phone,
-            email_verified: false,
-            status: 'active'
-        });
+        // Check if client already exists for this email to avoid duplicate client creation on 
+        // resumed registrations. 
+        let client = await Client.findOne({ email: userData.email });
 
-        // Create client for the user with restricted defaults
-        const client = await Client.create({
-            name: userData.company_name || `${userData.name}'s Organization`,
-            email: userData.email,
-            phone: userData.phone,
-            status: 'active',
-            environment: 'production',
-            settings: {
-                menu_access: {
-                    lms: false,
-                    wa_marketing: false,
-                    inventory: false
+        if (!client) {
+            // Create client for the user with restricted defaults
+            client = await Client.create({
+                name: userData.company_name || `${userData.name}'s Organization`,
+                email: userData.email,
+                phone: userData.phone,
+                status: 'active',
+                environment: 'production',
+                settings: {
+                    menu_access: {
+                        lms: false,
+                        wa_marketing: false,
+                        inventory: false
+                    }
                 }
-            }
-        });
+            });
 
-        // Make user the client owner
-        await ClientUser.create({
-            client_id: client._id,
-            user_id: user._id,
-            role: 'admin',
-            is_owner: true,
-            permissions: []
-        });
+            // Make user the client owner
+            await ClientUser.create({
+                client_id: client._id,
+                user_id: user._id,
+                role: 'admin',
+                is_owner: true,
+                permissions: []
+            });
 
-        // Create trial subscription if default plan exists
-        await this.createTrialSubscription(client._id);
+            // Create trial subscription if default plan exists
+            await this.createTrialSubscription(client._id);
+        }
 
         // Get user context
         const context = await this.getUserContext(user);

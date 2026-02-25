@@ -230,6 +230,7 @@ export const authAPI = {
   refresh: (refreshToken) => api.post('/api/auth/refresh', { refresh_token: refreshToken }),
   getProfile: () => api.get('/api/auth/me'),
   updateProfile: (data) => api.put('/api/auth/update-profile', data),
+  sendOtp: (email) => api.post('/api/auth/send-otp', { email }),
 };
 
 // Contacts API (External WhatsApp API)

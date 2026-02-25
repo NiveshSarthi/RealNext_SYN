@@ -36,7 +36,8 @@ export default function FlowList() {
         setLoading(true);
         try {
             const data = await flowApi.getFlows();
-            setFlows(data);
+            // Ensure flows is always an array
+            setFlows(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Failed to fetch flows', error);
         } finally {
@@ -66,15 +67,15 @@ export default function FlowList() {
 
         try {
             await flowApi.deleteFlow(id);
-            setFlows(flows.filter(f => f.id !== id));
+            setFlows(prev => Array.isArray(prev) ? prev.filter(f => f.id !== id) : []);
         } catch (error) {
             console.error('Failed to delete flow', error);
             alert('Failed to delete flow');
         }
     };
 
-    const filteredFlows = flows.filter(flow =>
-        flow.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const filteredFlows = (Array.isArray(flows) ? flows : []).filter(flow =>
+        flow.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (flow.description && flow.description.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 

@@ -200,13 +200,17 @@ export default function LeadDetail() {
             <div className="space-y-6 animate-fade-in content-container">
                 {/* Navigation and Actions */}
                 <div className="flex items-center justify-between">
-                    <button
-                        onClick={() => router.push('/lms/leads')}
-                        className="inline-flex items-center text-sm text-gray-400 hover:text-white font-medium transition-colors"
+                    <Link
+                        href="/lms/leads"
+                        className="group flex items-center gap-3 pr-5 py-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-primary transition-all duration-300 shadow-2xl"
                     >
-                        <ArrowLeftIcon className="h-4 w-4 mr-2" />
-                        Back
-                    </button>
+                        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 group-hover:scale-110 transition-transform">
+                            <ArrowLeftIcon className="h-5 w-5 text-black" />
+                        </div>
+                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/70 group-hover:text-primary transition-colors">
+                            Back to Master Index
+                        </span>
+                    </Link>
                     <div className="flex space-x-3">
                         <Button
                             onClick={() => setShowQuickUpdate(true)}

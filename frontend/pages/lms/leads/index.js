@@ -1968,10 +1968,19 @@ export default function Leads() {
                                   onAssign={handleAssignClick}
                                   onScheduleFollowUp={handleScheduleFollowUpClick}
                                   canEdit={selectedLead ? canEditLead(selectedLead) : false}
-                                  onUpdate={(updates) => {
-                                    if (updates.hasOwnProperty('isListCollapsed')) {
-                                      setIsListCollapsed(updates.isListCollapsed);
-                                      if (updates.isListCollapsed === false) {
+                                  onUpdate={(data) => {
+                                    if (!data) return;
+
+                                    // If data has an id, it's a lead update
+                                    if (data.id || data._id) {
+                                      const updatedLead = data;
+                                      setSelectedLead(updatedLead);
+                                      setLeads(prev => prev.map(l => (l.id === updatedLead.id || l._id === updatedLead._id) ? updatedLead : l));
+                                    }
+                                    // Handle layout/collapsed state updates
+                                    else if (data.hasOwnProperty('isListCollapsed')) {
+                                      setIsListCollapsed(data.isListCollapsed);
+                                      if (data.isListCollapsed === false) {
                                         // Clear selection entirely when returning to master index
                                         setSelectedLead(null);
                                       }
