@@ -60,6 +60,17 @@ class EmailService {
     return { success: true, messageId: info.messageId };
   }
 
+  async sendRegistrationOTP(email, otp) {
+    const info = await this.transporter.sendMail({
+      from: this.from(),
+      to: email,
+      subject: `Verify your registration - ${otp}`,
+      html: this.otpTemplate({ email, otp })
+    });
+    logger.info(`Registration OTP email sent to ${email}: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  }
+
   // ─── Base layout ─────────────────────────────────────────────────────────
   baseLayout(content, previewText = '') {
     const year = new Date().getFullYear();
@@ -283,6 +294,37 @@ ${previewText ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:
       </table>`;
 
     return this.baseLayout(content, `Welcome to RealNext, ${firstName}!`);
+  }
+
+  // ─── OTP Template ────────────────────────────────────────────────────────
+  otpTemplate({ email, otp }) {
+    const content = `
+      <h1 style="font-size:24px;font-weight:700;color:#111827;margin:0 0 8px;">Verify Your Email</h1>
+      <p style="font-size:15px;color:#6B7280;line-height:1.65;margin:0 0 28px;">
+        Use the following 6-digit code to verify your registration for <strong style="color:#374151;">${email}</strong>.
+      </p>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="background:#F9FAFB;border:1.5px solid #E5E7EB;border-radius:10px;overflow:hidden;margin:0 0 28px;text-align:center;">
+        <tr>
+          <td style="padding:24px;">
+            <div style="font-size:48px;font-weight:800;color:#F97316;letter-spacing:12px;font-family:Courier New,monospace;display:inline-block;">
+              ${otp}
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;margin:0 0 24px;">
+        <tr><td style="padding:14px 18px;">
+          <p style="font-size:13px;color:#92400E;margin:0;line-height:1.55;text-align:center;">
+            ⏱ &nbsp;<strong>This code expires in 10 minutes.</strong> If you didn't request this, you can safely ignore this email.
+          </p>
+        </td></tr>
+      </table>`;
+
+    return this.baseLayout(content, `Your verification code is ${otp}`);
   }
 }
 

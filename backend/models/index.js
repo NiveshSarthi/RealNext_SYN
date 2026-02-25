@@ -27,6 +27,7 @@ const FacebookPageConnection = require('./FacebookPageConnection');
 const FacebookLeadForm = require('./FacebookLeadForm');
 const LeadStage = require('./LeadStage');
 const FollowUp = require('./FollowUp');
+const OTP = require('./OTP');
 
 // New WFB Models
 const WaSetting = require('./WaSetting');
@@ -72,5 +73,6 @@ module.exports = {
     WaSetting,
     WaContact,
     WaConversation,
-    WaMessage
+    WaMessage,
+    OTP
 };

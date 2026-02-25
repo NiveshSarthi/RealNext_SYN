@@ -63,7 +63,7 @@ export default function Login() {
     <div className="min-h-screen bg-[#07090D] flex items-center justify-center p-6 relative overflow-hidden font-sans selection:bg-primary/30">
       {/* Immersive Background Mesh */}
       <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[url('https://grain-gradient.vercel.app/noise.svg')] opacity-[0.15] mix-blend-overlay"></div>
+        <div className="absolute inset-0 bg-[url('/images/noise.svg')] opacity-[0.15] mix-blend-overlay"></div>
 
         {/* Animated Mesh Gradients */}
         <motion.div

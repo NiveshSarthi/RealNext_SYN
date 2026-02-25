@@ -215,7 +215,7 @@ export default function Home() {
       {/* Background Video Ambience / Motion Particles */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         {/* Animated Video Placeholder Effect */}
-        <div className="absolute inset-0 bg-[url('https://grain-gradient.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+        <div className="absolute inset-0 bg-[url('/images/noise.svg')] opacity-20 mix-blend-overlay"></div>
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-primary/5 via-transparent to-black/20 animate-pulse"></div>
 
         {/* Layered Floating Blobs */}

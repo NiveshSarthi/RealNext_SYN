@@ -137,6 +137,18 @@ export function AuthProvider({ children, router }) {
     }
   };
 
+  const sendOtp = async (email) => {
+    try {
+      const response = await authAPI.sendOtp(email);
+      return { success: true, message: response.data.message };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message || 'Failed to send verification code'
+      };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
@@ -243,6 +255,7 @@ export function AuthProvider({ children, router }) {
     login,
     register,
     logout,
+    sendOtp,
     updateProfile,
     refreshSubscription,
     router,
